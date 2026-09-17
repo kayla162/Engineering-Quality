@@ -122,3 +122,25 @@ def make_xls_bytes(rows=None, sheet_name=SAMPLE_SHEET) -> bytes:
     buffer = BytesIO()
     book.save(buffer)
     return buffer.getvalue()
+
+
+# 真實標單的表頭（含全形空白，比對前要正規化）
+BOQ_HEADER = ["項 次", "項  目  及  說  明", "單 位", "數 量", "單 價", "複 價", "編碼(備註)"]
+BOQ_ROWS = [
+    ["新北市政府消防局", "", "", "", "", "", ""],
+    ["詳細價目表[契約]", "", "", "", "", "", ""],
+    BOQ_HEADER,
+    ["壹", "發包工程費", "", "", "", "", ""],
+    ["壹.一.1.1.1", "施工測量，基地測量及鑑界費", "式", 1, 100000, 100000, "0172500004,*"],
+    ["", "施工中由承商建置，採租用", "", "", "", "", ""],
+    ["壹.一.1.2.1", "普通模板，普通模板含組立", "M2", 959, 500, 479500, "0311010002"],
+    ["壹.一.1.3.1", "天花板，長條鋁企口天花板", "M2", 120, 800, 96000, ""],
+]
+
+
+def make_boq_bytes(rows=None, header_sheet="契約詳細表", suffix=".xlsx") -> bytes:
+    """產生測試用標單。預設含標題列、表頭、群組列、明細列與續寫列。"""
+    payload = rows if rows is not None else BOQ_ROWS
+    if suffix == ".xls":
+        return make_xls_bytes(rows=payload, sheet_name=header_sheet)
+    return make_xlsx_bytes(rows=payload, sheet_name=header_sheet)
