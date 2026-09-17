@@ -79,6 +79,24 @@ class AIPurpose(StrEnum):
     REPORT_SUMMARY = "report_summary"
 
 
+class DocumentRole(StrEnum):
+    """文件在專案裡的角色。
+
+    對應 docs/superpowers/specs/2026-09-11-工項檢核表-design.md 的綠框：
+    契約及契約圖、法規、施工規範。法規不是上傳的文件（由 taiwan_law / pcces 提供），
+    標單則是工項清單的來源。
+
+    角色決定跑什麼管線：標單走工項抽取，契約與規範走法規抽取。
+    把法規抽取跑在標單上只會得到滿頁 NOT_FOUND（實測 38 筆）。
+    """
+
+    BOQ = "boq"                      # 標單（詳細價目表）
+    CONTRACT = "contract"            # 契約書
+    DRAWING = "drawing"              # 契約圖
+    SPECIFICATION = "specification"  # 施工規範（常是契約附件）
+    OTHER = "other"
+
+
 class SourceAvailability(StrEnum):
     """已啟用的法規來源整體上能不能查（對應 GET /api/sources）。
 
