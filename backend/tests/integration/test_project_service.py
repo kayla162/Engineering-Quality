@@ -78,18 +78,42 @@ class TestBuildWorkItems:
     async def test_rebuilding_replaces_instead_of_duplicating(
         self, db_session, project, boq_document
     ):
+        """重跑第二次之後要向資料庫重新查詢，不能只比對記憶體裡回傳的清單——
+        兩次都是從同一份標單新建出來的，就算沒有先刪除舊資料，長度也會恆等。
+        """
         service = ProjectService(db_session)
         await service.attach_document(project.id, boq_document.id, DocumentRole.BOQ)
         first = await service.build_work_items(project.id)
 
-        second = await service.build_work_items(project.id)
+        await service.build_work_items(project.id)
 
-        assert len(second) == len(first)
+        stored = await service.work_items(project.id)
+        assert len(stored) == len(first)
 
     async def test_project_without_a_boq_says_so(self, db_session, project):
         """沒掛標單就沒有工項來源——要明確講，不要回空清單讓人以為標單裡沒東西。"""
         with pytest.raises(AppError, match="標單"):
             await ProjectService(db_session).build_work_items(project.id)
+
+
+class TestListProjects:
+    async def test_returns_created_projects(self, db_session):
+        service = ProjectService(db_session)
+        first = await service.create_project("專案一")
+        second = await service.create_project("專案二")
+
+        projects = await service.list_projects()
+
+        assert {p.id for p in projects} == {first.id, second.id}
+
+
+class TestWorkItemsQuery:
+    async def test_unknown_project_raises(self, db_session):
+        """對不存在的專案要回 404（ProjectNotFoundError），不是空清單。"""
+        import uuid
+
+        with pytest.raises(ProjectNotFoundError):
+            await ProjectService(db_session).work_items(uuid.uuid4())
 
 
 class TestSpecChapterLink:
