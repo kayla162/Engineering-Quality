@@ -19,3 +19,6 @@ data/pcces_index.json
 
 # TypeScript 增量編譯的快取，不進版控
 frontend/tsconfig.tsbuildinfo
+
+# subagent-driven-development 的工作區（ledger、brief、review package）
+.superpowers/
