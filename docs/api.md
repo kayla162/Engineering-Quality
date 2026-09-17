@@ -224,6 +224,68 @@ Query：`q`（查詢字串）、`type`（可選）。先查內部 `regulations` 
 
 ---
 
+## 6.5 專案與工項
+
+專案是加在 `documents` 之上的一層：同一份文件仍然走原本的上傳→解析→抽取流程，
+專案只記錄「這份文件在這個專案裡扮演什麼角色」。
+
+**角色決定跑什麼管線**：標單走工項抽取，契約與規範走法規抽取。把法規抽取跑在
+標單上只會得到滿頁 `NOT_FOUND`（實測 38 筆）。
+
+| `role` | 意義 |
+|---|---|
+| `boq` | 標單（詳細價目表）。工項清單的來源 |
+| `contract` | 契約書 |
+| `drawing` | 契約圖 |
+| `specification` | 施工規範（常是契約附件） |
+| `other` | 其他 |
+
+### `POST /api/projects`
+
+`{"name": "秀山分隊興建工程"}` → 201，回 `{project_id, name, created_at}`。
+名稱只有空白會是 400。
+
+### `GET /api/projects`
+
+`{"total": 1, "items": [...]}`
+
+### `POST /api/projects/{project_id}/documents`
+
+`{"document_id": "...", "role": "boq"}` → 201。同一份文件在同一個專案裡只能掛一次，
+重複掛是 400；專案不存在是 404 `PROJECT_NOT_FOUND`。
+
+### `POST /api/projects/{project_id}/work-items`
+
+從專案的標單重建工項清單，**取代**舊的而不是累加。沒掛標單是 400，訊息會說明
+「這個專案還沒有掛標單，沒有工項來源」。
+
+### `GET /api/projects/{project_id}/work-items`
+
+```json
+{
+  "total": 1028,
+  "with_spec_chapter": 438,
+  "items": [
+    {
+      "work_item_id": "...",
+      "item_no": "壹.一.1.1.1",
+      "name": "施工測量，基地測量及鑑界費",
+      "unit": "式",
+      "quantity": "1",
+      "cost_code": "0172500004",
+      "spec_chapter": {"code": "01725", "name": "公共工程施工綱要規範第01725章 施工測量"}
+    }
+  ]
+}
+```
+
+`spec_chapter` 由計價代碼前 5 碼查施工綱要規範目錄得到。對不到就是 `null`——
+各機關自訂的專業工項不在共通性工項目錄裡。實測真實標單 1028 個工項：513 個有計價
+代碼，其中 438 個對得到章節（佔有代碼者 85%、佔全部工項 43%）。兩個數字要分開看：
+有代碼的話命中率很高，但只有一半的工項有代碼。
+
+---
+
 ## 7. 健康檢查與版本
 
 ### `GET /api/health`

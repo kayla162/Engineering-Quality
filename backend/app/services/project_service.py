@@ -33,7 +33,9 @@ class ProjectService:
         self._pcces = PccesSource()
 
     async def create_project(self, name: str) -> Project:
-        return await self.projects.create(name)
+        project = await self.projects.create(name)
+        await self.session.commit()
+        return project
 
     async def attach_document(
         self, project_id: uuid.UUID, document_id: uuid.UUID, role: DocumentRole
@@ -41,7 +43,9 @@ class ProjectService:
         await self._require_project(project_id)
         if await self.projects.get_link(project_id, document_id) is not None:
             raise AppError("這份文件已經掛在這個專案裡了，要換角色請先移除")
-        return await self.projects.add_document(project_id, document_id, role)
+        link = await self.projects.add_document(project_id, document_id, role)
+        await self.session.commit()
+        return link
 
     async def build_work_items(self, project_id: uuid.UUID) -> list[WorkItem]:
         """從專案的標單重建工項清單。
@@ -75,7 +79,9 @@ class ProjectService:
             "從標單建立工項",
             extra=log_context(project_id=str(project_id), work_items=len(items)),
         )
-        return await self.projects.replace_work_items(project_id, items)
+        result = await self.projects.replace_work_items(project_id, items)
+        await self.session.commit()
+        return result
 
     async def list_projects(self) -> list[Project]:
         return await self.projects.list_all()

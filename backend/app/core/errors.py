@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -108,9 +109,12 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # 自訂 field_validator 丟 ValueError 時，exc.errors() 的 ctx.error 會是原始例外物件，
+        # 不能直接塞給 JSONResponse（json.dumps 不認得它）。用 jsonable_encoder 轉一手，
+        # 和 FastAPI 內建的 request_validation_exception_handler 做法一致。
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content=_error_body("VALIDATION_ERROR", "請求格式錯誤", exc.errors()),
+            content=_error_body("VALIDATION_ERROR", "請求格式錯誤", jsonable_encoder(exc.errors())),
         )
 
     @app.exception_handler(Exception)

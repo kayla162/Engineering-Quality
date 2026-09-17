@@ -6,6 +6,7 @@ from app.api.routes import (
     documents,
     health,
     jobs,
+    projects,
     references,
     regulations,
     reports,
@@ -20,3 +21,4 @@ api_router.include_router(references.router)
 api_router.include_router(regulations.router)
 api_router.include_router(reports.router)
 api_router.include_router(sources.router)
+api_router.include_router(projects.router)
