@@ -35,6 +35,17 @@ class TestHeaderLocation:
         """真實表頭寫成「項  目  及  說  明」，中間有全形空白。"""
         assert read_boq(write(make_boq_bytes()))
 
+    def test_full_width_ideographic_spaces_in_header(self, write):
+        """表頭用真正的全形空白（U+3000）也能被正規化並找到。"""
+        # 用 U+3000（ideographic space / 　）代替 ASCII 空白測試表頭正規化
+        header_with_fullwidth = ["項　次", "項　目　及　說　明", "單　位", "數　量", "單　價", "複　價", "編碼(備註)"]
+        rows = [["說明列", "", "", "", "", "", ""]] + [header_with_fullwidth] + [
+            ["壹.一.1.1.1", "施工測量，基地測量及鑑界費", "式", 1, 100000, 100000, "0172500004"]
+        ]
+
+        result = read_boq(write(make_boq_bytes(rows=rows)))
+        assert any(r.item_no == "壹.一.1.1.1" for r in result)
+
     def test_missing_header_raises(self, write):
         rows = [["甲", "乙"], ["丙", "丁"]]
 
