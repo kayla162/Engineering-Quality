@@ -1,0 +1,414 @@
+/* 陽春但夠用的樣式。顏色與間距集中在 :root，要改外觀從這裡開始。 */
+
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --border: #dcdfe4;
+  --text: #1f2933;
+  --muted: #6b7280;
+  --primary: #1f3864;
+  --attention: #fff8e6;
+
+  --active: #e6f4ea;
+  --active-text: #1e7b3c;
+  --amended: #fff4e5;
+  --amended-text: #a4600a;
+  --repealed: #fdecec;
+  --repealed-text: #b42318;
+  --possible: #eef2ff;
+  --possible-text: #3f4fbf;
+  --notfound: #f1f2f4;
+  --notfound-text: #4b5563;
+
+  --gap: 16px;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.app {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--gap);
+}
+
+header h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: var(--gap);
+  align-items: start;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.analysis-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+  gap: var(--gap);
+  align-items: start;
+}
+
+.analysis-body > .card:only-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1200px) {
+  .layout,
+  .analysis-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  overflow-x: auto;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.card h3 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  color: var(--primary);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.error {
+  color: var(--repealed-text);
+  font-size: 13px;
+}
+
+/* --- 表格 --- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tr.clickable:hover {
+  background: #f8f9fb;
+  cursor: pointer;
+}
+
+tr.attention {
+  background: var(--attention);
+}
+
+tr.selected,
+tr.selected:hover {
+  background: #e4ebf7;
+}
+
+/* --- 標籤 --- */
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.badge-active { background: var(--active); color: var(--active-text); }
+.badge-amended { background: var(--amended); color: var(--amended-text); }
+.badge-repealed { background: var(--repealed); color: var(--repealed-text); }
+.badge-possible_match { background: var(--possible); color: var(--possible-text); }
+.badge-not_found { background: var(--notfound); color: var(--notfound-text); }
+.badge-unknown { background: var(--notfound); color: var(--notfound-text); }
+
+.review-unreviewed { background: var(--notfound); color: var(--notfound-text); }
+.review-confirmed { background: var(--active); color: var(--active-text); }
+.review-rejected { background: var(--repealed); color: var(--repealed-text); }
+.badge.source { background: var(--possible); color: var(--possible-text); }
+
+/* --- 統計 --- */
+
+.summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.summary-cell {
+  flex: 1 1 110px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.summary-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.summary-active { background: var(--active); }
+.summary-amended { background: var(--amended); }
+.summary-repealed { background: var(--repealed); }
+.summary-possible_match { background: var(--possible); }
+.summary-not_found,
+.summary-unknown { background: var(--notfound); }
+
+/* --- 進度 --- */
+
+.job {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.job-done { color: var(--active-text); }
+.job-failed { flex-direction: column; align-items: flex-start; gap: 2px; }
+
+/* --- 表單與按鈕 --- */
+
+.filters {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+select,
+input,
+textarea {
+  font: inherit;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+}
+
+button,
+.button {
+  font: inherit;
+  padding: 6px 14px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.secondary,
+.button.secondary {
+  background: #fff;
+  color: var(--primary);
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  padding: 6px 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- 詳細面板 --- */
+
+.detail dl {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 3px 10px;
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.detail dt {
+  color: var(--muted);
+}
+
+.detail dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.detail ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.detail blockquote {
+  margin: 6px 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-left: 3px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.detail textarea,
+.detail input {
+  width: 100%;
+}
+
+/* --- 來源未就緒橫幅 --- */
+
+.banner {
+  margin: 0 0 var(--gap);
+  padding: 12px var(--gap);
+  border: 1px solid;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* 全部未就緒＝每一筆都會查詢失敗，用最重的紅色 */
+.banner-unavailable {
+  background: var(--repealed);
+  border-color: var(--repealed-text);
+  color: var(--repealed-text);
+}
+
+/* 部分未就緒＝結果仍可用，只是涵蓋範圍縮小，用提醒色而非錯誤色 */
+.banner-degraded {
+  background: var(--amended);
+  border-color: var(--amended-text);
+  color: var(--amended-text);
+}
+
+.banner-headline {
+  font-size: 15px;
+}
+
+.banner p {
+  margin: 0;
+}
+
+.banner-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.banner-sources li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.banner-remedy code {
+  padding: 1px 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* 讓使用者一鍵選起來複製 */
+  user-select: all;
+}

@@ -1,0 +1,12 @@
+.venv/
+node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+storage/
+data/app.db
+.git/
+.env
+data/taiwan_law_index.json
+data/taiwan_law_cache/

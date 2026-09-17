@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+storage/
+data/app.db
+node_modules/
+frontend/dist/
+.pytest_cache/
+*.egg-info/
+
+# 由 scripts/sync_taiwan_law.py 產生
+data/taiwan_law_index.json
+data/taiwan_law_cache/
+data/generated/
+
+# 由 scripts/sync_pcces.py 產生
+data/pcces_index.json
+
+# TypeScript 增量編譯的快取，不進版控
+frontend/tsconfig.tsbuildinfo

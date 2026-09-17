@@ -1,0 +1,174 @@
+{
+  "version": "alias-2026-09-08",
+  "_purpose": "內部正規化字典：把文件裡的簡稱、舊名、常見誤植對應到官方全名。DictionaryExtractor 用它抽取（正規表示式抓不到的簡稱），NormalizationEngine 用它正規化。與 mock_regulations.json 的分工：那份檔案是『外部來源知道什麼』，這份是『我們自己的對應知識』。",
+  "_how_to_extend": "要提高比對準確度，最有效的做法就是在這裡補別名。新增後執行 scripts/seed_data.py 即可生效，不需要改程式碼。注意：只有真正指向同一部法規的簡稱才是別名——把較細的名稱（例如「建築技術規則建築構造編」）對應到較粗的名稱，會讓比對指向錯誤的法規。",
+  "entries": [
+    {
+      "canonical": "政府採購法",
+      "type": "law",
+      "aliases": [
+        "採購法",
+        "政採法",
+        "政府採購法令"
+      ]
+    },
+    {
+      "canonical": "政府採購法施行細則",
+      "type": "regulation",
+      "aliases": [
+        "採購法施行細則",
+        "採購細則"
+      ]
+    },
+    {
+      "canonical": "職業安全衛生法",
+      "type": "law",
+      "aliases": [
+        "職安法",
+        "職安衛法"
+      ]
+    },
+    {
+      "canonical": "勞工安全衛生法",
+      "type": "law",
+      "aliases": [
+        "勞安法"
+      ]
+    },
+    {
+      "canonical": "建築技術規則",
+      "type": "regulation",
+      "aliases": [
+        "建技規則"
+      ],
+      "_note": "各編（總則編／建築設計施工編／建築構造編／建築設備編）在官方資料庫是獨立法規，不可列為別名"
+    },
+    {
+      "canonical": "營造業法",
+      "type": "law",
+      "aliases": [
+        "營造法"
+      ]
+    },
+    {
+      "canonical": "環境影響評估法",
+      "type": "law",
+      "aliases": [
+        "環評法"
+      ]
+    },
+    {
+      "canonical": "職業安全衛生設施規則",
+      "type": "regulation",
+      "aliases": [
+        "職安設施規則",
+        "安衛設施規則"
+      ]
+    },
+    {
+      "canonical": "營造安全衛生設施標準",
+      "type": "regulation",
+      "aliases": [
+        "營造安衛標準"
+      ]
+    },
+    {
+      "canonical": "結構混凝土施工規範",
+      "type": "engineering_spec",
+      "aliases": [
+        "混凝土施工規範",
+        "結構混凝土規範"
+      ]
+    },
+    {
+      "canonical": "公共工程施工綱要規範",
+      "type": "engineering_spec",
+      "aliases": [
+        "綱要規範",
+        "施工綱要規範"
+      ]
+    },
+    {
+      "canonical": "建築物耐震設計規範及解說",
+      "type": "engineering_spec",
+      "aliases": [
+        "耐震設計規範",
+        "建築物耐震設計規範"
+      ]
+    },
+    {
+      "canonical": "公共工程施工品質管理作業要點",
+      "type": "announcement",
+      "aliases": [
+        "品管要點",
+        "施工品質管理作業要點",
+        "公共工程品管要點"
+      ]
+    },
+    {
+      "canonical": "水土保持技術規範",
+      "type": "engineering_spec",
+      "aliases": [
+        "水保技術規範"
+      ]
+    },
+    {
+      "canonical": "CNS 560 鋼筋混凝土用鋼筋",
+      "type": "standard",
+      "aliases": [
+        "CNS 560"
+      ]
+    },
+    {
+      "canonical": "CNS 3090 預拌混凝土",
+      "type": "standard",
+      "aliases": [
+        "CNS 3090"
+      ]
+    },
+    {
+      "canonical": "CNS 1240 混凝土粒料",
+      "type": "standard",
+      "aliases": [
+        "CNS 1240"
+      ]
+    },
+    {
+      "canonical": "CNS 61 卜特蘭水泥",
+      "type": "standard",
+      "aliases": [
+        "CNS 61"
+      ]
+    },
+    {
+      "canonical": "ISO 9001 品質管理系統－要求",
+      "type": "standard",
+      "aliases": [
+        "ISO 9001",
+        "品質管理系統驗證"
+      ]
+    },
+    {
+      "canonical": "ISO 45001 職業安全衛生管理系統",
+      "type": "standard",
+      "aliases": [
+        "ISO 45001"
+      ]
+    },
+    {
+      "canonical": "ISO 14001 環境管理系統",
+      "type": "standard",
+      "aliases": [
+        "ISO 14001"
+      ]
+    },
+    {
+      "canonical": "ASTM C39/C39M 混凝土圓柱試體抗壓強度試驗法",
+      "type": "standard",
+      "aliases": [
+        "ASTM C39",
+        "ASTM C39/C39M"
+      ]
+    }
+  ]
+}

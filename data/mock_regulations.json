@@ -1,0 +1,336 @@
+{
+  "version": "mock-2026-09-08",
+  "_warning": "這是 MockRegulationSource 使用的假資料，用於在沒有真實官方 API 的情況下跑通全流程。所有日期、網址、狀態都不是官方資料，不可作為法規查核依據。真實來源串接見 docs/development-plan.md 的 Phase 8 說明。",
+  "_fields": {
+    "can_confirm_currency": "此來源是否有能力確認『目前是否為最新有效版本』。CNS/ISO/ASTM/JIS 等付費標準通常只查得到是否存在、查不到全文與最新版號，因此為 false，比對結果會被降級為 POSSIBLE_MATCH，需人工查證。"
+  },
+  "regulations": [
+    {
+      "external_id": "mock-law-001",
+      "name": "政府採購法",
+      "type": "law",
+      "authority": "行政院公共工程委員會",
+      "status": "ACTIVE",
+      "effective_date": "1999-05-27",
+      "last_amended_date": "2019-05-22",
+      "official_url": "https://mock.invalid/regulations/mock-law-001",
+      "can_confirm_currency": true,
+      "versions": [
+        {
+          "version": "1998-05-27 制定",
+          "effective_date": "1999-05-27",
+          "amended_date": null,
+          "source_url": "https://mock.invalid/regulations/mock-law-001/v1"
+        },
+        {
+          "version": "2019-05-22 修正",
+          "effective_date": "2019-05-22",
+          "amended_date": "2019-05-22",
+          "source_url": "https://mock.invalid/regulations/mock-law-001/v2"
+        }
+      ]
+    },
+    {
+      "external_id": "mock-reg-001",
+      "name": "政府採購法施行細則",
+      "type": "regulation",
+      "authority": "行政院公共工程委員會",
+      "status": "ACTIVE",
+      "effective_date": "1999-05-21",
+      "last_amended_date": "2021-07-14",
+      "official_url": "https://mock.invalid/regulations/mock-reg-001",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-law-002",
+      "name": "營造業法",
+      "type": "law",
+      "authority": "內政部",
+      "status": "ACTIVE",
+      "effective_date": "2003-02-07",
+      "last_amended_date": "2019-06-19",
+      "official_url": "https://mock.invalid/regulations/mock-law-002",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-law-003",
+      "name": "建築法",
+      "type": "law",
+      "authority": "內政部",
+      "status": "ACTIVE",
+      "effective_date": "1971-12-23",
+      "last_amended_date": "2021-05-05",
+      "official_url": "https://mock.invalid/regulations/mock-law-003",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-law-004",
+      "name": "職業安全衛生法",
+      "type": "law",
+      "authority": "勞動部",
+      "status": "ACTIVE",
+      "effective_date": "2014-07-03",
+      "last_amended_date": "2019-05-15",
+      "official_url": "https://mock.invalid/regulations/mock-law-004",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-law-005",
+      "name": "勞工安全衛生法",
+      "type": "law",
+      "authority": "勞動部",
+      "status": "REPEALED",
+      "effective_date": "1974-04-16",
+      "last_amended_date": "2013-07-03",
+      "official_url": "https://mock.invalid/regulations/mock-law-005",
+      "can_confirm_currency": true,
+      "note": "已更名為職業安全衛生法，舊名不再適用",
+      "versions": []
+    },
+    {
+      "external_id": "mock-law-006",
+      "name": "環境影響評估法",
+      "type": "law",
+      "authority": "環境部",
+      "status": "ACTIVE",
+      "effective_date": "1994-12-30",
+      "last_amended_date": "2003-01-08",
+      "official_url": "https://mock.invalid/regulations/mock-law-006",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-law-007",
+      "name": "水土保持法",
+      "type": "law",
+      "authority": "農業部",
+      "status": "ACTIVE",
+      "effective_date": "1994-05-27",
+      "last_amended_date": "2016-11-30",
+      "official_url": "https://mock.invalid/regulations/mock-law-007",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-reg-002",
+      "name": "建築技術規則",
+      "type": "regulation",
+      "authority": "內政部",
+      "status": "AMENDED",
+      "effective_date": "1974-02-15",
+      "last_amended_date": "2024-03-14",
+      "official_url": "https://mock.invalid/regulations/mock-reg-002",
+      "can_confirm_currency": true,
+      "note": "建築設計施工編部分條文於近期修正，引用時請確認版本",
+      "versions": [
+        {
+          "version": "2024-03-14 修正",
+          "effective_date": "2024-07-01",
+          "amended_date": "2024-03-14",
+          "source_url": "https://mock.invalid/regulations/mock-reg-002/v-latest"
+        }
+      ]
+    },
+    {
+      "external_id": "mock-reg-003",
+      "name": "職業安全衛生設施規則",
+      "type": "regulation",
+      "authority": "勞動部",
+      "status": "ACTIVE",
+      "effective_date": "1974-05-10",
+      "last_amended_date": "2024-08-01",
+      "official_url": "https://mock.invalid/regulations/mock-reg-003",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-reg-004",
+      "name": "營造安全衛生設施標準",
+      "type": "regulation",
+      "authority": "勞動部",
+      "status": "ACTIVE",
+      "effective_date": "1975-01-01",
+      "last_amended_date": "2021-01-06",
+      "official_url": "https://mock.invalid/regulations/mock-reg-004",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-spec-001",
+      "name": "結構混凝土施工規範",
+      "type": "engineering_spec",
+      "authority": "內政部",
+      "status": "AMENDED",
+      "effective_date": "2012-01-01",
+      "last_amended_date": "2021-06-01",
+      "official_url": "https://mock.invalid/regulations/mock-spec-001",
+      "can_confirm_currency": true,
+      "note": "已於 2021 年修正，舊版引用需確認條文是否仍適用",
+      "versions": [
+        {
+          "version": "2021 年版",
+          "effective_date": "2021-06-01",
+          "amended_date": "2021-06-01",
+          "source_url": "https://mock.invalid/regulations/mock-spec-001/2021"
+        }
+      ]
+    },
+    {
+      "external_id": "mock-spec-002",
+      "name": "公共工程施工綱要規範",
+      "type": "engineering_spec",
+      "authority": "行政院公共工程委員會",
+      "status": "AMENDED",
+      "effective_date": "2004-01-01",
+      "last_amended_date": "2025-03-01",
+      "official_url": "https://mock.invalid/regulations/mock-spec-002",
+      "can_confirm_currency": true,
+      "note": "綱要規範各章持續更新，請確認引用章節版本",
+      "versions": []
+    },
+    {
+      "external_id": "mock-spec-003",
+      "name": "建築物耐震設計規範及解說",
+      "type": "engineering_spec",
+      "authority": "內政部",
+      "status": "ACTIVE",
+      "effective_date": "2011-07-01",
+      "last_amended_date": "2022-09-01",
+      "official_url": "https://mock.invalid/regulations/mock-spec-003",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-spec-004",
+      "name": "水土保持技術規範",
+      "type": "engineering_spec",
+      "authority": "農業部",
+      "status": "ACTIVE",
+      "effective_date": "1996-01-01",
+      "last_amended_date": "2023-11-30",
+      "official_url": "https://mock.invalid/regulations/mock-spec-004",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-ann-001",
+      "name": "公共工程施工品質管理作業要點",
+      "type": "announcement",
+      "authority": "行政院公共工程委員會",
+      "status": "ACTIVE",
+      "effective_date": "1993-01-01",
+      "last_amended_date": "2023-05-15",
+      "official_url": "https://mock.invalid/regulations/mock-ann-001",
+      "can_confirm_currency": true,
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-001",
+      "name": "CNS 560 鋼筋混凝土用鋼筋",
+      "type": "standard",
+      "authority": "經濟部標準檢驗局",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/CNS-560",
+      "can_confirm_currency": false,
+      "standard_number": "CNS 560",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-002",
+      "name": "CNS 1240 混凝土粒料",
+      "type": "standard",
+      "authority": "經濟部標準檢驗局",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/CNS-1240",
+      "can_confirm_currency": false,
+      "standard_number": "CNS 1240",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-003",
+      "name": "CNS 3090 預拌混凝土",
+      "type": "standard",
+      "authority": "經濟部標準檢驗局",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/CNS-3090",
+      "can_confirm_currency": false,
+      "standard_number": "CNS 3090",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-004",
+      "name": "CNS 61 卜特蘭水泥",
+      "type": "standard",
+      "authority": "經濟部標準檢驗局",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/CNS-61",
+      "can_confirm_currency": false,
+      "standard_number": "CNS 61",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-005",
+      "name": "ISO 9001 品質管理系統－要求",
+      "type": "standard",
+      "authority": "International Organization for Standardization",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/ISO-9001",
+      "can_confirm_currency": false,
+      "standard_number": "ISO 9001",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-006",
+      "name": "ISO 45001 職業安全衛生管理系統",
+      "type": "standard",
+      "authority": "International Organization for Standardization",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/ISO-45001",
+      "can_confirm_currency": false,
+      "standard_number": "ISO 45001",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-007",
+      "name": "ISO 14001 環境管理系統",
+      "type": "standard",
+      "authority": "International Organization for Standardization",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/ISO-14001",
+      "can_confirm_currency": false,
+      "standard_number": "ISO 14001",
+      "versions": []
+    },
+    {
+      "external_id": "mock-std-008",
+      "name": "ASTM C39/C39M 混凝土圓柱試體抗壓強度試驗法",
+      "type": "standard",
+      "authority": "ASTM International",
+      "status": "ACTIVE",
+      "effective_date": null,
+      "last_amended_date": null,
+      "official_url": "https://mock.invalid/standards/ASTM-C39",
+      "can_confirm_currency": false,
+      "standard_number": "ASTM C39/C39M",
+      "versions": []
+    }
+  ]
+}

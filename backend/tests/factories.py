@@ -1,0 +1,124 @@
+"""測試資料產生器。"""
+
+import uuid
+from io import BytesIO
+
+from docx import Document as DocxDocument
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.matching.normalizer import clean_text
+from app.repositories.regulations import RegulationRepository
+from app.sources.mock_source import MockRegulationSource
+
+# 測試文件的內容，涵蓋六種比對結果
+SAMPLE_PARAGRAPHS = [
+    "本計畫依政府採購法第70條及政府採購法施行細則相關規定辦理。",
+    "施工安全依職業安全衛生法辦理，早期文件曾引用勞工安全衛生法。",
+    "混凝土施工依混凝土結構施工規範辦理。",
+    "營建剩餘土石方之處理，依營建剩餘土石方處理辦法辦理。",
+    "預拌混凝土應符合 CNS 3090 之規定。",
+]
+SAMPLE_TABLE = [("項次", "依據規範"), ("1", "採購法")]
+
+
+def make_docx_bytes() -> bytes:
+    """產生一份測試用 DOCX（含標題、段落與表格）。"""
+    document = DocxDocument()
+    document.add_heading("整體品質計畫（測試）", level=0)
+    document.add_heading("一、計畫依據", level=1)
+    for text in SAMPLE_PARAGRAPHS:
+        document.add_paragraph(text)
+
+    table = document.add_table(rows=0, cols=2)
+    for row in SAMPLE_TABLE:
+        cells = table.add_row().cells
+        for cell, value in zip(cells, row):
+            cell.text = value
+
+    buffer = BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def make_txt_bytes() -> bytes:
+    return "\n".join(SAMPLE_PARAGRAPHS).encode("utf-8")
+
+
+async def seed_regulations(session: AsyncSession) -> int:
+    """把 MockRegulationSource 的假資料寫進法規主檔（等同 scripts/seed_data.py）。"""
+    source = MockRegulationSource()
+    repo = RegulationRepository(session)
+    tenant_id = uuid.UUID(settings.DEFAULT_TENANT_ID)
+
+    for record in source._load():  # noqa: SLF001
+        detail = await source.get_detail(record["external_id"])
+        regulation = await repo.upsert(
+            name=detail.name,
+            normalized_name=clean_text(detail.name),
+            reg_type=detail.type,
+            status=detail.status,
+            source=detail.source,
+            authority=detail.authority,
+            effective_date=detail.effective_date,
+            last_amended_date=detail.last_amended_date,
+            official_url=detail.official_url,
+            tenant_id=tenant_id,
+        )
+        if detail.standard_number:
+            await repo.add_aliases(regulation, [detail.standard_number])
+
+    # 別名字典（正規化引擎主要靠它）
+    await repo.add_aliases(await repo.get_by_name("政府採購法"), ["採購法"])
+    await repo.add_aliases(await repo.get_by_name("職業安全衛生法"), ["職安法"])
+    await session.commit()
+    return await repo.count()
+
+
+# 標單的形狀：真實檔案是四張工作表，詳細表有「項次 / 項目及說明 / 單位 / 數量 /
+# 單價 / 複價 / 編碼(備註)」，編碼前 5 碼是施工綱要規範章碼（2026-09 查證過）。
+SAMPLE_SHEET = "契約詳細表"
+SAMPLE_ROWS = [
+    ["項 次", "項  目  及  說  明", "單 位", "數 量", "編碼(備註)"],
+    ["壹.一.1.1.1", "施工測量，基地測量及鑑界費", "式", 1, "0172500004"],
+    ["", "施工中由承商建置，採租用屬臨時設施", "", "", ""],
+    ["壹.一.1.2.1", "預拌混凝土應符合 CNS 3090 之規定", "M3", 959, "0331000004"],
+]
+
+
+def make_xlsx_bytes(rows=None, sheet_name=SAMPLE_SHEET, extra_sheet=None) -> bytes:
+    """產生測試用 .xlsx（openpyxl，已是專案相依）。"""
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = sheet_name
+    for row in rows if rows is not None else SAMPLE_ROWS:
+        sheet.append(row)
+    if extra_sheet:
+        second = book.create_sheet(extra_sheet[0])
+        for row in extra_sheet[1]:
+            second.append(row)
+
+    buffer = BytesIO()
+    book.save(buffer)
+    return buffer.getvalue()
+
+
+def make_xls_bytes(rows=None, sheet_name=SAMPLE_SHEET) -> bytes:
+    """產生測試用 .xls（OLE2 舊格式）。
+
+    真實標單就是這個格式——不是 .xlsx，openpyxl 讀不了。
+    xlrd 只能讀不能寫，所以這裡用 xlwt 產生；xlwt 只在測試用到，不是專案相依。
+    """
+    import xlwt
+
+    book = xlwt.Workbook(encoding="utf-8")
+    sheet = book.add_sheet(sheet_name)
+    for r, row in enumerate(rows if rows is not None else SAMPLE_ROWS):
+        for c, value in enumerate(row):
+            sheet.write(r, c, value)
+
+    buffer = BytesIO()
+    book.save(buffer)
+    return buffer.getvalue()

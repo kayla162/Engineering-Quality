@@ -1,0 +1,153 @@
+// 後端 API 的資料型別。欄位對應 backend/app/schemas/。
+
+export type RegulationStatus =
+  | "ACTIVE"
+  | "AMENDED"
+  | "REPEALED"
+  | "NOT_FOUND"
+  | "POSSIBLE_MATCH"
+  | "UNKNOWN";
+
+export type ReviewStatus = "UNREVIEWED" | "CONFIRMED" | "REJECTED";
+
+/** 已啟用的法規來源整體上查不查得動（GET /api/sources） */
+export type SourceAvailability = "ok" | "degraded" | "unavailable";
+
+export interface SourceReadiness {
+  source: string;
+  /** 未就緒的原因，含檔案路徑。就緒時為 null */
+  detail: string | null;
+  /** 讓它就緒要跑的命令。沒有可執行的動作時為 null */
+  remedy: string | null;
+  ready: boolean;
+}
+
+export interface SourcesStatus {
+  status: SourceAvailability;
+  sources: SourceReadiness[];
+}
+
+export interface JobBrief {
+  job_id: string;
+  status: string;
+  progress: number;
+  finished_at: string | null;
+}
+
+export interface DocumentSummary {
+  document_id: string;
+  filename: string;
+  file_type: string;
+  status: string;
+  uploaded_at: string;
+  latest_job: JobBrief | null;
+}
+
+export interface DocumentList {
+  total: number;
+  page: number;
+  page_size: number;
+  items: DocumentSummary[];
+}
+
+export interface Job {
+  job_id: string;
+  document_id: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  current_step: string | null;
+  progress: number;
+  started_at: string;
+  finished_at: string | null;
+  error_message: string | null;
+}
+
+export interface ReferenceSummary {
+  confirmed_active: number;
+  possible_amended: number;
+  possible_repealed: number;
+  possible_match: number;
+  not_found: number;
+  unknown: number;
+}
+
+export interface ReferenceItem {
+  reference_id: string;
+  raw_text: string;
+  normalized_name: string | null;
+  regulation_type: string;
+  article: string | null;
+  page: number | null;
+  status: RegulationStatus;
+  match_confidence: number | null;
+  review_status: ReviewStatus;
+  regulation_id: string | null;
+  is_tentative: boolean;
+}
+
+export interface ReferenceList {
+  total: number;
+  page: number;
+  page_size: number;
+  summary: ReferenceSummary;
+  items: ReferenceItem[];
+}
+
+export interface MatchedRegulation {
+  regulation_id: string;
+  name: string;
+  type: string;
+  status: RegulationStatus;
+  authority: string | null;
+  effective_date: string | null;
+  last_amended_date: string | null;
+  official_url: string | null;
+  source: string;
+}
+
+export interface QueryHistoryItem {
+  source: string;
+  query: string;
+  http_status: string | null;
+  latency_ms: number | null;
+  queried_at: string;
+}
+
+export interface AIInvocationItem {
+  purpose: string;
+  model: string;
+  prompt_version: string;
+  confidence: number | null;
+  latency_ms: number | null;
+  created_at: string;
+}
+
+export interface ReferenceDetail {
+  reference_id: string;
+  raw_text: string;
+  normalized_name: string | null;
+  regulation_type: string;
+  article: string | null;
+  standard_number: string | null;
+  source_document: string;
+  page: number | null;
+  section_text: string | null;
+  extraction_method: string;
+  extraction_confidence: number;
+  matched_regulation: MatchedRegulation | null;
+  match_confidence: number | null;
+  match_reasons: string[];
+  status: RegulationStatus;
+  is_tentative: boolean;
+  review_status: ReviewStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  query_history: QueryHistoryItem[];
+  ai_invocations: AIInvocationItem[];
+}
+
+export interface ReferenceFilters {
+  status?: RegulationStatus | "";
+  review_status?: ReviewStatus | "";
+  min_confidence?: number | "";
+}

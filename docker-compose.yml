@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: regplatform
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d regplatform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/regplatform
+      UPLOAD_DIR: /app/storage/uploads
+      # AI 相關設定由 .env 帶入；沒有 API key 時系統一樣可以完整運作
+      ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+      REGULATION_SOURCES: ${REGULATION_SOURCES:-mock}
+      # 索引放在 volume，重建映像檔不必重新下載 31MB
+      TAIWAN_LAW_INDEX_PATH: /app/data/generated/taiwan_law_index.json
+      PCCES_INDEX_PATH: /app/data/generated/pcces_index.json
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      # 上傳的檔案存在 volume，容器重建不會遺失
+      - uploads:/app/storage/uploads
+      - lawindex:/app/data/generated
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:80"
+
+  # Phase 2 才會啟用向量資料庫（docs/development-plan.md 第 5 節）。
+  # 需要時把下面這段取消註解，並在 .env 設定 QDRANT_URL。
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   ports:
+  #     - "6333:6333"
+  #   volumes:
+  #     - qdrant:/qdrant/storage
+
+volumes:
+  pgdata:
+  uploads:
+  lawindex:
+  # qdrant:
