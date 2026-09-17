@@ -47,6 +47,10 @@ class JobNotFoundError(NotFoundError):
     code = "JOB_NOT_FOUND"
 
 
+class ProjectNotFoundError(NotFoundError):
+    code = "PROJECT_NOT_FOUND"
+
+
 class InvalidFileTypeError(AppError):
     code = "INVALID_FILE_TYPE"
 
