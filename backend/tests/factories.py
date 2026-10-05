@@ -189,3 +189,36 @@ def make_pdf_bytes(text_pages: int = 2, figure_pages: int = 0, sparse_pages: int
         return document.tobytes()
     finally:
         document.close()
+
+
+#: 施工規範頁首格式：<組碼> <章碼>-<頁次> V<版本> <日期>
+#: 實測 13.施工規範.pdf：組碼多半等於章碼，但 05500 05503-1 這種不相等的也有
+_SPEC_HEADER = "{group} {code}-{page} V{version} 2020/08/19"
+
+
+def make_spec_pdf_bytes(chapters=None, trailing_pages: int = 0) -> bytes:
+    """產生測試用施工規範 PDF。
+
+    `chapters` 是 [(組碼, 章碼, 章名, 版本, 內文)]。`trailing_pages` 是最後面
+    沒有頁首的延續頁數量——真實規範書有 20 頁這種（跨頁大表），它們屬於前一章。
+    """
+    chapters = chapters or [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審")]
+    document = pymupdf.open()
+    try:
+        for group, code, title, version, body in chapters:
+            page = document.new_page()
+            header = _SPEC_HEADER.format(group=group, code=code, page=1, version=version)
+            page.insert_textbox(
+                pymupdf.Rect(40, 40, 560, 760),
+                f"{header}\n第{code} 章V{version} {title}\n{body}",
+                fontsize=10,
+                fontname="china-t",
+            )
+        for _ in range(trailing_pages):
+            page = document.new_page()
+            page.insert_textbox(
+                pymupdf.Rect(40, 40, 560, 760), "附表（續）", fontsize=10, fontname="china-t"
+            )
+        return document.tobytes()
+    finally:
+        document.close()
