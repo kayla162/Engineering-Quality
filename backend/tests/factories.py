@@ -199,18 +199,30 @@ _SPEC_HEADER = "{group} {code}-{page} V{version} 2020/08/19"
 def make_spec_pdf_bytes(chapters=None, trailing_pages: int = 0) -> bytes:
     """產生測試用施工規範 PDF。
 
-    `chapters` 是 [(組碼, 章碼, 章名, 版本, 內文)]。`trailing_pages` 是最後面
-    沒有頁首的延續頁數量——真實規範書有 20 頁這種（跨頁大表），它們屬於前一章。
+    `chapters` 是 [(組碼, 章碼, 章名, 版本, 內文)]，**一筆一頁**。章碼相同的連續幾筆
+    是同一章的連續頁：頁首的頁次遞增（`01725-1`、`01725-2`……），章名行只印在第一頁，
+    和真實規範書一樣（實測 p61-63）。不給 `chapters` 才用預設的一章；給空清單就是
+    「沒有任何章節」——這時要有 `trailing_pages`，pymupdf 存不出零頁的 PDF。
+
+    `trailing_pages` 是最後面沒有頁首的延續頁數量——真實規範書有 20 頁這種
+    （跨頁大表），它們屬於前一章。
     """
-    chapters = chapters or [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審")]
+    if chapters is None:
+        chapters = [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審")]
     document = pymupdf.open()
     try:
+        previous_code, page_number = None, 0
         for group, code, title, version, body in chapters:
+            page_number = page_number + 1 if code == previous_code else 1
+            previous_code = code
+            lines = [_SPEC_HEADER.format(group=group, code=code, page=page_number, version=version)]
+            if page_number == 1:
+                lines.append(f"第{code} 章V{version} {title}")
+            lines.append(body)
             page = document.new_page()
-            header = _SPEC_HEADER.format(group=group, code=code, page=1, version=version)
             page.insert_textbox(
                 pymupdf.Rect(40, 40, 560, 760),
-                f"{header}\n第{code} 章V{version} {title}\n{body}",
+                "\n".join(lines),
                 fontsize=10,
                 fontname="china-t",
             )
