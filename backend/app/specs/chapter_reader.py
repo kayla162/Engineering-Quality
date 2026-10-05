@@ -65,6 +65,10 @@ def read_spec_chapters(path: Path) -> list[SpecChapterRow]:
     except Exception as exc:
         raise SpecFormatError(f"無法開啟施工規範書：{exc}") from exc
 
+    if document.needs_pass:
+        document.close()
+        raise SpecFormatError("施工規範書已加密，無法解析")
+
     rows: list[SpecChapterRow] = []
     try:
         for page_index, page in enumerate(document, start=1):

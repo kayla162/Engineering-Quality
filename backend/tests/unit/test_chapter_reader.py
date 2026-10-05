@@ -88,6 +88,19 @@ class TestReadSpecChapters:
         with pytest.raises(SpecFormatError):
             read_spec_chapters(write(data))
 
+    def test_an_encrypted_document_raises_instead_of_crashing(self, write):
+        """加密的規範書翻不了頁，pymupdf 會丟 ValueError，API 會變成 500。
+        要報成 SpecFormatError（422），和 PdfParser 的加密檢查是同一條原則。"""
+        document = pymupdf.open()
+        document.new_page()
+        data = document.tobytes(
+            encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="secret", owner_pw="owner"
+        )
+        document.close()
+
+        with pytest.raises(SpecFormatError, match="加密"):
+            read_spec_chapters(write(data))
+
 
 class TestChapterTitle:
     """章名行有三種寫法（實測 13.施工規範.pdf 的 86 章）。
