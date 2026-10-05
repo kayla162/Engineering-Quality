@@ -14,7 +14,7 @@ from docx.text.paragraph import Paragraph
 
 from app.core.enums import ContentType
 from app.core.errors import UnprocessableDocumentError
-from app.parsers.base import ParsedSection
+from app.parsers.base import ParsedSection, ParseResult
 
 
 def _iter_blocks(document: DocxDocument):
@@ -33,7 +33,7 @@ def _is_heading(paragraph: Paragraph) -> bool:
 
 
 class DocxParser:
-    def parse(self, path: Path) -> list[ParsedSection]:
+    def parse(self, path: Path) -> ParseResult:
         try:
             document = docx.Document(str(path))
         except Exception as exc:  # 檔案損毀、加密、其實不是 docx
@@ -80,4 +80,4 @@ class DocxParser:
 
         if not sections:
             raise UnprocessableDocumentError("DOCX 檔案裡沒有可讀取的文字內容")
-        return sections
+        return ParseResult(sections)

@@ -13,7 +13,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import get_llm_provider
-from app.core.enums import DocumentStatus, JobStatus, JobStep
+from app.core.enums import DocumentStatus, JobStatus, JobStep, ParseQuality
 from app.core.errors import DocumentNotFoundError
 from app.core.logging import log_context
 from app.extractors import ExtractionPipeline
@@ -100,15 +100,34 @@ class AnalysisService:
                 page=item.page,
                 section_title=item.section_title,
             )
-            for item in parsed
+            for item in parsed.sections
         ]
         await self.documents.replace_sections(document.id, sections)
+        self._record_parse_quality(document, parsed.coverage)
         await self.documents.set_status(document, DocumentStatus.PARSED)
         await self.jobs.update_progress(
             job, status=JobStatus.PROCESSING, progress=_PROGRESS[JobStep.PARSING]
         )
         await self.session.commit()
         return sections
+
+    def _record_parse_quality(self, document: Document, coverage) -> None:
+        """把「有多少內容沒讀到」記在文件上。
+
+        只寫 log 是不夠的——沒有人會去翻 log，使用者還是會拿到一份看起來乾淨的
+        結果。要擋住「有信心的錯」，訊息必須跟著文件走到畫面上。
+        """
+        if coverage is None or not coverage.is_degraded:
+            document.parse_quality = ParseQuality.OK
+            document.parse_quality_note = None
+            return
+
+        document.parse_quality = ParseQuality.DEGRADED
+        document.parse_quality_note = coverage.note
+        logger.warning(
+            "解析品質不佳",
+            extra=log_context(document_id=str(document.id), note=coverage.note),
+        )
 
     async def _extract(
         self, document: Document, sections: list[DocumentSection], job

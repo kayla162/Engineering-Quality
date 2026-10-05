@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums import ContentType, DocumentStatus
+from app.core.enums import ContentType, DocumentStatus, ParseQuality
 from app.models.base import Base, created_at_column, uuid_pk
 
 
@@ -21,6 +21,12 @@ class Document(Base):
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default=DocumentStatus.UPLOADED
     )
+    #: 解析品質。DEGRADED 表示有一部分內容讀不到（例如圖說的尺寸標註壓在點陣圖裡），
+    #: 段落還是照常存，但結果不可盡信。note 只有 DEGRADED 時才有值。
+    parse_quality: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ParseQuality.OK
+    )
+    parse_quality_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     uploaded_at: Mapped[datetime] = created_at_column()
 

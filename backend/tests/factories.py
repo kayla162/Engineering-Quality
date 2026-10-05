@@ -3,6 +3,8 @@
 import uuid
 from io import BytesIO
 
+import pymupdf
+
 from docx import Document as DocxDocument
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,3 +146,46 @@ def make_boq_bytes(rows=None, header_sheet="契約詳細表", suffix=".xlsx") ->
     if suffix == ".xls":
         return make_xls_bytes(rows=payload, sheet_name=header_sheet)
     return make_xlsx_bytes(rows=payload, sheet_name=header_sheet)
+
+
+#: 一般內文頁的填充文字，字數遠超過守門門檻，確保不會被誤判成圖頁
+_PDF_BODY = "本工程依政府採購法第七十條及公共工程施工品質管理作業要點辦理品質管理。" * 6
+
+
+def make_pdf_bytes(text_pages: int = 2, figure_pages: int = 0, sparse_pages: int = 0) -> bytes:
+    """產生測試用 PDF。不 commit binary fixture，所以用程式現做。
+
+    - `text_pages`：正常內文頁。
+    - `figure_pages`：以圖為主的頁——一張點陣圖加一行圖號，模擬設計圖說裡
+      「尺寸標註壓在圖片裡」的情況。
+    - `sparse_pages`：字少但**沒有圖**的頁（扉頁、目錄）。守門不該把它算成圖頁。
+    """
+    document = pymupdf.open()
+    try:
+        for _ in range(text_pages):
+            page = document.new_page()
+            page.insert_textbox(
+                pymupdf.Rect(50, 50, 550, 750), _PDF_BODY, fontsize=11, fontname="china-t"
+            )
+
+        for index in range(figure_pages):
+            page = document.new_page()
+            pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 240, 240))
+            pixmap.set_rect(pixmap.irect, (200, 200, 200))
+            page.insert_image(pymupdf.Rect(100, 80, 460, 440), pixmap=pixmap)
+            page.insert_textbox(
+                pymupdf.Rect(100, 460, 460, 490),
+                f"圖{index + 1}",
+                fontsize=11,
+                fontname="china-t",
+            )
+
+        for _ in range(sparse_pages):
+            page = document.new_page()
+            page.insert_textbox(
+                pymupdf.Rect(50, 50, 550, 90), "目錄", fontsize=11, fontname="china-t"
+            )
+
+        return document.tobytes()
+    finally:
+        document.close()

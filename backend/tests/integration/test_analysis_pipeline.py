@@ -2,13 +2,15 @@
 
 import pytest
 
-from app.core.enums import DocumentStatus, JobStatus, RegulationStatus
+from app.core.enums import DocumentStatus, JobStatus, ParseQuality, RegulationStatus
 from app.repositories.audit import AuditRepository
 from app.repositories.documents import DocumentRepository
 from app.repositories.jobs import JobRepository
 from app.repositories.references import ReferenceRepository
 from app.services.analysis_service import AnalysisService
+from app.services.document_service import DocumentService
 from app.services.report_service import ReportService
+from tests.factories import make_pdf_bytes
 
 
 @pytest.fixture
@@ -167,3 +169,49 @@ class TestEmptyRegulationTable:
         # 法規是在比對過程中被寫進來的
         assert await RegulationRepository(db_session).count() > 0
         assert any(row.regulation_id is not None for row in rows)
+
+
+class TestParseQuality:
+    """解析品質要被記下來，不是只在 log 裡閃一下。
+
+    會踩到這一關的是設計圖說：parser 不會報錯，但圖裡的尺寸標註抽不出來。
+    使用者必須看得到「這份有多少沒讀到」，否則會把一份空結果當成「查無問題」。
+    """
+
+    @staticmethod
+    async def _analyze(db_session, filename: str, data: bytes):
+        document = await DocumentService(db_session).upload(filename, data)
+        await db_session.commit()
+        job = await JobRepository(db_session).create(document.id)
+        await db_session.commit()
+        await AnalysisService(db_session).run(document.id, job.id)
+        return await DocumentRepository(db_session).get(document.id)
+
+    async def test_a_figure_heavy_pdf_is_marked_degraded(self, db_session):
+        document = await self._analyze(
+            db_session, "設計規範.pdf", make_pdf_bytes(text_pages=4, figure_pages=6)
+        )
+
+        assert document.parse_quality == ParseQuality.DEGRADED
+
+    async def test_the_note_says_how_much_was_lost(self, db_session):
+        document = await self._analyze(
+            db_session, "設計規範.pdf", make_pdf_bytes(text_pages=4, figure_pages=6)
+        )
+
+        assert "以圖為主" in document.parse_quality_note
+
+    async def test_a_text_pdf_is_marked_ok(self, db_session):
+        document = await self._analyze(db_session, "契約書.pdf", make_pdf_bytes(text_pages=10))
+
+        assert document.parse_quality == ParseQuality.OK
+        assert document.parse_quality_note is None
+
+    async def test_formats_without_pages_are_marked_ok(self, db_session, uploaded_document):
+        """docx 沒有這個失效模式，不該被標記，也不該是 None。"""
+        job = await JobRepository(db_session).create(uploaded_document.id)
+        await db_session.commit()
+        await AnalysisService(db_session).run(uploaded_document.id, job.id)
+
+        document = await DocumentRepository(db_session).get(uploaded_document.id)
+        assert document.parse_quality == ParseQuality.OK

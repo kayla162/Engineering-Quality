@@ -21,7 +21,7 @@ def parse(tmp_path):
     def _parse(data: bytes, suffix: str = ".xlsx"):
         path = tmp_path / f"標單{suffix}"
         path.write_bytes(data)
-        return ExcelParser().parse(path)
+        return ExcelParser().parse(path).sections
 
     return _parse
 

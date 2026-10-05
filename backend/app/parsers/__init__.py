@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from app.core.errors import InvalidFileTypeError
-from app.parsers.base import DocumentParser, ParsedSection
+from app.parsers.base import DocumentParser, ParsedSection, ParseResult
 from app.parsers.docx_parser import DocxParser
 from app.parsers.excel_parser import ExcelParser
 from app.parsers.pdf_parser import PdfParser
@@ -19,12 +19,12 @@ _PARSERS: dict[str, DocumentParser] = {
 }
 
 
-def parse_document(path: Path) -> list[ParsedSection]:
-    """把檔案解析成段落清單。"""
+def parse_document(path: Path) -> ParseResult:
+    """把檔案解析成段落清單，外加文件層級的解析品質訊號。"""
     parser = _PARSERS.get(path.suffix.lower())
     if parser is None:
         raise InvalidFileTypeError(f"沒有對應 {path.suffix} 的解析器")
     return parser.parse(path)
 
 
-__all__ = ["DocumentParser", "ParsedSection", "parse_document"]
+__all__ = ["DocumentParser", "ParseResult", "ParsedSection", "parse_document"]

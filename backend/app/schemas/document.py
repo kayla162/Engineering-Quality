@@ -27,6 +27,10 @@ class DocumentOut(BaseModel):
     filename: str
     file_type: str
     status: str
+    #: 解析品質。DEGRADED 表示有一部分內容讀不到（圖說的尺寸標註壓在點陣圖裡是
+    #: 典型案例），結果不可盡信。note 只有 DEGRADED 時才有值。
+    parse_quality: str
+    parse_quality_note: str | None = None
     uploaded_at: datetime
     latest_job: JobBrief | None = None
 
@@ -37,6 +41,8 @@ class DocumentOut(BaseModel):
             filename=document.filename,
             file_type=document.file_type,
             status=document.status,
+            parse_quality=document.parse_quality,
+            parse_quality_note=document.parse_quality_note,
             uploaded_at=document.uploaded_at,
             latest_job=JobBrief.from_model(latest_job) if latest_job else None,
         )

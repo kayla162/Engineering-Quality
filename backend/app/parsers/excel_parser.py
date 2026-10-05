@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app.core.enums import ContentType
 from app.core.errors import UnprocessableDocumentError
-from app.parsers.base import ParsedSection
+from app.parsers.base import ParsedSection, ParseResult
 from app.parsers.workbook import read_workbook
 
 #: 同一列的儲存格用這個串起來。用非中文字元，抽取時才不會把兩格黏成一個法規名稱。
@@ -49,7 +49,7 @@ def _is_continuation(current: list[tuple[int, str]], previous: list[tuple[int, s
 
 
 class ExcelParser:
-    def parse(self, path: Path) -> list[ParsedSection]:
+    def parse(self, path: Path) -> ParseResult:
         sections: list[ParsedSection] = []
         previous_sheet: str | None = None
         previous_cells: list[tuple[int, str]] = []
@@ -79,4 +79,4 @@ class ExcelParser:
 
         if not sections:
             raise UnprocessableDocumentError("試算表裡沒有任何內容")
-        return sections
+        return ParseResult(sections)

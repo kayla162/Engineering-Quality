@@ -16,6 +16,17 @@ class DocumentStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class ParseQuality(StrEnum):
+    """解析品質。`DEGRADED` 不代表失敗——段落照樣存進去，只是有一部分讀不到。
+
+    會踩到的是設計圖說：文字壓在點陣圖裡，parser 不報錯但內容幾乎是空的。
+    判斷依據見 app/parsers/text_coverage.py。
+    """
+
+    OK = "OK"
+    DEGRADED = "DEGRADED"
+
+
 class JobStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"

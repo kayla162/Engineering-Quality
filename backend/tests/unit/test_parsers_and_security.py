@@ -14,7 +14,7 @@ class TestParsers:
         path = tmp_path / "sample.docx"
         path.write_bytes(make_docx_bytes())
 
-        sections = parse_document(path)
+        sections = parse_document(path).sections
         types = {section.content_type for section in sections}
         assert ContentType.HEADING in types
         assert ContentType.PARAGRAPH in types
@@ -25,14 +25,14 @@ class TestParsers:
     def test_txt_splits_by_line(self, tmp_path):
         path = tmp_path / "sample.txt"
         path.write_bytes(make_txt_bytes())
-        sections = parse_document(path)
+        sections = parse_document(path).sections
         assert len(sections) == 5
         assert all(section.content_type == ContentType.PARAGRAPH for section in sections)
 
     def test_txt_handles_big5(self, tmp_path):
         path = tmp_path / "big5.txt"
         path.write_bytes("依政府採購法辦理".encode("cp950"))
-        assert parse_document(path)[0].content == "依政府採購法辦理"
+        assert parse_document(path).sections[0].content == "依政府採購法辦理"
 
     def test_broken_docx_raises_readable_error(self, tmp_path):
         path = tmp_path / "broken.docx"

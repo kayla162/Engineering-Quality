@@ -39,10 +39,37 @@
   "document_id": "uuid",
   "filename": "整體品質計畫.docx",
   "status": "ANALYZED",
+  "parse_quality": "OK",
+  "parse_quality_note": null,
   "uploaded_at": "...",
   "latest_job": { "job_id": "uuid", "status": "COMPLETED", "finished_at": "..." }
 }
 ```
+
+#### `parse_quality`：解析到的內容可不可信
+
+`status: ANALYZED` 只代表流程跑完了，不代表內容讀得完整。設計圖說的尺寸標註與
+構件名稱壓在點陣圖裡，PDF 解析器抽得到圖號和標題欄，**抽不到圖裡的字**——然後
+安靜地回傳一份近乎空白的結果。那是「有信心的錯」，比解析失敗更難發現。
+
+| 值 | 意義 |
+|---|---|
+| `OK` | 沒有偵測到內容遺失 |
+| `DEGRADED` | 有相當比例的頁面以圖為主，圖內文字未被讀取。段落照常存、分析照常完成，但**結果不可盡信** |
+
+`parse_quality_note` 只有 `DEGRADED` 時有值，會寫出實際數字：
+
+```json
+{
+  "parse_quality": "DEGRADED",
+  "parse_quality_note": "105 頁裡有 57 頁以圖為主，圖內的文字（尺寸標註、構件名稱等）未被讀取"
+}
+```
+
+判定規則：一頁的可選取文字少於 200 字**且**該頁有圖片，就算「以圖為主」；這種頁
+佔全文件 25% 以上就標記為 `DEGRADED`。門檻校準自 4 份真實工程文件（實測圖頁佔比
+0%、0.8%、22%、54%），樣本不多，拿到更多文件（特別是契約圖）之後會重新校準。
+只有 PDF 會做這個判定，其他格式一律 `OK`。
 
 ---
 
