@@ -6,8 +6,13 @@ import { DocumentList } from "./components/DocumentList";
 import { SourceStatusBanner } from "./components/SourceStatusBanner";
 import { UploadPanel } from "./components/UploadPanel";
 import { DocumentAnalysisPage } from "./pages/DocumentAnalysisPage";
+import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
+
+/** 兩個頂層模式。只有兩個，裝一套 router 不划算；之後真的變多再說。 */
+type Mode = "documents" | "projects";
 
 export default function App() {
+  const [mode, setMode] = useState<Mode>("documents");
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +47,30 @@ export default function App() {
         </p>
       </header>
 
+      <nav className="tabs">
+        {(
+          [
+            ["documents", "文件分析"],
+            ["projects", "專案工項"],
+          ] as [Mode, string][]
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={mode === value ? "tab selected" : "tab"}
+            onClick={() => setMode(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* 綱要規範章節也是來源查出來的，所以兩個模式都需要這個警告 */}
       <SourceStatusBanner status={sourcesStatus} />
 
+      {mode === "projects" ? (
+        <ProjectWorkItemsPage />
+      ) : (
       <div className="layout">
         <div className="sidebar">
           <UploadPanel
@@ -78,6 +105,7 @@ export default function App() {
           )}
         </main>
       </div>
+      )}
     </div>
   );
 }

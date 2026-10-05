@@ -2,13 +2,18 @@
 
 import type {
   DocumentList,
+  DocumentRole,
   DocumentSummary,
   Job,
+  Project,
+  ProjectDocumentLink,
+  ProjectList,
   ReferenceDetail,
   ReferenceFilters,
   ReferenceList,
   ReviewStatus,
   SourcesStatus,
+  WorkItemList,
 } from "./types";
 
 const BASE = "/api";
@@ -96,6 +101,30 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+
+  listProjects: () => request<ProjectList>("/projects"),
+
+  createProject: (name: string) =>
+    request<Project>("/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
+
+  /** 角色決定跑什麼管線：標單走工項抽取，契約與規範走法規抽取 */
+  attachDocument: (projectId: string, documentId: string, role: DocumentRole) =>
+    request<ProjectDocumentLink>(`/projects/${projectId}/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: documentId, role }),
+    }),
+
+  /** 從專案的標單重建工項清單。重跑會取代舊的，不是累加。 */
+  buildWorkItems: (projectId: string) =>
+    request<WorkItemList>(`/projects/${projectId}/work-items`, { method: "POST" }),
+
+  listWorkItems: (projectId: string) =>
+    request<WorkItemList>(`/projects/${projectId}/work-items`),
 
   /** 匯出是檔案下載，直接開新分頁交給瀏覽器處理 */
   exportReportUrl: (documentId: string, format: "xlsx" | "csv" | "pdf") =>

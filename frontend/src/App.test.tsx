@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import { stubApi } from "./test/stubApi";
 
 const NO_DOCUMENTS = { total: 0, page: 1, page_size: 20, items: [] };
 
@@ -17,26 +18,12 @@ const UNAVAILABLE = {
   ],
 };
 
+const NO_PROJECTS = { total: 0, items: [] };
+
 const ALL_READY = {
   status: "ok",
   sources: [{ source: "mock", ready: true, detail: null, remedy: null }],
 };
-
-/** 用路徑前綴回傳假回應，順便驗證前端真的打了那個路徑。 */
-function stubApi(routes: Record<string, unknown>) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      const path = Object.keys(routes).find((prefix) => url.startsWith(prefix));
-      if (path === undefined) throw new Error(`測試沒有準備這個路徑：${url}`);
-      return new Response(JSON.stringify(routes[path]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }),
-  );
-}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -58,5 +45,22 @@ describe("App", () => {
 
     await screen.findByText(/請先選擇或上傳一份文件/);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("可以切到專案工項，看到專案面板", async () => {
+    stubApi({ "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS, "/api/projects": NO_PROJECTS });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "專案工項" }));
+
+    expect(await screen.findByLabelText(/專案名稱/)).toBeInTheDocument();
+  });
+
+  it("預設停在文件分析", async () => {
+    stubApi({ "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
+
+    render(<App />);
+
+    expect(await screen.findByText(/請先選擇或上傳一份文件/)).toBeInTheDocument();
   });
 });

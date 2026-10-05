@@ -412,3 +412,109 @@ button.link {
   /* 讓使用者一鍵選起來複製 */
   user-select: all;
 }
+
+/* --- 專案工項 --- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--gap);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 8px 16px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.selected {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--primary);
+  font-weight: 600;
+  /* 蓋掉下方那條線，讓選中的分頁和內容連成一片 */
+  margin-bottom: -1px;
+  padding-bottom: 9px;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.field label {
+  color: var(--muted);
+  min-width: 72px;
+}
+
+.field input[type="text"],
+.field input:not([type]),
+.field select {
+  flex: 1 1 160px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+ul.list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+ul.list li {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+ul.list li:hover {
+  background: var(--bg);
+}
+
+ul.list li.selected {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.filter-toggle {
+  display: inline-flex;
+  /* 全域 label 是 column（標籤在上、輸入在下），勾選框要並排得自己蓋掉 */
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.chapter-code {
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.summary-total { background: var(--possible); }
+.summary-matched { background: var(--active); }
+.summary-missing { background: var(--notfound); }

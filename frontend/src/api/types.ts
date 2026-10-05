@@ -151,3 +151,48 @@ export interface ReferenceFilters {
   review_status?: ReviewStatus | "";
   min_confidence?: number | "";
 }
+
+// --- 專案與工項（backend/app/schemas/project.py）---
+
+/** 文件在專案裡扮演的角色。決定跑哪條管線：標單走工項抽取，其餘走法規抽取。 */
+export type DocumentRole = "boq" | "contract" | "drawing" | "specification" | "other";
+
+export interface Project {
+  project_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface ProjectList {
+  total: number;
+  items: Project[];
+}
+
+/** 由計價代碼前 5 碼查出來的施工綱要規範章節。對不到就是 null，不硬湊。 */
+export interface SpecChapter {
+  code: string;
+  name: string;
+}
+
+export interface WorkItem {
+  work_item_id: string;
+  item_no: string;
+  name: string;
+  unit: string;
+  quantity: string;
+  cost_code: string | null;
+  spec_chapter: SpecChapter | null;
+}
+
+export interface WorkItemList {
+  total: number;
+  /** 有對到綱要規範章節的筆數。實測真實標單 438/1028 */
+  with_spec_chapter: number;
+  items: WorkItem[];
+}
+
+export interface ProjectDocumentLink {
+  document_id: string;
+  role: string;
+  added_at: string;
+}
