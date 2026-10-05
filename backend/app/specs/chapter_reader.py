@@ -6,7 +6,7 @@
         01725 01725-1 V3.0 2013/01/10     組碼與章碼相同
         05500 05503-1 V5.0 2020/08/19     組碼與章碼不同，章碼是 05503
 
-    章名在頁首下一行：`第01725 章V3.0 施工測量`
+    章名在頁首後面：`第01725 章V3.0` 的下一行是 `施工測量`（寫法不只一種，見 `_TITLE`）
 
 兩個關鍵設計：
 
@@ -30,8 +30,13 @@ from app.core.errors import UnprocessableDocumentError
 #: 頁首：<組碼> <章碼>-<頁次> V<版本>。章碼是第二組，不是第一組。
 _HEADER = re.compile(r"^(\d{5})\s+(\d{5})-(\d+)\s+V([\d.]+)")
 
-#: 章名行：第01725 章V3.0 施工測量
-_TITLE = re.compile(r"第\s*\d{5}\s*章\s*V[\d.]+\s*(\S[^\n]*)")
+#: 章名行：`第<章碼> 章` 後面接版本與章名。實測 86 章有三種寫法：
+#:     第01725 章V3.0 ⏎ 施工測量      章名在下一行（74 章）
+#:     第02220 章 ⏎ 工地拆除          章名行沒有版本（11 章）
+#:     第16742 章 V 1.0 ⏎ 數據網路…   版本中間有空白（1 章）
+#: 第一組抓章碼：內文的交叉參照也長得像（`第01330 章--資料送審`），
+#: 要靠章碼是不是本章的，才分得出哪一行是章名。
+_TITLE = re.compile(r"第\s*(\d{5})\s*章(?:\s*V\s*[\d.]+)?\s*(\S[^\n]*)")
 
 
 class SpecFormatError(UnprocessableDocumentError):
@@ -79,12 +84,16 @@ def read_spec_chapters(path: Path) -> list[SpecChapterRow]:
                 continue
 
             # 章名要在保留換行的原文上找：_TITLE 靠行尾判斷章名在哪裡結束，
-            # 空白正規化後整頁變成一行，章名會一路吃到頁尾。
-            title_match = _TITLE.search(text)
+            # 空白正規化後整頁變成一行，章名會一路吃到頁尾。找不到本章的章名行
+            # 就留空，不要拿交叉參照湊數。
+            title = next(
+                (match.group(2).strip() for match in _TITLE.finditer(text) if match.group(1) == code),
+                "",
+            )
             rows.append(
                 SpecChapterRow(
                     code=code,
-                    title=title_match.group(1).strip() if title_match else "",
+                    title=title,
                     version=version,
                     first_page=page_index,
                     last_page=page_index,
