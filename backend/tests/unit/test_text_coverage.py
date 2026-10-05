@@ -52,14 +52,23 @@ class TestMeasurePages:
         assert coverage.is_degraded is False
 
     def test_the_threshold_counts_as_degraded_when_reached(self):
-        """門檻是「達到」就算，不是「超過」。3/12 = 25%。"""
-        assert FIGURE_PAGE_RATIO == 0.25
+        """門檻是「達到」就算，不是「超過」。1/10 = 10%。"""
+        assert FIGURE_PAGE_RATIO == 0.10
 
-        assert measure_pages(pages(text=9, figure=3)).is_degraded is True
+        assert measure_pages(pages(text=9, figure=1)).is_degraded is True
 
     def test_just_under_the_threshold_is_clean(self):
-        """2/12 ≈ 17%。實測正常文件最高 11%，這裡要放行。"""
-        assert measure_pages(pages(text=10, figure=2)).is_degraded is False
+        """1/12 ≈ 8%。實測乾淨文件是 0% 與 0.8%，離這裡還很遠。"""
+        assert measure_pages(pages(text=11, figure=1)).is_degraded is False
+
+    def test_a_short_document_with_two_figure_pages_is_degraded(self):
+        """回歸：11.新北市政府建築工程施工管理要點.pdf 是 2/9 = 22%，門檻 25% 時被放過。
+
+        那兩頁一頁是七張道路修復圖例、一頁是兩張工程告示牌規格表（法定必載欄位、
+        尺寸、通報專線），抽出來只有標題 86 個字。漏報的代價是使用者拿著一份
+        空結果以為沒問題；誤報的代價是多看一行警告。
+        """
+        assert measure_pages(pages(text=7, figure=2)).is_degraded is True
 
     def test_an_empty_document_is_not_degraded(self):
         """0 頁不能讓比例運算炸掉。"""
