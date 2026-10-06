@@ -9,6 +9,7 @@
     兩者的落差就是檢核結果「本案規範未收錄」——不要把它們當成同一份資料。
 """
 
+from app.specs.basis_reader import basis_block
 from app.specs.chapter_reader import SpecChapterRow, SpecFormatError, read_spec_chapters
 
-__all__ = ["SpecChapterRow", "SpecFormatError", "read_spec_chapters"]
+__all__ = ["SpecChapterRow", "SpecFormatError", "basis_block", "read_spec_chapters"]
