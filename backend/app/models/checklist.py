@@ -5,7 +5,7 @@
 
 `work_item_bases` **只存找到的**。不存 found=false 的列，因為「沒找到」的三種
 原因全部算得出來（沒有章節／本案規範未收錄／章節無相關準則），存起來就變成
-可能過期的欄位——違反 enums.py 開頭和原 spec 第 4 節的規則。
+可能過期的欄位——違反本模組 CheckResult 的設計與原 spec 第 4 節的規則。
 """
 
 import uuid
@@ -30,6 +30,7 @@ class SpecChapter(Base):
     #: 5 碼章碼，和計價代碼前 5 碼對接
     code: Mapped[str] = mapped_column(String(8), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    #: 版本，例如「3.0」——不含「V」字首（chapter_reader.py 產生的格式）
     version: Mapped[str] = mapped_column(String(16), nullable=False, default="")
     first_page: Mapped[int] = mapped_column(Integer, nullable=False)
     last_page: Mapped[int] = mapped_column(Integer, nullable=False)
