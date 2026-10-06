@@ -2,6 +2,7 @@
 
 from app.models.audit import AIInvocationLog, RegulationQuery
 from app.models.base import Base
+from app.models.checklist import SpecChapter, WorkItemBasis
 from app.models.document import Document, DocumentSection
 from app.models.job import Job
 from app.models.project import Project, ProjectDocument, WorkItem
@@ -21,5 +22,7 @@ __all__ = [
     "RegulationQuery",
     "RegulationReference",
     "RegulationVersion",
+    "SpecChapter",
     "WorkItem",
+    "WorkItemBasis",
 ]

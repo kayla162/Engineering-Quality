@@ -27,6 +27,22 @@ class ParseQuality(StrEnum):
     DEGRADED = "DEGRADED"
 
 
+class CheckResult(StrEnum):
+    """工項檢核結果。狀態由資料算出來，不存成欄位（見階段 3 spec 第 4 節）。
+
+    階段 3 可達的只有這三個。原 spec 另有兩個值屬於後面的階段：
+        標單有，契約圖沒有 -> 階段 2，需要契約圖
+        請檢討使用何種工法 -> 階段 4
+    """
+
+    OK = "OK"
+    #: 對得到綱要規範章節，但本案規範書沒收錄該章。
+    #: 和「沒有計價代碼所以不知道」是不同狀況——這裡是「知道該用哪一章，
+    #: 但合約文件裡找不到它」，實測 188 個工項（18%）。
+    SPEC_NOT_INCLUDED = "SPEC_NOT_INCLUDED"
+    NEEDS_CONFIRMATION = "NEEDS_CONFIRMATION"
+
+
 class JobStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
