@@ -3,10 +3,16 @@
 結果怎麼算在 test_checklist_service.py 測；這裡測 HTTP 這一層：路由有沒有接對
 （POST 重建、GET 只讀）、回應的形狀、錯誤碼。
 
-用 tests/factories.py 預設的標單（三個工項）加一份只有 01725 一章的規範書，三種結果各一個：
-    壹.一.1.1.1  計價代碼 01725…  規範書有這章、這章有相關準則  -> OK
-    壹.一.1.2.1  計價代碼 03110…  綱要規範有、本案規範書沒收    -> SPEC_NOT_INCLUDED
-    壹.一.1.3.1  沒有計價代碼                                    -> NEEDS_CONFIRMATION
+標單六個工項，加一份兩章的規範書。**三種結果的筆數刻意互不相同**（OK 2、
+SPEC_NOT_INCLUDED 1、NEEDS_CONFIRMATION 3）：兩種結果的筆數一樣時，摘要裡那兩個欄位
+對調也看不出來，整張表的標題數字（真實文件實測 248 / 188 / 592）會悄悄顛倒，而所有
+測試照樣通過。三個 NEEDS_CONFIRMATION 各是真實標單上的一種原因：
+    壹.一.1.1.1  計價代碼 01725…  規範書有這章、這章有相關準則      -> OK
+    壹.一.1.1.2  計價代碼 01725…  同上                              -> OK
+    壹.一.1.2.1  計價代碼 03110…  綱要規範有、本案規範書沒收        -> SPEC_NOT_INCLUDED
+    壹.一.1.3.1  沒有計價代碼                                        -> NEEDS_CONFIRMATION
+    壹.一.1.4.1  計價代碼 99999…  不在規範書、也不是綱要規範的章      -> NEEDS_CONFIRMATION
+    壹.一.1.5.1  計價代碼 01523…  規範書有這章、但這章沒有相關準則    -> NEEDS_CONFIRMATION
 """
 
 import json
@@ -17,16 +23,41 @@ import pytest
 from app.core.config import settings
 from app.core.enums import ParseQuality
 from app.repositories.documents import DocumentRepository
-from tests.factories import make_boq_bytes, make_spec_pdf_bytes
+from tests.factories import BOQ_HEADER, make_boq_bytes, make_spec_pdf_bytes
 
-SPEC = [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審")]
+BOQ = [
+    BOQ_HEADER,
+    ["壹.一.1.1.1", "施工測量，基地測量", "式", 1, 1, 1, "0172500004"],
+    ["壹.一.1.1.2", "施工測量，放樣", "式", 1, 1, 1, "0172500005"],
+    ["壹.一.1.2.1", "普通模板，普通模板含組立", "M2", 959, 1, 1, "0311010002"],
+    ["壹.一.1.3.1", "天花板，長條鋁企口天花板", "M2", 120, 1, 1, ""],
+    ["壹.一.1.4.1", "自訂工項，各機關自訂", "式", 1, 1, 1, "9999900001"],
+    ["壹.一.1.5.1", "施工安全衛生，安全衛生管理", "式", 1, 1, 1, "0152300001"],
+]
 
-ITEM_NOS = ["壹.一.1.1.1", "壹.一.1.2.1", "壹.一.1.3.1"]
+#: 本案規範書兩章：01725 宣告了相關準則；01523 在規範書裡，但沒有宣告相關準則
+SPEC = [
+    ("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審"),
+    ("01523", "01523", "施工安全衛生及管理", "4.0", "1. 通則 3. 執行"),
+]
+
+ITEM_NOS = [row[0] for row in BOQ[1:]]
+
+RESULTS = {
+    "壹.一.1.1.1": "OK",
+    "壹.一.1.1.2": "OK",
+    "壹.一.1.2.1": "SPEC_NOT_INCLUDED",
+    "壹.一.1.3.1": "NEEDS_CONFIRMATION",
+    "壹.一.1.4.1": "NEEDS_CONFIRMATION",
+    "壹.一.1.5.1": "NEEDS_CONFIRMATION",
+}
 
 #: 本檔測試用的迷你綱要規範目錄（PCCES）。刻意不讀 data/pcces_index.json：那是
 #: scripts/sync_pcces.py 同步下來的檔案、被 .gitignore 擋掉，測試不該靠它在不在、
 #: 裡面有什麼。ChecklistService 會用它判斷「本案規範未收錄」——03110 在這裡，
-#: 所以 壹.一.1.2.1 對得到章節、規範書卻沒有。做法同 test_checklist_service.py。
+#: 所以 壹.一.1.2.1 對得到章節、規範書卻沒有；99999 不在這裡，所以 壹.一.1.4.1 說不上
+#: 「漏收」。01523 也不在這裡，但本案規範書有它：先比規範書、再用目錄判斷漏收，所以
+#: 壹.一.1.5.1 照樣對得到章節。做法同 test_checklist_service.py。
 PCCES_CHAPTERS = [
     {"code": "01725", "name": "施工測量", "edition": "3.0"},
     {"code": "03110", "name": "場鑄結構混凝土用模板", "edition": "6.0"},
@@ -63,7 +94,9 @@ async def project_with_boq(api_client):
     response = await api_client.post("/api/projects", json={"name": "秀山分隊興建工程"})
     project_id = response.json()["project_id"]
 
-    boq_id = await upload(api_client, "標單.xlsx", make_boq_bytes(), "application/vnd.ms-excel")
+    boq_id = await upload(
+        api_client, "標單.xlsx", make_boq_bytes(rows=BOQ), "application/vnd.ms-excel"
+    )
     await attach(api_client, project_id, boq_id, "boq")
     await api_client.post(f"/api/projects/{project_id}/work-items")
     return project_id
@@ -104,10 +137,17 @@ class TestBuildChecklist:
         assert response.json()["total"] == len(ITEM_NOS)
 
     async def test_the_summary_counts_each_result(self, api_client, project_id):
-        """只比總和抓不到算錯：全部算成 needs_confirmation 總和照樣對。"""
+        """三種結果的筆數互不相同（2 / 1 / 3），所以任何兩個欄位對調都會被抓到。
+
+        只比總和抓不到算錯：全部算成 needs_confirmation 總和照樣對。筆數一樣的兩個欄位
+        （例如各 1）對調也照樣通過——真實標單上就是把「248 筆 OK、188 筆未收錄」悄悄
+        顛倒成「188 筆 OK、248 筆未收錄」，這張表的標題數字全是反的。"""
         body = (await api_client.post(url(project_id))).json()
 
-        assert body["summary"] == {"ok": 1, "spec_not_included": 1, "needs_confirmation": 1}
+        expected = {"ok": 2, "spec_not_included": 1, "needs_confirmation": 3}
+        # 筆數不互異的話，這個測試就守不住欄位對調
+        assert len(set(expected.values())) == len(expected)
+        assert body["summary"] == expected
         assert sum(body["summary"].values()) == body["total"]
 
     async def test_each_result_comes_with_the_rows_it_describes(self, api_client, project_id):
@@ -115,13 +155,18 @@ class TestBuildChecklist:
 
         rows = await items_by_no(api_client, project_id)
 
-        assert {no: row["result"] for no, row in rows.items()} == {
-            "壹.一.1.1.1": "OK",
-            "壹.一.1.2.1": "SPEC_NOT_INCLUDED",
-            "壹.一.1.3.1": "NEEDS_CONFIRMATION",
+        assert {no: row["result"] for no, row in rows.items()} == RESULTS
+        # 規範書有這章、也宣告了相關準則：章節與依據都帶出來
+        for item_no in ("壹.一.1.1.1", "壹.一.1.1.2"):
+            assert rows[item_no]["chapter"]["code"] == "01725"
+            assert [b["reference"] for b in rows[item_no]["bases"]] == ["測量法"]
+        # 規範書有這章、但這章沒有宣告相關準則：章節照樣帶出來，只是沒有依據
+        assert rows["壹.一.1.5.1"]["chapter"] == {
+            "code": "01523", "title": "施工安全衛生及管理", "version": "4.0"
         }
+        assert rows["壹.一.1.5.1"]["bases"] == []
         # 本案規範書沒有這章、或根本沒有章碼：不能掛一個別章的章節或依據上去
-        for item_no in ("壹.一.1.2.1", "壹.一.1.3.1"):
+        for item_no in ("壹.一.1.2.1", "壹.一.1.3.1", "壹.一.1.4.1"):
             assert rows[item_no]["chapter"] is None
             assert rows[item_no]["bases"] == []
 
@@ -141,7 +186,8 @@ class TestBuildChecklist:
 
         rows = await items_by_no(api_client, project_id)
 
-        assert [b["reference"] for b in rows["壹.一.1.1.1"]["bases"]] == ["測量法"]
+        for item_no in ("壹.一.1.1.1", "壹.一.1.1.2"):
+            assert [b["reference"] for b in rows[item_no]["bases"]] == ["測量法"]
 
     async def test_the_rows_use_the_work_item_ids_of_the_work_item_list(
         self, api_client, project_id
@@ -224,6 +270,9 @@ class TestGetChecklist:
         rows = {i["item_no"]: i for i in response.json()["items"]}
         assert {r["result"] for r in rows.values()} == {"NEEDS_CONFIRMATION"}
         assert all(r["chapter"] is None and r["bases"] == [] for r in rows.values())
+        assert response.json()["summary"] == {
+            "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS)
+        }
 
     @pytest.mark.parametrize("method, status_code", [("post", 201), ("get", 200)])
     async def test_a_project_without_a_spec_still_gets_a_checklist(
@@ -236,7 +285,9 @@ class TestGetChecklist:
         assert response.status_code == status_code
         body = response.json()
         assert [i["item_no"] for i in body["items"]] == ITEM_NOS
-        assert body["summary"] == {"ok": 0, "spec_not_included": 0, "needs_confirmation": 3}
+        assert body["summary"] == {
+            "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS)
+        }
         assert all(i["chapter"] is None and i["bases"] == [] for i in body["items"])
         assert body["spec_warning"] is None
 
