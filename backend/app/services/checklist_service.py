@@ -178,7 +178,9 @@ class ChecklistService:
         chapters: dict[str, SpecChapter],
         texts: dict[str, str],
     ) -> dict[uuid.UUID, list[WorkItemBasis]]:
-        # 同一章會對到很多工項（實測 01271 一章就 83 個），抽取結果快取
+        # 同一章會對到很多工項，抽取結果依章碼快取。實測（2026-10-07，真實標單與規範書）：
+        # 251 個工項對到規範書的 31 章，最多的 16401 一章就有 97 個；其中 30 章宣告了相關
+        # 準則，所以只抽取 30 次，不快取要 249 次。
         cache: dict[str, list[tuple[str, str]]] = {}
         bases: list[WorkItemBasis] = []
 

@@ -1,17 +1,20 @@
 """檢核表：工項 + 依據 + 檢核結果。
 
-結果的三個值怎麼來（階段 3 spec 第 2 節，實測 1028 個工項）：
-    OK                  235  章節在本案規範書裡，且該章有相關準則
+結果的三個值怎麼來。下面的數字是本實作在真實標單（2.契約書.xls，1028 個工項）與
+真實規範書（13.施工規範.pdf）上的實測值（2026-10-07），不是設計時的預估：
+    OK                  248  章節在本案規範書裡，且該章有相關準則
     SPEC_NOT_INCLUDED   188  對得到章節，但本案規範書沒收錄
-    NEEDS_CONFIRMATION  605  沒有章節，或章節無相關準則
+    NEEDS_CONFIRMATION  592  沒有章節，或章節無相關準則
+階段 3 spec 第 2 節寫的是 235 / 188 / 605：188 一致，OK 多 13、NEEDS_CONFIRMATION 少 13。
 """
 
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.ai.base import ExtractionResult, LLMCallRecord, LLMProvider, LLMResult
 from app.core.config import settings
@@ -19,7 +22,7 @@ from app.core.db import get_session_factory
 from app.core.enums import AIPurpose, CheckResult, DocumentRole, ParseQuality
 from app.core.errors import AppError, ProjectNotFoundError, SourceQueryError
 from app.models.audit import AIInvocationLog
-from app.models.checklist import SpecChapter
+from app.models.checklist import SpecChapter, WorkItemBasis
 from app.repositories.checklist import ChecklistRepository
 from app.repositories.documents import DocumentRepository
 from app.services.checklist_service import ChecklistService
@@ -31,6 +34,10 @@ from tests.factories import BOQ_HEADER, BOQ_ROWS, make_boq_bytes, make_spec_pdf_
 #: 01725 在 PCCES 目錄裡（標單 壹.一.1.1.1 的計價代碼 0172500004 對得到）
 SPEC_WITH_BASIS = [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審")]
 SPEC_WITHOUT_BASIS = [("01725", "01725", "施工測量", "3.0", "1. 通則 3. 執行")]
+#: 一條法律、一條標準，共兩條依據
+SPEC_WITH_TWO_BASES = [
+    ("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 (2) CNS 2473 鋼材 1.5 送審")
+]
 
 #: 本檔測試用的迷你綱要規範目錄（PCCES）。刻意不讀 data/pcces_index.json：那是同步下來的
 #: 檔案、被 .gitignore 擋掉，測試不該靠它在不在、裡面有什麼。05503、99999 不在這裡。
@@ -93,6 +100,12 @@ async def read_back(project_id):
     """
     async with get_session_factory()() as session:
         return await ChecklistService(session).checklist(project_id)
+
+
+async def count_bases(session) -> int:
+    """work_item_bases 表裡總共有幾列。直接數資料庫，不經過檢核表——檢核表只讀得到
+    還掛在工項上的依據，沒刪乾淨的舊列也算進來才看得出重複。"""
+    return (await session.execute(select(func.count()).select_from(WorkItemBasis))).scalar_one()
 
 
 def describe(checklist):
@@ -196,23 +209,40 @@ class TestBuild:
         assert all(r.chapter is None and r.bases == [] for r in result.rows)
         assert result.spec_warning is None
 
-    async def test_rebuilding_replaces_instead_of_duplicating(self, db_session, project_with_boq):
+    async def test_rebuilding_replaces_instead_of_duplicating(self, db_session):
         """重跑之後要回頭向資料庫查，不能只比對 build() 回傳的清單——兩次都是新建的，
-        就算舊的沒有先刪掉，回傳的筆數也會一樣。"""
-        spec = await attach_spec(db_session, project_with_boq, SPEC_WITH_BASIS)
+        就算舊的沒有先刪掉，回傳的筆數也會一樣。
+
+        四個工項都有依據，連最後一個也是：只有第一個工項有依據的話，刪除時漏掉最後
+        （或第一個）工項的 id 不會被發現。日後把 IN 改成分批刪除，最容易出的就是這種
+        邊界錯。總列數要直接數資料庫，漏刪的舊列才會冒出來。"""
+        project = await create_project(
+            db_session,
+            boq_rows=[
+                BOQ_HEADER,
+                ["壹.一.1.1.1", "施工測量，基地測量", "式", 1, 1, 1, "0172500004"],
+                ["壹.一.1.1.2", "施工測量，放樣", "式", 1, 1, 1, "0172500005"],
+                ["壹.一.1.1.3", "施工測量，高程測量", "式", 1, 1, 1, "0172500006"],
+                ["壹.一.1.1.4", "施工測量，竣工測量", "式", 1, 1, 1, "0172500007"],
+            ],
+        )
+        spec = await attach_spec(db_session, project, SPEC_WITH_TWO_BASES)
         service = ChecklistService(db_session)
 
-        await service.build(project_with_boq.id)
-        await service.build(project_with_boq.id)
+        await service.build(project.id)
+        assert await count_bases(db_session) == 8  # 4 個工項 × 2 條依據
 
-        stored = await read_back(project_with_boq.id)
-        assert len(row_of(stored.rows, "壹.一.1.1.1").bases) == 1
+        await service.build(project.id)
+
+        assert await count_bases(db_session) == 8
+        stored = await read_back(project.id)
+        assert [sorted(b.reference for b in r.bases) for r in stored.rows] == [["CNS 2473", "測量法"]] * 4
         assert len(await ChecklistRepository(db_session).chapters_by_document(spec.id)) == 1
 
     async def test_extraction_runs_once_per_chapter(self, db_session, monkeypatch):
-        """同一章會對到很多工項（實測 01271 一章就 83 個），抽取結果要快取：
-        同一段文字抽 N 次不會讓結果不同，只會慢，而且 LLM 開著時每次都要錢。
-        快取的結果也必須掛到每一個工項上，不能只給第一個。"""
+        """同一章會對到很多工項（實測 251 個工項對到規範書的 31 章，最多的 16401 一章
+        就有 97 個），抽取結果要快取：同一段文字抽 N 次不會讓結果不同，只會慢，而且
+        LLM 開著時每次都要錢。快取的結果也必須掛到每一個工項上，不能只給第一個。"""
         project = await create_project(
             db_session,
             boq_rows=[
@@ -239,6 +269,39 @@ class TestBuild:
         assert len(rows) == 3
         assert all(r.result == CheckResult.OK for r in rows)
         assert all([b.reference for b in r.bases] == ["測量法"] for r in rows)
+
+    async def test_each_chapter_gives_its_work_items_its_own_bases(self, db_session):
+        """兩章都有相關準則時，各工項拿到的必須是自己那一章的。
+
+        快取的鍵是章碼。上面那個測試只有一章，鍵寫錯了也不影響結果：寫死一個常數、只取
+        前兩碼（01725 與 01523 的前兩碼都是 01），或永遠用第一章的文字，每個工項拿到的
+        依據都一樣是對的。這裡兩章都有依據，而且工項交錯排列，不是同一章連著出現。"""
+        project = await create_project(
+            db_session,
+            boq_rows=[
+                BOQ_HEADER,
+                ["壹.一.1.1.1", "施工測量，基地測量", "式", 1, 1, 1, "0172500004"],
+                ["壹.一.1.2.1", "施工安全衛生，安全衛生管理", "式", 1, 1, 1, "0152300001"],
+                ["壹.一.1.1.2", "施工測量，放樣", "式", 1, 1, 1, "0172500005"],
+                ["壹.一.1.2.2", "施工安全衛生，安全衛生教育訓練", "式", 1, 1, 1, "0152300002"],
+            ],
+        )
+        await attach_spec(
+            db_session, project,
+            [
+                ("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 1.5 資料送審"),
+                ("01523", "01523", "施工安全衛生及管理", "4.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審"),
+            ],
+        )
+
+        rows = (await ChecklistService(db_session).build(project.id)).rows
+
+        assert {r.work_item.item_no: [b.reference for b in r.bases] for r in rows} == {
+            "壹.一.1.1.1": ["測量法"],
+            "壹.一.1.2.1": ["職業安全衛生法"],
+            "壹.一.1.1.2": ["測量法"],
+            "壹.一.1.2.2": ["職業安全衛生法"],
+        }
 
 
 class TestSpecNotIncluded:
@@ -364,6 +427,25 @@ class TestReadBack:
         assert all(r.bases == [] and r.chapter is None for r in result.rows)
         assert await ChecklistRepository(db_session).chapters_by_document(spec.id) == []
         assert await ChecklistRepository(db_session).bases_by_project(project_with_boq.id) == {}
+
+    async def test_get_without_a_spec_still_produces_a_checklist(
+        self, db_session, project_with_boq
+    ):
+        """使用者最先碰到的狀態：建了專案、建了工項，還沒上傳規範書就先看檢核表。
+        GET 也要給一張表（工項都在、依據欄空白、沒有警告），不能報錯。POST 同一件事的
+        對照在 test_a_project_without_a_spec_still_produces_a_checklist。
+
+        標單裡 壹.一.1.1.1（01725）和 壹.一.1.2.1（03110）都是 PCCES 目錄有的章，所以這個
+        測試也守住：沒有規範書時，GET 不能把「什麼都沒索引」當成「索引裡沒有這一章」，
+        說出「本案規範未收錄」——那是把「你還沒上傳規範書」指成「規範書漏收這一章」。"""
+        result = await ChecklistService(db_session).checklist(project_with_boq.id)
+
+        assert {r.work_item.item_no for r in result.rows} == {
+            "壹.一.1.1.1", "壹.一.1.2.1", "壹.一.1.3.1",
+        }
+        assert all(r.result == CheckResult.NEEDS_CONFIRMATION for r in result.rows)
+        assert all(r.chapter is None and r.bases == [] for r in result.rows)
+        assert result.spec_warning is None
 
     async def test_get_does_not_reread_the_spec_file(self, db_session, project_with_boq):
         """重讀 772 頁的規範書是重建的事。檔案不在了，GET 照樣要讀得回已經建好的。"""
@@ -569,6 +651,63 @@ class TestChapterIndex:
 
         found = await repo.chapters_by_document(spec.id)
         assert [(c.first_page, c.code) for c in found] == [(10, "01725"), (20, "01523"), (30, "03110")]
+
+
+class TestBasisOrder:
+    """bases_by_project 的順序要固定：SQL 沒有 ORDER BY 就不保證順序，SQLite 碰巧依寫入
+    順序給，PostgreSQL 不一定。所以資料刻意讓「寫入順序」「id 順序」「應有順序」三者互不
+    相同——拿掉 ORDER BY、或只照其中一種排，都會被抓到。"""
+
+    @staticmethod
+    def basis(item, reference, created_at, number):
+        return WorkItemBasis(
+            id=uuid.UUID(int=number),
+            work_item_id=item.id,
+            basis_type="law",
+            reference=reference,
+            created_at=created_at,
+        )
+
+    async def test_bases_come_back_oldest_first(self, db_session, project_with_boq):
+        item = (await ProjectService(db_session).work_items(project_with_boq.id))[0]
+        start = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
+        repo = ChecklistRepository(db_session)
+
+        # 應有順序（建立時間）：測量法 → 勞動基準法 → 職業安全衛生法
+        # 寫入順序：職安 → 測量 → 勞基；id 順序：勞基(1) → 職安(2) → 測量(3)
+        await repo.replace_bases(
+            [item.id],
+            [
+                self.basis(item, "職業安全衛生法", start + timedelta(seconds=3), 2),
+                self.basis(item, "測量法", start + timedelta(seconds=1), 3),
+                self.basis(item, "勞動基準法", start + timedelta(seconds=2), 1),
+            ],
+        )
+
+        found = (await repo.bases_by_project(project_with_boq.id))[item.id]
+        assert [b.reference for b in found] == ["測量法", "勞動基準法", "職業安全衛生法"]
+
+    async def test_bases_made_at_the_same_instant_still_come_back_in_a_fixed_order(
+        self, db_session, project_with_boq
+    ):
+        """時間戳一樣的幾筆（時鐘解析度不夠時會發生）要有第二層排序，不然它們之間的
+        順序每次查詢都可能不同。這裡以 id 為準。"""
+        item = (await ProjectService(db_session).work_items(project_with_boq.id))[0]
+        instant = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
+        repo = ChecklistRepository(db_session)
+
+        # 寫入順序：id 3 → 1 → 2
+        await repo.replace_bases(
+            [item.id],
+            [
+                self.basis(item, "職業安全衛生法", instant, 3),
+                self.basis(item, "測量法", instant, 1),
+                self.basis(item, "勞動基準法", instant, 2),
+            ],
+        )
+
+        found = (await repo.bases_by_project(project_with_boq.id))[item.id]
+        assert [b.reference for b in found] == ["測量法", "勞動基準法", "職業安全衛生法"]
 
 
 class TestIsolation:

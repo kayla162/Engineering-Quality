@@ -51,11 +51,20 @@ class ChecklistRepository:
     async def bases_by_project(
         self, project_id: uuid.UUID
     ) -> dict[uuid.UUID, list[WorkItemBasis]]:
-        """專案所有工項的依據，依工項分組。沒有依據的工項不會出現在結果裡。"""
+        """專案所有工項的依據，依工項分組。沒有依據的工項不會出現在結果裡。
+
+        每個工項的依據依建立先後（created_at）排，同一時刻建立的再依 id 排，所以同一份
+        資料不管查幾次、用哪種資料庫，順序都一樣。SQL 沒有 ORDER BY 就不保證順序：
+        SQLite 碰巧依寫入順序給，PostgreSQL 會隨查詢計畫與資料表狀態而變。
+
+        限制：沒有位置欄位，所以「建立先後」只有在時間戳不同時才等於 build() 寫入的
+        先後；同一時刻建立的以 id 打破平手，順序固定，但不一定是寫入的先後。
+        """
         result = await self.session.execute(
             select(WorkItemBasis)
             .join(WorkItem, WorkItem.id == WorkItemBasis.work_item_id)
             .where(WorkItem.project_id == project_id)
+            .order_by(WorkItemBasis.created_at, WorkItemBasis.id)
         )
         grouped: dict[uuid.UUID, list[WorkItemBasis]] = {}
         for basis in result.scalars().all():
