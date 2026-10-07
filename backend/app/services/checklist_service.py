@@ -38,6 +38,10 @@ logger = logging.getLogger(__name__)
 class ChecklistRow:
     work_item: WorkItem
     result: CheckResult
+    #: 計價代碼前 5 碼（`_chapter_code` 的結果），沒有計價代碼時是 None。只取決於工項
+    #: 自己，不管本案規範書有沒有這一章，所以「本案規範未收錄」的列也有；那種列的
+    #: `chapter` 是 None，少了這個欄位就說不出缺的是哪一章。
+    chapter_code: str | None
     chapter: SpecChapter | None
     bases: list[WorkItemBasis]
 
@@ -238,6 +242,7 @@ class ChecklistService:
                 ChecklistRow(
                     work_item=item,
                     result=self._result_for(item, chapters, catalogued, found),
+                    chapter_code=code,
                     chapter=chapters.get(code) if code is not None else None,
                     bases=found,
                 )

@@ -49,10 +49,19 @@ class ProjectRepository:
     async def documents_by_role(
         self, project_id: uuid.UUID, role: str
     ) -> list[ProjectDocument]:
+        """專案裡扮演某個角色的文件，依掛上去的先後（added_at）排，最早的在最前面。
+
+        呼叫端取第一筆當「這個角色的那份文件」（標單、施工規範書）。SQL 沒有 ORDER BY 就不保證
+        順序：SQLite 碰巧依寫入順序給，PostgreSQL 會隨查詢計畫與資料表狀態而變——同一個角色
+        掛了兩份文件時，這次建工項或檢核表用甲、下次用乙。理由和
+        `ChecklistRepository.bases_by_project` 相同。
+
+        同一時刻掛上去的再依 id 排，所以順序固定；但那種情況下不一定是掛上去的先後。
+        """
         result = await self.session.execute(
-            select(ProjectDocument).where(
-                ProjectDocument.project_id == project_id, ProjectDocument.role == role
-            )
+            select(ProjectDocument)
+            .where(ProjectDocument.project_id == project_id, ProjectDocument.role == role)
+            .order_by(ProjectDocument.added_at, ProjectDocument.id)
         )
         return list(result.scalars().all())
 

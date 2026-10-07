@@ -45,6 +45,10 @@ class ChecklistItemOut(BaseModel):
     item_no: str
     name: str
     result: CheckResult
+    #: 計價代碼前 5 碼，沒有計價代碼時是 None。和 `chapter` 不同，它只取決於工項自己：
+    #: 「本案規範未收錄」的列 `chapter` 是 None，要依章分流那些列就靠這個欄位。
+    #: 它只是代碼的前 5 碼，不保證是施工綱要規範或本案規範書裡真有的章。
+    chapter_code: str | None
     #: 本案規範書裡對得到的那一章。本案沒收錄、或根本沒有章碼時是 None
     chapter: ChapterOut | None
     bases: list[BasisOut]
@@ -57,6 +61,7 @@ class ChecklistItemOut(BaseModel):
             item_no=row.work_item.item_no,
             name=row.work_item.name,
             result=row.result,
+            chapter_code=row.chapter_code,
             chapter=(
                 ChapterOut(code=chapter.code, title=chapter.title, version=chapter.version)
                 if chapter is not None

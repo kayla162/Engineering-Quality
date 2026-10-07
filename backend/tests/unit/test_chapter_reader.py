@@ -160,12 +160,19 @@ class TestChapterTitle:
         [
             "第02220 章V3.0\n工地拆除",
             "第02220 章\n工地拆除",
+            "第02220 章 V6.0\n工地拆除",
             "第02220 章 V 1.0\n工地拆除",
         ],
-        ids=["title-on-next-line", "no-version-on-title-line", "spaced-version"],
+        ids=[
+            "title-on-next-line",
+            "no-version-on-title-line",
+            "space-before-version",
+            "space-before-and-inside-version",
+        ],
     )
     def test_title_is_read_from_every_layout_seen_in_the_real_document(self, write, title_line):
-        """74 章是第一種，11 章章名行沒有版本，1 章（16742）版本中間有空白。"""
+        """72 章是第一種，11 章章名行沒有版本，3 章章與 V 之間有空白：15105、15151 只有
+        這個空白（`章 V6.0` 的樣子），16742 連版本號裡也有空白（`章 V 1.0`）。"""
         rows = read_spec_chapters(write(_real_layout_pdf(title_line)))
 
         assert rows[0].title == "工地拆除"

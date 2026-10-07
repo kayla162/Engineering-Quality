@@ -1,9 +1,14 @@
 """專案服務：掛文件、從標單建工項、連到施工綱要規範章節。"""
 
+import uuid
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from app.core.enums import DocumentRole
 from app.core.errors import AppError, ProjectNotFoundError
+from app.models.project import ProjectDocument
+from app.repositories.projects import ProjectRepository
 from app.services.document_service import DocumentService
 from app.services.project_service import ProjectService
 from tests.factories import make_boq_bytes
@@ -94,6 +99,74 @@ class TestBuildWorkItems:
         """沒掛標單就沒有工項來源——要明確講，不要回空清單讓人以為標單裡沒東西。"""
         with pytest.raises(AppError, match="標單"):
             await ProjectService(db_session).build_work_items(project.id)
+
+
+class TestDocumentsByRoleOrder:
+    """documents_by_role 的順序要固定：建工項、建檢核表都取第一筆當「這個角色的那份文件」。
+    SQL 沒有 ORDER BY 就不保證順序，SQLite 碰巧依寫入順序給，PostgreSQL 不一定。所以資料
+    刻意讓「寫入順序」「id 順序」「掛上去的先後」三者互不相同——拿掉 ORDER BY、或只照其中
+    一種排，都會被抓到。"""
+
+    START = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
+
+    @staticmethod
+    async def link(db_session, project, name, role, added_at, number):
+        """上傳一份內容各不相同的文件（檔案雜湊相同會被擋），再用指定的 id 與時間掛上去。"""
+        document = await DocumentService(db_session).upload(f"{name}.txt", name.encode())
+        db_session.add(
+            ProjectDocument(
+                id=uuid.UUID(int=number),
+                project_id=project.id,
+                document_id=document.id,
+                role=role,
+                added_at=added_at,
+            )
+        )
+        await db_session.commit()
+        return document.id
+
+    @staticmethod
+    async def found(db_session, project, role=DocumentRole.SPECIFICATION):
+        links = await ProjectRepository(db_session).documents_by_role(project.id, role)
+        return [link.document_id for link in links]
+
+    async def test_documents_come_back_in_the_order_they_were_attached(self, db_session, project):
+        spec = DocumentRole.SPECIFICATION
+        # 掛上去的先後：乙 → 丙 → 甲；寫入順序：甲 → 乙 → 丙；id 順序：丙(1) → 甲(2) → 乙(3)
+        first = await self.link(db_session, project, "甲", spec, self.START + timedelta(seconds=3), 2)
+        second = await self.link(db_session, project, "乙", spec, self.START + timedelta(seconds=1), 3)
+        third = await self.link(db_session, project, "丙", spec, self.START + timedelta(seconds=2), 1)
+
+        assert await self.found(db_session, project) == [second, third, first]
+
+    async def test_documents_attached_at_the_same_instant_still_come_back_in_a_fixed_order(
+        self, db_session, project
+    ):
+        """時間一樣的幾份（時鐘解析度不夠時會發生）要有第二層排序，不然它們之間的順序每次
+        查詢都可能不同。這裡以 id 為準。"""
+        spec = DocumentRole.SPECIFICATION
+        # 寫入順序：id 3 → 1 → 2
+        first = await self.link(db_session, project, "甲", spec, self.START, 3)
+        second = await self.link(db_session, project, "乙", spec, self.START, 1)
+        third = await self.link(db_session, project, "丙", spec, self.START, 2)
+
+        assert await self.found(db_session, project) == [second, third, first]
+
+    async def test_only_the_asked_role_of_the_asked_project_comes_back(self, db_session, project):
+        """排序是加在「這個專案、這個角色」的篩選之後；最早掛上去的兩份刻意都不是要找的。"""
+        other = await ProjectService(db_session).create_project("另一個工程")
+        await self.link(
+            db_session, project, "標單", DocumentRole.BOQ, self.START - timedelta(hours=2), 5
+        )
+        await self.link(
+            db_session, other, "別案規範", DocumentRole.SPECIFICATION,
+            self.START - timedelta(hours=1), 6,
+        )
+        mine = await self.link(
+            db_session, project, "本案規範", DocumentRole.SPECIFICATION, self.START, 7
+        )
+
+        assert await self.found(db_session, project) == [mine]
 
 
 class TestListProjects:

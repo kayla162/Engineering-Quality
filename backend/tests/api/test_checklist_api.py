@@ -52,6 +52,18 @@ RESULTS = {
     "壹.一.1.5.1": "NEEDS_CONFIRMATION",
 }
 
+#: 各列的 chapter_code：計價代碼前 5 碼，沒有計價代碼是 None。和 RESULTS 並排看：
+#: 03110（SPEC_NOT_INCLUDED）與 99999（代碼不是任何一章）的列 `chapter` 是 null，
+#: chapter_code 照樣有值；它不看規範書。
+CHAPTER_CODES = {
+    "壹.一.1.1.1": "01725",
+    "壹.一.1.1.2": "01725",
+    "壹.一.1.2.1": "03110",
+    "壹.一.1.3.1": None,
+    "壹.一.1.4.1": "99999",
+    "壹.一.1.5.1": "01523",
+}
+
 #: 本檔測試用的迷你綱要規範目錄（PCCES）。刻意不讀 data/pcces_index.json：那是
 #: scripts/sync_pcces.py 同步下來的檔案、被 .gitignore 擋掉，測試不該靠它在不在、
 #: 裡面有什麼。ChecklistService 會用它判斷「本案規範未收錄」——03110 在這裡，
@@ -248,8 +260,39 @@ class TestGetChecklist:
 
         assert set(body) == {"total", "summary", "contract_note", "spec_warning", "items"}
         assert set(body["items"][0]) == {
-            "work_item_id", "item_no", "name", "result", "chapter", "bases"
+            "work_item_id", "item_no", "name", "result", "chapter_code", "chapter", "bases"
         }
+
+    async def test_a_spec_not_included_row_names_the_chapter_it_is_missing(
+        self, api_client, project_id
+    ):
+        """SPEC_NOT_INCLUDED 的 `chapter` 是 null（本案規範書沒有這一章），所以檢核表自己得
+        說出缺的是哪一章：docs/api.md 6.6 節叫前端依章分流那一批，章碼只能從這裡拿，
+        不然得再去打另一支 API 接工項清單。"""
+        await api_client.post(url(project_id))
+
+        row = (await items_by_no(api_client, project_id))["壹.一.1.2.1"]
+
+        assert row["result"] == "SPEC_NOT_INCLUDED"
+        assert row["chapter"] is None
+        # 計價代碼 0311010002 的前 5 碼
+        assert row["chapter_code"] == "03110"
+
+    async def test_chapter_code_is_the_cost_code_prefix_whatever_the_result(
+        self, api_client, project_id
+    ):
+        """有計價代碼的列都有 chapter_code，不管結果是什麼、本案規範書有沒有這一章；沒有
+        計價代碼的列是 null。它不是從 `chapter` 抄來的：抄的話，SPEC_NOT_INCLUDED 與
+        「代碼不是任何一章」的列都會是 null。"""
+        await api_client.post(url(project_id))
+
+        rows = await items_by_no(api_client, project_id)
+
+        assert {no: row["chapter_code"] for no, row in rows.items()} == CHAPTER_CODES
+        # 對得到章節的列，兩個欄位講的是同一章
+        matched = [row for row in rows.values() if row["chapter"] is not None]
+        assert matched
+        assert all(row["chapter_code"] == row["chapter"]["code"] for row in matched)
 
     async def test_the_contract_note_travels_with_the_checklist(self, api_client, project_id):
         """契約依據是專案層級的、不逐工項列（階段 3 spec 3.1 節）。這句話要跟著檢核表
@@ -289,6 +332,8 @@ class TestGetChecklist:
             "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS)
         }
         assert all(i["chapter"] is None and i["bases"] == [] for i in body["items"])
+        # chapter_code 只看工項自己的計價代碼，沒有規範書也一樣有
+        assert {i["item_no"]: i["chapter_code"] for i in body["items"]} == CHAPTER_CODES
         assert body["spec_warning"] is None
 
 

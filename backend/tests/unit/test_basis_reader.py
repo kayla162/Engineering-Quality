@@ -1,8 +1,8 @@
-"""章節裡「1.4 相關準則」區塊的定位。
+"""章節裡「相關準則」區塊的定位（`1.<數字> 相關準則`，不只 1.4）。
 
 為什麼只取這一段：整章內文丟進抽取器會抽到施工方法描述裡順帶提到的東西，
-而「1.4 相關準則」是規範書**自己宣告**的依據清單，精確得多。
-實測 86 章裡 75 章有此宣告。
+而「相關準則」是規範書**自己宣告**的依據清單，精確得多。
+實測（2026-10-07）86 章裡 79 章有此宣告（75 章編在 1.4、4 章編在 1.3）。
 """
 
 from app.specs import basis_block
@@ -41,7 +41,7 @@ class TestBasisBlock:
         assert "鋼筋" not in block
 
     def test_a_chapter_without_the_section_returns_none(self):
-        """實測 86 章裡有 11 章沒有此宣告。回 None，不要回空字串假裝有。"""
+        """實測 86 章裡有 7 章沒有此宣告。回 None，不要回空字串假裝有。"""
         assert basis_block("1. 通則 1.1 本章概要 說明施工測量。 3. 執行") is None
 
     def test_empty_block_returns_none(self):

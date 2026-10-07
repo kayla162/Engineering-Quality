@@ -5,7 +5,8 @@
     OK                  248  章節在本案規範書裡，且該章有相關準則
     SPEC_NOT_INCLUDED   188  對得到章節，但本案規範書沒收錄
     NEEDS_CONFIRMATION  592  沒有章節，或章節無相關準則
-階段 3 spec 第 2 節寫的是 235 / 188 / 605：188 一致，OK 多 13、NEEDS_CONFIRMATION 少 13。
+與設計時的預估 235 / 188 / 605 相比：188 一致，實測 OK 多 13、NEEDS_CONFIRMATION 少 13。
+階段 3 spec 第 2 節的驗收基準已經改成這組實測值。
 """
 
 import json
@@ -23,6 +24,7 @@ from app.core.enums import AIPurpose, CheckResult, DocumentRole, ParseQuality
 from app.core.errors import AppError, ProjectNotFoundError, SourceQueryError
 from app.models.audit import AIInvocationLog
 from app.models.checklist import SpecChapter, WorkItemBasis
+from app.models.project import ProjectDocument
 from app.repositories.checklist import ChecklistRepository
 from app.repositories.documents import DocumentRepository
 from app.services.checklist_service import ChecklistService
@@ -114,6 +116,7 @@ def describe(checklist):
         (
             r.work_item.item_no,
             r.result,
+            r.chapter_code,
             None
             if r.chapter is None
             else (
@@ -173,6 +176,28 @@ class TestBuild:
         # 本案規範書沒有這一章：不能掛一個別章的章節或依據上去
         assert row.chapter is None
         assert row.bases == []
+
+    async def test_a_row_carries_its_chapter_code_even_when_the_spec_lacks_the_chapter(
+        self, db_session, project_with_boq
+    ):
+        """`chapter` 是本案規範書裡對得到的那一章；`chapter_code` 是計價代碼前 5 碼，只看
+        工項自己。規範書只有 01523 時，壹.一.1.1.1（01725）與 壹.一.1.2.1（03110）都是
+        SPEC_NOT_INCLUDED、chapter 是 None，缺的是哪一章只能從 chapter_code 看出來。
+        沒有計價代碼的列沒有章碼。POST 與 GET 讀到的要一樣。"""
+        await attach_spec(
+            db_session, project_with_boq,
+            [("01523", "01523", "施工安全衛生及管理", "4.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審")],
+        )
+        built = await ChecklistService(db_session).build(project_with_boq.id)
+
+        for checklist in (built, await read_back(project_with_boq.id)):
+            assert {
+                r.work_item.item_no: (r.result, r.chapter, r.chapter_code) for r in checklist.rows
+            } == {
+                "壹.一.1.1.1": (CheckResult.SPEC_NOT_INCLUDED, None, "01725"),
+                "壹.一.1.2.1": (CheckResult.SPEC_NOT_INCLUDED, None, "03110"),
+                "壹.一.1.3.1": (CheckResult.NEEDS_CONFIRMATION, None, None),
+            }
 
     async def test_a_chapter_without_basis_needs_confirmation(self, db_session, project_with_boq):
         await attach_spec(db_session, project_with_boq, SPEC_WITHOUT_BASIS)
@@ -651,6 +676,51 @@ class TestChapterIndex:
 
         found = await repo.chapters_by_document(spec.id)
         assert [(c.first_page, c.code) for c in found] == [(10, "01725"), (20, "01523"), (30, "03110")]
+
+
+class TestSpecSelection:
+    async def test_with_two_specs_attached_the_first_one_is_indexed_every_time(
+        self, db_session, project_with_boq
+    ):
+        """同一個專案掛了兩份施工規範書時，建檢核表對著哪一份建索引要固定：最早掛上去的那份。
+        SQL 沒有 ORDER BY 就不保證順序，PostgreSQL 可能這次回甲、下次回乙。
+
+        甲（先掛）只有 01523，乙（後掛）有 01725：用甲建的話 壹.一.1.1.1（01725）是
+        SPEC_NOT_INCLUDED，誤用乙就會是 OK。連結的寫入順序與 id 順序刻意和掛上去的先後相反，
+        所以拿掉排序、或只照 id 排，都會選到乙。"""
+        early = await DocumentService(db_session).upload(
+            "規範甲.pdf",
+            make_spec_pdf_bytes(
+                [("01523", "01523", "施工安全衛生及管理", "4.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審")]
+            ),
+        )
+        late = await DocumentService(db_session).upload(
+            "規範乙.pdf", make_spec_pdf_bytes(SPEC_WITH_BASIS)
+        )
+        start = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
+        # 寫入順序：乙 → 甲；id 順序：乙(1) → 甲(2)；掛上去的先後：甲 → 乙
+        for number, document, added_at in (
+            (1, late, start + timedelta(hours=1)),
+            (2, early, start),
+        ):
+            db_session.add(
+                ProjectDocument(
+                    id=uuid.UUID(int=number),
+                    project_id=project_with_boq.id,
+                    document_id=document.id,
+                    role=DocumentRole.SPECIFICATION,
+                    added_at=added_at,
+                )
+            )
+        await db_session.commit()
+
+        built = await ChecklistService(db_session).build(project_with_boq.id)
+
+        row = row_of(built.rows, "壹.一.1.1.1")
+        assert row.result == CheckResult.SPEC_NOT_INCLUDED
+        repo = ChecklistRepository(db_session)
+        assert [c.code for c in await repo.chapters_by_document(early.id)] == ["01523"]
+        assert await repo.chapters_by_document(late.id) == []
 
 
 class TestBasisOrder:
