@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.jobs.background_runner import BackgroundTasksJobRunner
+from app.services.checklist_service import ChecklistService
 from app.services.document_service import DocumentService
 from app.services.job_service import JobService
 from app.services.project_service import ProjectService
@@ -37,6 +38,10 @@ def get_project_service(session: DbSession) -> ProjectService:
     return ProjectService(session)
 
 
+def get_checklist_service(session: DbSession) -> ChecklistService:
+    return ChecklistService(session)
+
+
 def get_job_service(session: DbSession, background_tasks: BackgroundTasks) -> JobService:
     # 要換成 Celery 時，只需要在這裡換成 CeleryJobRunner()
     return JobService(session, BackgroundTasksJobRunner(background_tasks))
@@ -47,4 +52,5 @@ ReferenceServiceDep = Annotated[ReferenceService, Depends(get_reference_service)
 RegulationServiceDep = Annotated[RegulationService, Depends(get_regulation_service)]
 ReportServiceDep = Annotated[ReportService, Depends(get_report_service)]
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
+ChecklistServiceDep = Annotated[ChecklistService, Depends(get_checklist_service)]
 JobServiceDep = Annotated[JobService, Depends(get_job_service)]

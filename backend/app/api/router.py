@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    checklist,
     documents,
     health,
     jobs,
@@ -22,3 +23,4 @@ api_router.include_router(regulations.router)
 api_router.include_router(reports.router)
 api_router.include_router(sources.router)
 api_router.include_router(projects.router)
+api_router.include_router(checklist.router)
