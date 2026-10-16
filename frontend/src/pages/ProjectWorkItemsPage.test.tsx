@@ -28,6 +28,16 @@ const WORK_ITEMS = {
       cost_code: "0172500004",
       spec_chapter: { code: "01725", name: "公共工程施工綱要規範第01725章 施工測量" },
     },
+    // 沒有對到綱要規範章節的工項：「只看未對到章節」要靠它才看得出有沒有生效
+    {
+      work_item_id: "w2",
+      item_no: "壹.一.1.3.1",
+      name: "空調工程，冰水主機",
+      unit: "台",
+      quantity: "2",
+      cost_code: null,
+      spec_chapter: null,
+    },
   ],
 };
 
@@ -173,6 +183,8 @@ describe("ProjectWorkItemsPage", () => {
 
     render(<ProjectWorkItemsPage />);
     fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    // 工項清單預設收合，要展開才看得到列與統計
+    fireEvent.click(await screen.findByRole("button", { name: /展開工項清單/ }));
 
     expect(await screen.findByText("1028")).toBeInTheDocument();
     expect(screen.getByText("438")).toBeInTheDocument();
@@ -334,19 +346,121 @@ describe("ProjectWorkItemsPage", () => {
     expect(summaryCell("請確認依據")).toHaveTextContent(/^4請確認依據$/);
   });
 
-  it("檢核表在工項清單上面：它也有項次和名稱，大多數時候看它就夠了", async () => {
-    // 工項清單一千多列，檢核表放在它下面，按鈕要捲上萬像素才找得到。
+  it("兩個區塊的標題前面都沒有夾著一整張表：排在後面的那個標題不必捲過另一張表才找得到", async () => {
+    // 兩張一千多列的表疊在同一頁，排第二的那張就等於找不到（實測差了十幾萬像素）。
+    // jsdom 量不了像素，所以用結構來釘：文件順序裡較後的那個標題，前面不能有任何表格的列。
     stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
 
     render(<ProjectWorkItemsPage />);
     fireEvent.click(await screen.findByText("秀山分隊興建工程"));
     await screen.findByText("壹.一.1.4.8");
 
-    const checklistHeading = screen.getByRole("heading", { name: "檢核表" });
-    const workItemsHeading = screen.getByRole("heading", { name: "工項清單" });
-    expect(
-      checklistHeading.compareDocumentPosition(workItemsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const headings = [
+      screen.getByRole("heading", { name: "檢核表" }),
+      screen.getByRole("heading", { name: "工項清單" }),
+    ].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    const later = headings[1];
+
+    const rowsAbove = [...document.querySelectorAll("tbody tr")].filter(
+      (row) => later.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_PRECEDING,
+    );
+    expect(rowsAbove).toHaveLength(0);
+  });
+
+  it("工項清單預設收合：列不渲染，只留標題和展開按鈕（寫出筆數）", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText("壹.一.1.4.8");
+
+    const toggle = await screen.findByRole("button", { name: "展開工項清單（共 1028 筆）" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("heading", { name: "工項清單" })).toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.1.1")).not.toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.3.1")).not.toBeInTheDocument();
+    // 頁面上只剩檢核表那一張表
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+  });
+
+  it("展開後看得到工項列與統計，再收合又藏起來", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    fireEvent.click(await screen.findByRole("button", { name: "展開工項清單（共 1028 筆）" }));
+
+    expect(await screen.findByText("壹.一.1.1.1")).toBeInTheDocument();
+    expect(screen.getByText("壹.一.1.3.1")).toBeInTheDocument();
+    expect(screen.getByText("438")).toBeInTheDocument();
+    expect(screen.getAllByRole("table")).toHaveLength(2);
+    const collapse = screen.getByRole("button", { name: "收合工項清單" });
+    expect(collapse).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(collapse);
+
+    expect(screen.queryByText("壹.一.1.1.1")).not.toBeInTheDocument();
+    expect(screen.queryByText("438")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /展開工項清單/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("展開、收合都不動檢核表：列還在，篩選也還在", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText("壹.一.1.4.8");
+    const select = screen.getByLabelText(/檢核結果/) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "SPEC_NOT_INCLUDED" } });
+
+    fireEvent.click(await screen.findByRole("button", { name: /展開工項清單/ }));
+    await screen.findByText("壹.一.1.1.1");
+    expect(screen.getByText("壹.一.1.1.5")).toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.4.8")).not.toBeInTheDocument();
+    expect(select.value).toBe("SPEC_NOT_INCLUDED");
+
+    fireEvent.click(screen.getByRole("button", { name: "收合工項清單" }));
+    expect(screen.getByText("壹.一.1.1.5")).toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.4.8")).not.toBeInTheDocument();
+    expect(select.value).toBe("SPEC_NOT_INCLUDED");
+    // 檢核表的摘要、建立按鈕也都沒受影響
+    expect(summaryCell("OK")).toHaveTextContent(/^2OK$/);
+    expect(screen.getByRole("button", { name: "建立檢核表" })).toBeEnabled();
+  });
+
+  it("收合再展開，「只看未對到章節」的勾選還在，不會被重設", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    fireEvent.click(await screen.findByRole("button", { name: /展開工項清單/ }));
+    fireEvent.click(await screen.findByLabelText(/只看未對到/));
+    expect(screen.getByText("壹.一.1.3.1")).toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.1.1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "收合工項清單" }));
+    fireEvent.click(screen.getByRole("button", { name: /展開工項清單/ }));
+
+    expect(screen.getByLabelText(/只看未對到/)).toBeChecked();
+    expect(screen.getByText("壹.一.1.3.1")).toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.1.1")).not.toBeInTheDocument();
+  });
+
+  it("收合與展開不會重新向後端要資料", async () => {
+    // 工項與檢核表都存在頁面的 state 裡；收合只是不畫，不是丟掉。
+    const calls = stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    fireEvent.click(await screen.findByRole("button", { name: /展開工項清單/ }));
+    await screen.findByText("壹.一.1.1.1");
+    fireEvent.click(screen.getByRole("button", { name: "收合工項清單" }));
+    fireEvent.click(screen.getByRole("button", { name: /展開工項清單/ }));
+    await screen.findByText("壹.一.1.1.1");
+
+    expect(calls.filter((call) => call.includes("/work-items"))).toHaveLength(1);
+    expect(calls.filter((call) => call.endsWith("/checklist"))).toHaveLength(1);
   });
 
   it("頁面上的篩選真的接到表格：選「本案規範未收錄」只剩那三列，選回「全部」又全部回來", async () => {

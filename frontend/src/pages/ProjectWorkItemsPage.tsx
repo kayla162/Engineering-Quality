@@ -35,6 +35,8 @@ export function ProjectWorkItemsPage() {
   const [resultFilter, setResultFilter] = useState<ChecklistResultFilter>("ALL");
   const [buildingChecklist, setBuildingChecklist] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
+  // 工項清單預設收合。篩選（onlyMissing）與資料都存在這一層，收合只是不畫，不會被重設。
+  const [workItemsOpen, setWorkItemsOpen] = useState(false);
   const [documentId, setDocumentId] = useState("");
   const [role, setRole] = useState<DocumentRole>("boq");
   const [busy, setBusy] = useState(false);
@@ -206,9 +208,46 @@ export function ProjectWorkItemsPage() {
             </section>
 
             {/*
-              檢核表放在工項清單上面：它同樣有項次與名稱，多數時候看它就夠了；
-              工項清單有一千多列，檢核表若接在它下面，要捲上萬像素才找得到「建立檢核表」。
+              區塊順序：先是收合的工項清單（只佔一條），然後是檢核表。
+              兩張表各一千多列，排在後面的那張表前面不能有另一張攤開的表，不然它的標題
+              就在十幾萬像素以外，等於找不到。檢核表有項次與名稱，多數時候看它就夠了，所以它
+              預設展開、緊接在這一條後面；工項清單要看再展開。
+              （實測：檢核表在上、工項清單收合在下時，工項清單的標題仍在十一萬像素以外——
+              收合排在後面的區塊，救不了它自己的標題。）
             */}
+            <section className="card">
+              <div className="row">
+                <h2>工項清單</h2>
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-expanded={workItemsOpen}
+                  onClick={() => setWorkItemsOpen((open) => !open)}
+                >
+                  {workItemsOpen
+                    ? "收合工項清單"
+                    : `展開工項清單${workItems ? `（共 ${workItems.total} 筆）` : ""}`}
+                </button>
+              </div>
+              {/*
+                收合時整張表不掛載：一千多列的表放在頁面上，排在它後面的區塊就捲不到了。
+                資料還沒載入時也不畫，不然 WorkItemTable 會對一個只是還沒載入的專案說「還沒有工項」。
+              */}
+              {workItemsOpen && workItems && (
+                <>
+                  <WorkItemSummary
+                    total={workItems.total}
+                    withSpecChapter={workItems.with_spec_chapter}
+                  />
+                  <WorkItemTable
+                    items={workItems.items}
+                    onlyMissing={onlyMissing}
+                    onOnlyMissingChange={setOnlyMissing}
+                  />
+                </>
+              )}
+            </section>
+
             <section className="card">
               <h2>檢核表</h2>
 
@@ -249,21 +288,6 @@ export function ProjectWorkItemsPage() {
                   />
                 </>
               )}
-            </section>
-
-            <section className="card">
-              <h2>工項清單</h2>
-              {workItems && (
-                <WorkItemSummary
-                  total={workItems.total}
-                  withSpecChapter={workItems.with_spec_chapter}
-                />
-              )}
-              <WorkItemTable
-                items={workItems?.items ?? []}
-                onlyMissing={onlyMissing}
-                onOnlyMissingChange={setOnlyMissing}
-              />
             </section>
           </>
         )}
