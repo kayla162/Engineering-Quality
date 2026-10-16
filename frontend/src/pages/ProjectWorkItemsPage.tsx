@@ -205,21 +205,10 @@ export function ProjectWorkItemsPage() {
               </div>
             </section>
 
-            <section className="card">
-              <h2>工項清單</h2>
-              {workItems && (
-                <WorkItemSummary
-                  total={workItems.total}
-                  withSpecChapter={workItems.with_spec_chapter}
-                />
-              )}
-              <WorkItemTable
-                items={workItems?.items ?? []}
-                onlyMissing={onlyMissing}
-                onOnlyMissingChange={setOnlyMissing}
-              />
-            </section>
-
+            {/*
+              檢核表放在工項清單上面：它同樣有項次與名稱，多數時候看它就夠了；
+              工項清單有一千多列，檢核表若接在它下面，要捲上萬像素才找得到「建立檢核表」。
+            */}
             <section className="card">
               <h2>檢核表</h2>
 
@@ -260,6 +249,21 @@ export function ProjectWorkItemsPage() {
                   />
                 </>
               )}
+            </section>
+
+            <section className="card">
+              <h2>工項清單</h2>
+              {workItems && (
+                <WorkItemSummary
+                  total={workItems.total}
+                  withSpecChapter={workItems.with_spec_chapter}
+                />
+              )}
+              <WorkItemTable
+                items={workItems?.items ?? []}
+                onlyMissing={onlyMissing}
+                onOnlyMissingChange={setOnlyMissing}
+              />
             </section>
           </>
         )}

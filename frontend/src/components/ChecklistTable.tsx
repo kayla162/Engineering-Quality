@@ -26,11 +26,12 @@ export function ChecklistSummary({
     ["NEEDS_CONFIRMATION", needsConfirmation],
   ];
 
-  // 依據只會掛在「OK」的列上（章對得到又抽到準則才是 OK），所以沒有 OK 就是一條依據也沒有；
-  // 再沒有「本案規範未收錄」，就代表連一個工項都沒對到規範書的章節。這和「還沒建立檢核表」
-  // 在畫面上長得一樣（GET 只讀已建好的依據，沒建過時每一列都是「請確認依據」，
-  // 後端的 test_get_before_any_build_builds_nothing 守住這個行為），
-  // 所以這裡只陳述畫面上看得到的事實，兩個可能的原因都列出來，不替使用者猜是哪一個。
+  // 依據只會掛在「OK」的列上（章對得到又抽到準則才是 OK），所以沒有 OK 就是一條依據也沒有。
+  // 這裡只能說到「沒有任何工項列得出依據」，不能說「沒有任何工項對到規範書的章節」：
+  // 後端 _result_for 在「章在規範書裡、但沒抽到相關準則」時也回「請確認依據」，
+  // 那種情況下章是對到的。0／0／N 至少有三種來源——還沒建立檢核表（GET 只讀已建好的依據，
+  // 後端的 test_get_before_any_build_builds_nothing 守住這個行為）、沒掛施工規範、
+  // 規範書裡對得到的章都沒列相關準則——畫面上長得一樣，所以三種都列出來，不替使用者猜是哪一個。
   const nothingMatched = ok === 0 && specNotIncluded === 0 && needsConfirmation > 0;
 
   return (
@@ -66,8 +67,8 @@ export function ChecklistSummary({
 
       {nothingMatched && (
         <p className="hint">
-          還沒有任何工項對到本案規範書的章節，所以沒有依據可列。可能是還沒建立檢核表，
-          也可能這個專案沒有掛上施工規範。
+          目前沒有任何工項列得出依據。可能是還沒建立檢核表、這個專案沒有掛上施工規範，
+          或掛上的規範書裡對得到的章節都沒有列出相關準則。
         </p>
       )}
 
@@ -87,9 +88,16 @@ export function ChecklistSummary({
   );
 }
 
-/** 查證狀態標示。null 是「沒查」，不是「查過、不存在」。 */
-function VerificationTag({ status }: { status: string | null }) {
-  if (status === null) {
+/**
+ * 查證狀態標示。null 是「沒查」，不是「查過、不存在」。
+ *
+ * 判斷用 `== null`，連 undefined 一起接住：舊版後端的回應根本沒有這個欄位（例如沒帶
+ * --reload 的 uvicorn 還在跑舊程式），值是 undefined 而不是 null。用 `=== null` 的話
+ * 它會掉進下面的 `status.toLowerCase()` 丟出例外，而這個畫面沒有 error boundary，
+ * 整棵樹都會消失。沒有欄位也是「沒查」。
+ */
+function VerificationTag({ status }: { status: string | null | undefined }) {
+  if (status == null) {
     // 絕大多數依據都是未查證，用淡色字而不是標籤，才不會蓋過少數真正查到的狀態
     return <span className="unverified">{UNVERIFIED_LABEL}</span>;
   }

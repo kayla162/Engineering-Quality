@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Checklist, ChecklistItem } from "../api/types";
@@ -41,6 +41,8 @@ const CHECKLIST_ITEM_OK: ChecklistItem = {
   bases: [
     { basis_type: "standard", reference: "CNS 4940", detail: "第09912章 相關準則", verification_status: null },
     { basis_type: "law", reference: "職業安全衛生法", detail: "第09912章 相關準則", verification_status: "ACTIVE" },
+    // 真實資料裡最大宗的沒查證：類型是法規、但索引裡沒有完全同名（屋內線路裝置規則是已更名的舊名稱）
+    { basis_type: "law", reference: "屋內線路裝置規則", detail: "第09912章 相關準則", verification_status: null },
   ],
 };
 
@@ -54,14 +56,35 @@ const CHECKLIST_ITEM_MISSING: ChecklistItem = {
   bases: [],
 };
 
+/** 同一種結果再多幾筆，讓三種結果的筆數互不相同：2、3、4。 */
+function extraItem(result: ChecklistItem["result"], id: string, itemNo: string): ChecklistItem {
+  const bases =
+    result === "OK"
+      ? [{ basis_type: "law", reference: "職業安全衛生法", detail: null, verification_status: "ACTIVE" }]
+      : [];
+  return { ...CHECKLIST_ITEM_MISSING, work_item_id: id, item_no: itemNo, result, bases };
+}
+
 const CONTRACT_NOTE = "契約依據為專案層級，不逐工項列出。";
 
+// 三種結果的筆數刻意互不相同（2、3、4）。如果兩種結果一樣多，
+// 摘要的兩格互換、或頁面把欄位傳錯，測試都看不出來。
 const CHECKLIST: Checklist = {
-  total: 2,
-  summary: { ok: 1, spec_not_included: 1, needs_confirmation: 0 },
+  total: 9,
+  summary: { ok: 2, spec_not_included: 3, needs_confirmation: 4 },
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
-  items: [CHECKLIST_ITEM_OK, CHECKLIST_ITEM_MISSING],
+  items: [
+    CHECKLIST_ITEM_OK,
+    extraItem("OK", "w3", "壹.一.1.4.9"),
+    CHECKLIST_ITEM_MISSING,
+    extraItem("SPEC_NOT_INCLUDED", "w4", "壹.一.1.1.6"),
+    extraItem("SPEC_NOT_INCLUDED", "w5", "壹.一.1.1.7"),
+    extraItem("NEEDS_CONFIRMATION", "w6", "壹.一.1.9.1"),
+    extraItem("NEEDS_CONFIRMATION", "w7", "壹.一.1.9.2"),
+    extraItem("NEEDS_CONFIRMATION", "w8", "壹.一.1.9.3"),
+    extraItem("NEEDS_CONFIRMATION", "w9", "壹.一.1.9.4"),
+  ],
 };
 
 const EMPTY_CHECKLIST: Checklist = {
@@ -112,6 +135,19 @@ function stubChecklistApi(
   );
 
   return calls;
+}
+
+/** 頁面上「檢核表」摘要裡某個標籤所在的那一格（工項清單的摘要也有 .summary-cell，要用標籤認）。 */
+function summaryCell(label: string): HTMLElement {
+  const labelElement = screen
+    .getAllByText(label)
+    .find((element) => element.classList.contains("summary-label"));
+  return labelElement?.closest(".summary-cell") as HTMLElement;
+}
+
+/** 建立檢核表的按鈕，不管它現在寫的是「建立檢核表」還是「建立中…」。 */
+function buildButton(): HTMLElement {
+  return screen.getByRole("button", { name: /建立檢核表|建立中/ });
 }
 
 afterEach(() => {
@@ -269,6 +305,9 @@ describe("ProjectWorkItemsPage", () => {
     fireEvent.click(await screen.findByText("秀山分隊興建工程"));
     await screen.findByText("壹.一.1.4.8");
     fireEvent.click(screen.getByRole("button", { name: /建立檢核表/ }));
+    // 先確定重建真的在進行中，再換專案；不然下面等「建立中…」結束的同步點
+    // 在標籤被拿掉時會立刻成立，測試就在 POST 還沒處理前提早通過
+    await screen.findByRole("button", { name: "建立中…" });
 
     fireEvent.click(screen.getByText("另一個工程"));
     expect(await screen.findByText("貳.九.9.9")).toBeInTheDocument();
@@ -279,5 +318,102 @@ describe("ProjectWorkItemsPage", () => {
 
     expect(screen.getByText("貳.九.9.9")).toBeInTheDocument();
     expect(screen.queryByText("壹.一.1.4.8")).not.toBeInTheDocument();
+  });
+
+  it("摘要的三個數字各在自己標籤的格子裡，不是頁面上某處有就好", async () => {
+    // 這個專案的檢核表是 2 個 OK、3 個本案規範未收錄、4 個請確認依據，三個數字互不相同。
+    // 頁面把欄位傳錯（例如 ok 傳成 spec_not_included）時，只查「頁面上有這個數字」是看不出來的。
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText("壹.一.1.4.8");
+
+    expect(summaryCell("OK")).toHaveTextContent(/^2OK$/);
+    expect(summaryCell("本案規範未收錄")).toHaveTextContent(/^3本案規範未收錄$/);
+    expect(summaryCell("請確認依據")).toHaveTextContent(/^4請確認依據$/);
+  });
+
+  it("檢核表在工項清單上面：它也有項次和名稱，大多數時候看它就夠了", async () => {
+    // 工項清單一千多列，檢核表放在它下面，按鈕要捲上萬像素才找得到。
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText("壹.一.1.4.8");
+
+    const checklistHeading = screen.getByRole("heading", { name: "檢核表" });
+    const workItemsHeading = screen.getByRole("heading", { name: "工項清單" });
+    expect(
+      checklistHeading.compareDocumentPosition(workItemsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("頁面上的篩選真的接到表格：選「本案規範未收錄」只剩那三列，選回「全部」又全部回來", async () => {
+    // 篩選的元件測試用 vi.fn() 當外層，頁面沒把 onResultFilterChange 接到 state 時看不出來。
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText("壹.一.1.4.8");
+    const select = screen.getByLabelText(/檢核結果/);
+
+    fireEvent.change(select, { target: { value: "SPEC_NOT_INCLUDED" } });
+
+    expect(screen.getByText("壹.一.1.1.5")).toBeInTheDocument();
+    expect(screen.getByText("壹.一.1.1.6")).toBeInTheDocument();
+    expect(screen.getByText("壹.一.1.1.7")).toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.4.8")).not.toBeInTheDocument();
+    expect(screen.queryByText("壹.一.1.9.1")).not.toBeInTheDocument();
+    expect(screen.getByText(/顯示 3 筆，共 9 筆/)).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "ALL" } });
+
+    expect(screen.getByText("壹.一.1.4.8")).toBeInTheDocument();
+    expect(screen.getByText("壹.一.1.9.4")).toBeInTheDocument();
+    expect(screen.getByText(/顯示 9 筆，共 9 筆/)).toBeInTheDocument();
+  });
+
+  it("重建進行中：按鈕寫「建立中…」而且停用，連點不會送出第二次重建", async () => {
+    // 重建要好幾秒，這段時間再按一次就是兩次重建同時跑。
+    let finishRebuild: (reply: { status: number; body: unknown }) => void = () => {};
+    const rebuild = new Promise<{ status: number; body: unknown }>((resolve) => {
+      finishRebuild = resolve;
+    });
+    const calls = stubChecklistApi((method) =>
+      method === "POST" ? rebuild : { status: 200, body: EMPTY_CHECKLIST },
+    );
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText(/還沒有可檢核的工項/);
+
+    fireEvent.click(buildButton());
+
+    const building = await screen.findByRole("button", { name: "建立中…" });
+    expect(building).toBeDisabled();
+    fireEvent.click(building);
+    fireEvent.click(building);
+    expect(calls.filter((call) => call.startsWith("POST"))).toHaveLength(1);
+
+    finishRebuild({ status: 201, body: CHECKLIST });
+
+    const done = await screen.findByRole("button", { name: "建立檢核表" });
+    expect(done).toBeEnabled();
+    expect(await screen.findByText("壹.一.1.4.8")).toBeInTheDocument();
+    expect(calls.filter((call) => call.startsWith("POST"))).toHaveLength(1);
+  });
+
+  it("依據是法規、查不到完全同名的，頁面上顯示未查證，整頁沒有「查無」兩個字", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    await screen.findByText("壹.一.1.4.8");
+
+    const row = screen.getByText("壹.一.1.4.8").closest("tr") as HTMLElement;
+    const lawRow = within(row).getByText("屋內線路裝置規則").closest("li") as HTMLElement;
+    expect(lawRow).toHaveTextContent("未查證");
+    expect(document.body).not.toHaveTextContent(/查無/);
   });
 });
