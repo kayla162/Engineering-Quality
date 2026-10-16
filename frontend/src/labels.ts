@@ -43,6 +43,25 @@ export const REVIEW_LABELS: Record<ReviewStatus, string> = {
   REJECTED: "已否決",
 };
 
+export const CHECK_RESULT_LABELS: Record<string, string> = {
+  OK: "OK",
+  SPEC_NOT_INCLUDED: "本案規範未收錄",
+  NEEDS_CONFIRMATION: "請確認依據",
+};
+
+/**
+ * 查證狀態。null 要顯示成「未查證」，**不是**「查無此法規」——
+ * 那個說法會讓人以為規範書引用了不存在的東西。
+ * 這張表刻意不放 NOT_FOUND：檢核表的查證只採完全同名，找不到就是沒查證，不是查無。
+ */
+export const VERIFICATION_LABELS: Record<string, string> = {
+  ACTIVE: "現行有效",
+  AMENDED: "已修正",
+  REPEALED: "已廢止",
+};
+
+export const UNVERIFIED_LABEL = "未查證";
+
 export const TYPE_LABELS: Record<string, string> = {
   law: "法律",
   regulation: "法規命令",

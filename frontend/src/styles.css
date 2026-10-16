@@ -518,3 +518,48 @@ ul.list li.selected {
 .summary-total { background: var(--possible); }
 .summary-matched { background: var(--active); }
 .summary-missing { background: var(--notfound); }
+
+/* --- 檢核表 --- */
+
+/* 三個檢核結果各自一個顏色。「請確認依據」用中性的藍而不是警告色：它占了大半，
+   全部標成警告色就什麼都看不出來了 */
+.summary-check-ok { background: var(--active); }
+.summary-check-spec_not_included { background: var(--amended); }
+.summary-check-needs_confirmation { background: var(--possible); }
+
+.badge-check-ok { background: var(--active); color: var(--active-text); }
+.badge-check-spec_not_included { background: var(--amended); color: var(--amended-text); }
+.badge-check-needs_confirmation { background: var(--possible); color: var(--possible-text); }
+
+.bases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bases li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bases li + li {
+  margin-top: 2px;
+}
+
+.basis-name {
+  flex: 1 1 auto;
+}
+
+/* 依據一列可能有十幾條。欄寬不留夠的話，工程項目的長名稱會把它擠成窄條，
+   每條依據折成兩三行，一列就長得看不完 */
+.col-bases {
+  min-width: 300px;
+}
+
+/* 未查證是絕大多數依據的狀態，用淡色小字，別蓋過少數真正查到的狀態標籤 */
+.unverified {
+  color: var(--muted);
+  font-size: 12px;
+}

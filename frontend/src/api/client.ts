@@ -1,6 +1,7 @@
 // 唯一一個跟後端說話的地方。要改 API 路徑或錯誤處理都在這裡。
 
 import type {
+  Checklist,
   DocumentList,
   DocumentRole,
   DocumentSummary,
@@ -125,6 +126,13 @@ export const api = {
 
   listWorkItems: (projectId: string) =>
     request<WorkItemList>(`/projects/${projectId}/work-items`),
+
+  /** 重建依據（重讀規範書、重抽取、重查證）並回傳檢核表。重跑取代，不累加。 */
+  buildChecklist: (projectId: string) =>
+    request<Checklist>(`/projects/${projectId}/checklist`, { method: "POST" }),
+
+  /** 只讀已經建好的依據，不重建。要更新依據請用 buildChecklist。 */
+  getChecklist: (projectId: string) => request<Checklist>(`/projects/${projectId}/checklist`),
 
   /** 匯出是檔案下載，直接開新分頁交給瀏覽器處理 */
   exportReportUrl: (documentId: string, format: "xlsx" | "csv" | "pdf") =>

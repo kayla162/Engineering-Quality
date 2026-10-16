@@ -196,3 +196,34 @@ export interface ProjectDocumentLink {
   role: string;
   added_at: string;
 }
+
+// --- 檢核表（backend/app/schemas/checklist.py）---
+
+export type CheckResult = "OK" | "SPEC_NOT_INCLUDED" | "NEEDS_CONFIRMATION";
+
+export interface Basis {
+  basis_type: string;
+  reference: string;
+  detail: string | null;
+  /** 法規查證結果。null 代表**未查證**，不是「查無此法規」。 */
+  verification_status: string | null;
+}
+
+export interface ChecklistItem {
+  work_item_id: string;
+  item_no: string;
+  name: string;
+  result: CheckResult;
+  /** 計價代碼前 5 碼。`chapter` 是 null 時，靠這個才說得出缺的是哪一章。 */
+  chapter_code: string | null;
+  chapter: { code: string; title: string; version: string } | null;
+  bases: Basis[];
+}
+
+export interface Checklist {
+  total: number;
+  summary: { ok: number; spec_not_included: number; needs_confirmation: number };
+  contract_note: string;
+  spec_warning: string | null;
+  items: ChecklistItem[];
+}

@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api } from "../api/client";
-import type { DocumentRole, DocumentSummary, Project, WorkItemList } from "../api/types";
+import type {
+  Checklist,
+  DocumentRole,
+  DocumentSummary,
+  Project,
+  WorkItemList,
+} from "../api/types";
+import {
+  ChecklistSummary,
+  ChecklistTable,
+  type ChecklistResultFilter,
+} from "../components/ChecklistTable";
 import { ProjectPanel } from "../components/ProjectPanel";
 import { WorkItemSummary, WorkItemTable } from "../components/WorkItemTable";
 
@@ -18,6 +29,11 @@ export function ProjectWorkItemsPage() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [workItems, setWorkItems] = useState<WorkItemList | null>(null);
+  // 檢核表依專案分開存：切換專案後，上一個專案的列不能留在新專案的標題底下；
+  // 重建要花好幾秒，慢回來的舊專案回應也只能存進舊專案自己名下，不能蓋掉新專案的畫面。
+  const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
+  const [resultFilter, setResultFilter] = useState<ChecklistResultFilter>("ALL");
+  const [buildingChecklist, setBuildingChecklist] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [documentId, setDocumentId] = useState("");
   const [role, setRole] = useState<DocumentRole>("boq");
@@ -44,14 +60,26 @@ export function ProjectWorkItemsPage() {
     }
   }, []);
 
+  const loadChecklist = useCallback(async (projectId: string) => {
+    try {
+      const data = await api.getChecklist(projectId);
+      setChecklists((previous) => ({ ...previous, [projectId]: data }));
+    } catch (err) {
+      report(err, "無法載入檢核表");
+    }
+  }, []);
+
   useEffect(() => {
     void loadProjects();
     api.listDocuments().then((list) => setDocuments(list.items), () => setDocuments([]));
   }, [loadProjects]);
 
   useEffect(() => {
-    if (selectedId) void loadWorkItems(selectedId);
-  }, [selectedId, loadWorkItems]);
+    if (selectedId) {
+      void loadWorkItems(selectedId);
+      void loadChecklist(selectedId);
+    }
+  }, [selectedId, loadWorkItems, loadChecklist]);
 
   async function createProject(name: string) {
     setError(null);
@@ -91,7 +119,26 @@ export function ProjectWorkItemsPage() {
     }
   }
 
+  async function buildChecklist() {
+    if (!selectedId) return;
+    const projectId = selectedId;
+    setError(null);
+    setBusy(true);
+    setBuildingChecklist(true);
+    try {
+      const data = await api.buildChecklist(projectId);
+      setChecklists((previous) => ({ ...previous, [projectId]: data }));
+    } catch (err) {
+      report(err, "無法建立檢核表");
+    } finally {
+      setBusy(false);
+      setBuildingChecklist(false);
+    }
+  }
+
   const selected = projects.find((project) => project.project_id === selectedId) ?? null;
+
+  const checklist = selectedId === null ? null : (checklists[selectedId] ?? null);
 
   return (
     <div className="layout">
@@ -171,6 +218,48 @@ export function ProjectWorkItemsPage() {
                 onlyMissing={onlyMissing}
                 onOnlyMissingChange={setOnlyMissing}
               />
+            </section>
+
+            <section className="card">
+              <h2>檢核表</h2>
+
+              <div className="field">
+                <button type="button" disabled={busy} onClick={() => void buildChecklist()}>
+                  {buildingChecklist ? "建立中…" : "建立檢核表"}
+                </button>
+                {/* 依據來自規範書；重跑是取代不是累加，也要講清楚 */}
+                <span className="hint">
+                  依據來自角色為「施工規範」的文件。重新建立會重讀規範書並取代現有的依據，不會累加。
+                </span>
+              </div>
+
+              {/*
+                還沒載入完成（或載入失敗）時什麼都不畫：這時畫出 ChecklistTable，
+                它會說「這個專案還沒有可檢核的工項」——對一個只是還沒載入的專案是錯的。
+                載入失敗由側欄的錯誤訊息交代。
+              */}
+              {checklist && (
+                <>
+                  {checklist.total > 0 && (
+                    <>
+                      <ChecklistSummary
+                        ok={checklist.summary.ok}
+                        specNotIncluded={checklist.summary.spec_not_included}
+                        needsConfirmation={checklist.summary.needs_confirmation}
+                      />
+                      {/* 規範書解析品質不佳時依據可能殘缺，使用者必須在看到表之前就知道 */}
+                      {checklist.spec_warning && <p className="error">{checklist.spec_warning}</p>}
+                      {/* 契約是專案層級的依據、不逐工項列：這句話不顯示，就沒有人知道契約欄去哪了 */}
+                      <p className="hint">{checklist.contract_note}</p>
+                    </>
+                  )}
+                  <ChecklistTable
+                    items={checklist.items}
+                    resultFilter={resultFilter}
+                    onResultFilterChange={setResultFilter}
+                  />
+                </>
+              )}
             </section>
           </>
         )}
