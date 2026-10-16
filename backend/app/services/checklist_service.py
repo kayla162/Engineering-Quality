@@ -17,7 +17,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import get_llm_provider
-from app.core.enums import CheckResult, DocumentRole, ParseQuality
+from app.core.enums import CheckResult, DocumentRole, ParseQuality, RegulationType
 from app.core.errors import AppError, ProjectNotFoundError
 from app.core.logging import log_context
 from app.extractors import ExtractionPipeline
@@ -28,7 +28,9 @@ from app.repositories.audit import AuditRepository
 from app.repositories.checklist import ChecklistRepository
 from app.repositories.documents import DocumentRepository
 from app.repositories.projects import ProjectRepository
+from app.services.basis_verifier import verify_names
 from app.sources.pcces_source import PccesSource
+from app.sources.taiwan_law_source import TaiwanLawSource
 from app.specs import basis_block, read_spec_chapters
 
 logger = logging.getLogger(__name__)
@@ -206,6 +208,17 @@ class ChecklistService:
                         detail=f"第{code}章 相關準則",
                     )
                 )
+
+        # 只送非標準的名稱去查：標準（CNS/ASTM/ISO/JIS）沒有資料來源可查，
+        # 送去只會得到模糊候選。依相異名稱查一次，不是每筆依據查一次。
+        candidates = {
+            basis.reference
+            for basis in bases
+            if basis.basis_type != RegulationType.STANDARD
+        }
+        statuses = await verify_names(candidates, TaiwanLawSource())
+        for basis in bases:
+            basis.verification_status = statuses.get(basis.reference)
 
         await self.checklist_repo.replace_bases([item.id for item in work_items], bases)
         grouped: dict[uuid.UUID, list[WorkItemBasis]] = {}

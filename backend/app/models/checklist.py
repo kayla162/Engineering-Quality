@@ -50,16 +50,20 @@ class WorkItemBasis(Base):
         ForeignKey("work_items.id", ondelete="CASCADE"), nullable=False
     )
     #: 沿用 RegulationType，由抽取器依名稱字尾判定（`extractors/rule_engine.py` 的
-    #: `_SUFFIX_TYPES`），這個判定本身也沒被查證。本階段沒有任何一筆依據被查證過：
-    #: STANDARD（CNS/ASTM/ISO/JIS）沒有資料來源可查證，只引述；其餘也沒有接上
-    #: `taiwan_law`——階段 3 spec 第 3.3 節承諾的法規查證尚未接上，建立與讀取檢核表
-    #: 都不會呼叫它。
+    #: `_SUFFIX_TYPES`），這個判定本身也沒被查證。STANDARD（CNS/ASTM/ISO/JIS）沒有
+    #: 資料來源可查證，只引述；其餘由 `ChecklistService.build` 拿去 `taiwan_law`
+    #: 查完全同名，結果存在 `verification_status`。讀取檢核表不會重查。
     basis_type: Mapped[str] = mapped_column(String(32), nullable=False)
     reference: Mapped[str] = mapped_column(Text, nullable=False)
     #: 出處，只寫到章，例如「第01725章 相關準則」（`checklist_service` 寫入）。不寫小節號：
     #: 相關準則不一定在 1.4（實測 01523、01574、02786、03110 四章編在 1.3），系統不宣稱
     #: 它不知道的小節號。
     detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    #: 法規查證結果。**None 代表未查證**——沒有送查（標準），或查不到完全同名。
+    #: 永遠不存 NOT_FOUND：那個值的意思是「我們查過，這部法規不存在」，而依據
+    #: 來自規範書自己宣告的清單，我們沒有立場那樣說。屋內線路裝置規則與建築
+    #: 技術規則都是真法規，只是不以那個名稱登錄在全國法規索引裡。
+    verification_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = created_at_column()
 
     __table_args__ = (Index("ix_work_item_bases_work_item", "work_item_id"),)

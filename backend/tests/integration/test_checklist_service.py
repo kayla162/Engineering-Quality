@@ -813,3 +813,85 @@ class TestIsolation:
         assert row_of(mine.rows, "壹.一.1.2.1").result == CheckResult.SPEC_NOT_INCLUDED
         assert row_of(theirs.rows, "壹.一.1.2.1").result == CheckResult.NEEDS_CONFIRMATION
         assert row_of(theirs.rows, "壹.一.1.2.1").chapter.code == "03110"
+
+
+class TestVerification:
+    """查證狀態只在查得到完全同名時才有值。"""
+
+    async def test_an_exact_match_gets_its_status(self, db_session, project_with_boq, monkeypatch):
+        """規範書宣告「職業安全衛生法」，而索引裡有同名的一部法。"""
+        from app.core.enums import RegulationStatus
+        from app.services import checklist_service
+
+        async def fake_verify(names, source):
+            return {"職業安全衛生法": RegulationStatus.ACTIVE}
+
+        monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
+        await attach_spec(
+            db_session, project_with_boq,
+            [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審")],
+        )
+
+        rows = (await ChecklistService(db_session).build(project_with_boq.id)).rows
+        basis = next(b for r in rows for b in r.bases if b.reference == "職業安全衛生法")
+
+        assert basis.verification_status == RegulationStatus.ACTIVE
+
+    async def test_a_name_not_in_the_index_stays_null(self, db_session, project_with_boq, monkeypatch):
+        """未查證是 None，不是 NOT_FOUND——我們沒有立場說那部法規不存在。"""
+        from app.services import checklist_service
+
+        async def fake_verify(names, source):
+            return {}
+
+        monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
+        await attach_spec(
+            db_session, project_with_boq,
+            [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 屋內線路裝置規則 1.5 送審")],
+        )
+
+        rows = (await ChecklistService(db_session).build(project_with_boq.id)).rows
+        basis = next(b for r in rows for b in r.bases if b.reference == "屋內線路裝置規則")
+
+        assert basis.verification_status is None
+
+    async def test_standards_are_never_sent_for_verification(self, db_session, project_with_boq, monkeypatch):
+        """標準沒有資料來源可查，連送都不要送。"""
+        from app.services import checklist_service
+
+        sent: list[set[str]] = []
+
+        async def fake_verify(names, source):
+            sent.append(set(names))
+            return {}
+
+        monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
+        await attach_spec(
+            db_session, project_with_boq,
+            [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) CNS 2473 (2) 職業安全衛生法 1.5 送審")],
+        )
+
+        await ChecklistService(db_session).build(project_with_boq.id)
+
+        assert sent and all("CNS 2473" not in batch for batch in sent)
+
+    async def test_the_status_survives_a_read_back(self, db_session, project_with_boq, monkeypatch):
+        """GET 只讀，查證狀態要在資料庫裡，不是每次重查。"""
+        from app.core.enums import RegulationStatus
+        from app.services import checklist_service
+
+        async def fake_verify(names, source):
+            return {"職業安全衛生法": RegulationStatus.REPEALED}
+
+        monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
+        await attach_spec(
+            db_session, project_with_boq,
+            [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審")],
+        )
+        service = ChecklistService(db_session)
+        await service.build(project_with_boq.id)
+
+        rows = (await service.checklist(project_with_boq.id)).rows
+        basis = next(b for r in rows for b in r.bases if b.reference == "職業安全衛生法")
+
+        assert basis.verification_status == RegulationStatus.REPEALED
