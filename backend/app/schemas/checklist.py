@@ -33,8 +33,9 @@ class BasisOut(BaseModel):
     detail: str | None
     #: 法規查證結果：`ACTIVE`、`AMENDED`、`REPEALED`，或 null。**null 代表未查證**——
     #: 標準沒有資料來源可查，法規則是在全國法規索引裡找不到完全同名。null 不等於
-    #: 「查無此法規」：屋內線路裝置規則、建築技術規則是真的法規，只是不以那個名稱
-    #: 登錄在索引裡。這裡永遠不會是 `NOT_FOUND`，前端不要把 null 顯示成查無此法規。
+    #: 「查無此法規」：建築技術規則是真的法規，索引只以四編登錄它；屋內線路裝置規則是
+    #: 2018 年已更名為用戶用電設備裝置規則的舊名稱，規範書還在引用。這裡永遠不會是
+    #: `NOT_FOUND`，前端不要把 null 顯示成查無此法規。
     verification_status: str | None
 
 

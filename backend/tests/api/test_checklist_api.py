@@ -454,3 +454,35 @@ class TestVerificationInResponse:
             assert bases
             assert all("verification_status" in b for b in bases)
             assert {b["verification_status"] for b in bases} == {None}
+
+    async def test_a_standard_stays_null_beside_a_verified_law(
+        self, api_client, project_with_boq, monkeypatch
+    ):
+        """標準沒有資料來源，查證不會碰它：同一章裡的法規查到了，標準仍然是 null。
+
+        這個 API 層的 fixture 原本沒有任何標準依據，「標準是 null」只在 service 層斷言；
+        只把標準標成 NOT_FOUND（或把標準也送去查）的錯誤，API 層的測試全都看不出來。
+        fake 對收到的每個名稱都回 ACTIVE：標準要是被送去查，會變成 ACTIVE 而不是 null。"""
+        from app.core.enums import RegulationStatus
+        from app.services import checklist_service
+
+        async def verify_everything_it_is_asked(names, source):
+            return {name: RegulationStatus.ACTIVE for name in names}
+
+        monkeypatch.setattr(checklist_service, "verify_names", verify_everything_it_is_asked)
+        await attach_spec(
+            api_client,
+            project_with_boq,
+            [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 測量法 (2) CNS 2473 鋼材 1.5 送審")],
+        )
+
+        built = (await api_client.post(url(project_with_boq))).json()
+        read_back = (await api_client.get(url(project_with_boq))).json()
+
+        for body in (built, read_back):
+            statuses = {
+                b["reference"]: b["verification_status"]
+                for item in body["items"]
+                for b in item["bases"]
+            }
+            assert statuses == {"測量法": RegulationStatus.ACTIVE, "CNS 2473": None}

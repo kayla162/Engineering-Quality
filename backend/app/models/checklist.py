@@ -61,8 +61,9 @@ class WorkItemBasis(Base):
     detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
     #: 法規查證結果。**None 代表未查證**——沒有送查（標準），或查不到完全同名。
     #: 永遠不存 NOT_FOUND：那個值的意思是「我們查過，這部法規不存在」，而依據
-    #: 來自規範書自己宣告的清單，我們沒有立場那樣說。屋內線路裝置規則與建築
-    #: 技術規則都是真法規，只是不以那個名稱登錄在全國法規索引裡。
+    #: 來自規範書自己宣告的清單，我們沒有立場那樣說。建築技術規則是真法規，只是索引把
+    #: 它拆成四編登錄；屋內線路裝置規則則是 2018 年已更名為用戶用電設備裝置規則的舊
+    #: 名稱，規範書還在引用它。兩者都查不到完全同名，維持 None。
     verification_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = created_at_column()
 
