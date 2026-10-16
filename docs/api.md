@@ -381,9 +381,12 @@ NOT_FOUND 只佔 4%（26 筆裡 1 筆）。差別不在抽取器，在文件型�
       "chapter_code": "09912",
       "chapter": { "code": "09912", "title": "水泥漆", "version": "5.0" },
       "bases": [
-        { "basis_type": "standard", "reference": "中華民國國家標準", "detail": "第09912章 相關準則" },
-        { "basis_type": "standard", "reference": "CNS 4940", "detail": "第09912章 相關準則" },
-        { "basis_type": "standard", "reference": "CNS 8144", "detail": "第09912章 相關準則" }
+        { "basis_type": "standard", "reference": "中華民國國家標準", "detail": "第09912章 相關準則",
+          "verification_status": null },
+        { "basis_type": "standard", "reference": "CNS 4940", "detail": "第09912章 相關準則",
+          "verification_status": null },
+        { "basis_type": "standard", "reference": "CNS 8144", "detail": "第09912章 相關準則",
+          "verification_status": null }
       ]
     }
   ]
@@ -427,16 +430,68 @@ NOT_FOUND 只佔 4%（26 筆裡 1 筆）。差別不在抽取器，在文件型�
 `spec_warning` 不是 null 時，代表本案規範書的解析品質不佳（大量頁面以圖為主），
 依據可能殘缺——不要把檢核結果當成完整的。POST 與 GET 都會帶，使用者多半是用 GET 看檢核表。
 
-**依據（`bases`）是引述，這個階段沒有任何一筆被查證過。** 每一筆都是從本案規範書該章
-「相關準則」那一段抽出來的名稱，原樣存下：標準（CNS／ASTM／ISO／JIS 等）沒有任何資料來源
-可查；法規也還沒接上全國法規資料庫——`docs/superpowers/specs/2026-10-05-工項檢核表-階段3-design.md`
-第 3.3 節描述的法規查證，目前沒有接上。所以回應裡**沒有**「是否查證過」這類欄位：不管
-填什麼，都是在宣稱一件沒有人檢查過的事。前端不要把任何一筆依據標示成「已查證」，也不要把標準
-顯示成「查無此法規」——系統沒有那個資料來源，不是規範引用了不存在的東西。
+**依據（`bases`）是引述；`verification_status` 說明它查證到什麼程度，而且只有一部分查得到。**
+每一筆都是從本案規範書該章「相關準則」那一段抽出來的名稱，原樣存下。`POST` 建檢核表時，
+會把其中**非標準**的名稱拿去全國法規索引（`data/taiwan_law_index.json`，11,793 筆，只含
+法律與法規命令）查，結果存在資料庫；`GET` 只讀，不重查。
+
+| `verification_status` | 意義 |
+|---|---|
+| `ACTIVE`、`AMENDED`、`REPEALED` | 在索引裡找到**完全同名**的法規，值是它在索引裡的狀態（沿用 `RegulationStatus`）。實測只出現過 `ACTIVE` 與 `AMENDED` |
+| `null` | **未查證**。系統對這個名稱不做任何宣稱 |
+
+這個欄位**永遠不會是 `NOT_FOUND`**：查不到就是 `null`，不存「查無此法規」。
+
+```json
+"bases": [
+  { "basis_type": "law", "reference": "職業安全衛生法", "detail": "第01574章 相關準則",
+    "verification_status": "ACTIVE" },
+  { "basis_type": "regulation", "reference": "職業安全衛生設施規則", "detail": "第01574章 相關準則",
+    "verification_status": "AMENDED" }
+]
+```
+
+**只採完全同名，模糊比對刻意不用。** 模糊比對會給出「有信心的錯」：拿
+「低電壓金屬閉鎖型配電箱檢驗法」（一個 CNS 試驗方法的名稱，因為結尾是「法」被抽取器判成
+`law`）去索引搜尋，最像的三個候選是商品檢驗法、**民法**、醫事檢驗師法。採用其中任何一個，
+就是在這筆依據上填一個看起來有根據、其實是錯的狀態——而且因為欄位填滿了，比留白更難被發現。
+所以寧可留 `null`。
+
+**`null` 是未查證，不是「查無此法規」。** 三種情況都會是 `null`：
+
+1. 標準（`basis_type` 是 `standard`：CNS／ASTM／ISO／JIS 等）。沒有任何資料來源可查，
+   根本沒有送查。
+2. 非標準，但索引裡找不到完全同名。這不表示規範引用了不存在的東西：**屋內線路裝置規則**
+   （實測 129 筆依據）與**建築技術規則**（17 筆）都是真的法規，只是不以那個名稱登錄在
+   索引裡——建築技術規則在索引中只以四編出現（建築技術規則建築構造編、建築設備編、
+   建築設計施工編、總則編）。另外索引不含行政規則、作業要點與工程規範，所以
+   `engineering_spec` 與 `announcement` 兩類（實測合計 67 筆）一筆也查不到。
+3. 建檔當下索引讀不到（檔案不存在或損毀）。查證整批跳過、全部維持 `null`，檢核表照樣
+   產出；索引補齊後重跑 `POST` 才會補上，`GET` 不會重查。
+
+前端不要把 `null` 顯示成「查無此法規」「不存在」或警示，也不要顯示成「已查證」；它就是「沒有
+這項資訊」。`ACTIVE`／`AMENDED`／`REPEALED` 只說明**索引裡有這個名稱**以及它的狀態，不說明
+`basis_type` 判得對不對。
+
+**實測覆蓋率（2026-10-16，真實標單與規範書）**：1028 個工項的檢核表共 2846 筆依據，其中標準 2054 筆
+（不送查）、非標準 792 筆（`law` 374、`regulation` 351、`engineering_spec` 58、
+`announcement` 9），792 筆只有 96 個相異名稱。
+
+| | 數量 | 佔 2846 筆依據 |
+|---|---|---|
+| 查到完全同名（`ACTIVE` 159、`AMENDED` 27） | **186 筆**（13 個名稱，佔 96 個相異名稱的 13.5%；佔 792 筆非標準的 23.5%） | **6.5%** |
+| `null` 未查證 | 2660 筆 | 93.5% |
+
+也就是說，**絕大多數依據的 `verification_status` 是 `null`**，這是這個查證方式的正常結果，不是
+錯誤：2660 筆 `null` 裡有 2054 筆是標準，另外 606 筆非標準沒查到同名（`law` 326、`regulation`
+213、`engineering_spec` 58、`announcement` 9）。覆蓋率集中在少數名稱：用戶用電設備裝置規則
+一個名稱就佔 97 筆，超過那 186 筆的一半。這個數字是把 `data/app.db` 既有的依據名稱，用建檢核表
+同一個查證函式（`verify_names`）重查全國法規索引量到的；該資料庫當時還沒套用
+`work_item_bases.verification_status` 欄位的遷移，所以不是從欄位讀出來的。
 
 `basis_type` 是抽取器依名稱判的類別（`RegulationType` 的值，實測有 `law`、`regulation`、
-`standard`、`engineering_spec`、`announcement`），可以用來分類顯示，但它**同樣沒有被查證，
-而且會誤判**：抽取器只看名稱的結尾，而且字尾表（`backend/app/extractors/rule_engine.py`
+`standard`、`engineering_spec`、`announcement`），可以用來分類顯示，但它**不是查證結果（查證看
+`verification_status`），而且會誤判**：抽取器只看名稱的結尾，而且字尾表（`backend/app/extractors/rule_engine.py`
 的 `_SUFFIX_TYPES`）有先後順序：以「辦法」「細則」「規則」「準則」結尾的是 `regulation`
 （「辦法」也以「法」結尾，但字尾表先比到它；實測以「辦法」結尾的 5 個相異名稱全是
 `regulation`），以「標準」結尾的是 `standard`，以「條例」結尾、或沒被前面任何字尾接走而以

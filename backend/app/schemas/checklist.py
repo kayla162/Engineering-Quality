@@ -20,10 +20,10 @@ CONTRACT_NOTE = (
 class BasisOut(BaseModel):
     """一條依據：本案規範書某一章的「相關準則」裡寫了什麼，原樣引述。
 
-    刻意沒有「是否查證過」這類欄位：本階段沒有任何一筆依據被查證過——標準
-    （CNS／ASTM／ISO／JIS）沒有資料來源，法規也還沒接上 taiwan_law（階段 3 spec
-    第 3.3 節承諾了、尚未落地）。有這個欄位就得填 true 或 false，兩個值都是在宣稱
-    一件沒有人檢查過的事。`basis_type` 只說明它屬於哪一類，不說明它被查證到什麼程度。
+    名稱是引述，不是查證過的事實；`verification_status` 才說明它查到什麼程度，
+    而且只對法規查得到：標準（CNS／ASTM／ISO／JIS）沒有資料來源，法規則只採
+    完全同名比對（見 `verification_status` 的說明）。`basis_type` 只說明名稱屬於
+    哪一類，同樣不說明它被查證到什麼程度。
     """
 
     basis_type: str
@@ -31,6 +31,11 @@ class BasisOut(BaseModel):
     #: 出處，只寫到章（`第01725章 相關準則`）。不寫小節號：相關準則不一定在 1.4
     #: （實測 01523、01574、02786、03110 四章編在 1.3），不知道的小節號不能宣稱。
     detail: str | None
+    #: 法規查證結果：`ACTIVE`、`AMENDED`、`REPEALED`，或 null。**null 代表未查證**——
+    #: 標準沒有資料來源可查，法規則是在全國法規索引裡找不到完全同名。null 不等於
+    #: 「查無此法規」：屋內線路裝置規則、建築技術規則是真的法規，只是不以那個名稱
+    #: 登錄在索引裡。這裡永遠不會是 `NOT_FOUND`，前端不要把 null 顯示成查無此法規。
+    verification_status: str | None
 
 
 class ChapterOut(BaseModel):
@@ -72,6 +77,7 @@ class ChecklistItemOut(BaseModel):
                     basis_type=basis.basis_type,
                     reference=basis.reference,
                     detail=basis.detail,
+                    verification_status=basis.verification_status,
                 )
                 for basis in row.bases
             ],

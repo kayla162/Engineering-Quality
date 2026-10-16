@@ -219,7 +219,17 @@ class TestBuildChecklist:
 
 
 class TestGetChecklist:
-    async def test_a_matched_item_carries_its_chapter_and_basis(self, api_client, project_id):
+    async def test_a_matched_item_carries_its_chapter_and_basis(
+        self, api_client, project_id, monkeypatch
+    ):
+        from app.services import checklist_service
+
+        # 查證什麼都沒查到：不靠 data/taiwan_law_index.json 裡有沒有同名的法規，
+        # 下面斷言 verification_status 是 null 才是這個測試要說的事
+        async def nothing_found(names, source):
+            return {}
+
+        monkeypatch.setattr(checklist_service, "verify_names", nothing_found)
         await api_client.post(url(project_id))
 
         row = (await items_by_no(api_client, project_id))["壹.一.1.1.1"]
@@ -227,11 +237,17 @@ class TestGetChecklist:
         assert row["result"] == "OK"
         # 版本不含「V」字首（頁首的 V3.0 在建索引時就去掉了）
         assert row["chapter"] == {"code": "01725", "title": "施工測量", "version": "3.0"}
-        # 整筆比對，不只看 reference：依據只有這三個欄位。沒有任何一筆依據在本階段被
-        # 查證過，所以不能多出一個 verified 之類的欄位去暗示哪些查證過；出處只寫到章，
-        # 因為相關準則不一定在 1.4，系統不宣稱自己不知道的小節號。
+        # 整筆比對，不只看 reference：依據只有這四個欄位。查證結果只有
+        # verification_status 一個欄位，不能再多出一個 verified 之類的布林去暗示哪些查證
+        # 過——null 是「沒查證」，布林的 false 會讀成「查過、不是」；出處只寫到章，因為
+        # 相關準則不一定在 1.4，系統不宣稱自己不知道的小節號。
         assert row["bases"] == [
-            {"basis_type": "law", "reference": "測量法", "detail": "第01725章 相關準則"}
+            {
+                "basis_type": "law",
+                "reference": "測量法",
+                "detail": "第01725章 相關準則",
+                "verification_status": None,
+            }
         ]
 
     async def test_a_law_and_a_standard_are_told_apart_by_basis_type(
@@ -383,3 +399,58 @@ class TestErrors:
         assert response.status_code == 422
         assert response.json()["error"]["code"] == "UNPROCESSABLE_DOCUMENT"
         assert "章節" in response.json()["error"]["message"]
+
+
+class TestVerificationInResponse:
+    async def test_the_status_reaches_the_client(self, api_client, project_id, monkeypatch):
+        from app.core.enums import RegulationStatus
+        from app.services import checklist_service
+
+        # fixture 的 01725 章宣告的是「測量法」，用它才對得上實際產出的依據
+        async def fake_verify(names, source):
+            return {"測量法": RegulationStatus.ACTIVE}
+
+        monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
+
+        body = (await api_client.post(f"/api/projects/{project_id}/checklist")).json()
+        statuses = {
+            b["reference"]: b["verification_status"]
+            for item in body["items"]
+            for b in item["bases"]
+        }
+
+        assert statuses.get("測量法") == RegulationStatus.ACTIVE
+
+    async def test_an_unverified_basis_is_null_not_not_found(self, api_client, project_id):
+        """未查證是 null。顯示成「查無此法規」會讓人以為規範引用了不存在的東西。"""
+        body = (await api_client.post(f"/api/projects/{project_id}/checklist")).json()
+        values = {
+            b["verification_status"]
+            for item in body["items"]
+            for b in item["bases"]
+        }
+
+        assert "NOT_FOUND" not in values
+
+    async def test_a_basis_nobody_verified_is_null_in_both_post_and_get(
+        self, api_client, project_id, monkeypatch
+    ):
+        """上一個測試靠真實索引的內容決定有沒有 None 可看，索引在不在都會過。這個不靠：
+        查證什麼都沒查到，每一筆都必須是 null——欄位在、值是 null，而且 POST 回應和
+        之後 GET 讀到的一樣（讀取不重查，狀態是從資料庫來的）。"""
+        from app.services import checklist_service
+
+        async def nothing_found(names, source):
+            return {}
+
+        monkeypatch.setattr(checklist_service, "verify_names", nothing_found)
+
+        built = (await api_client.post(url(project_id))).json()
+        read_back = (await api_client.get(url(project_id))).json()
+
+        for body in (built, read_back):
+            bases = [b for item in body["items"] for b in item["bases"]]
+            # 先確認真的有依據可看：空集合會讓下面的比對空轉
+            assert bases
+            assert all("verification_status" in b for b in bases)
+            assert {b["verification_status"] for b in bases} == {None}
