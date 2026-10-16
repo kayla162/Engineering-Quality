@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from app.ai.base import ExtractionResult, LLMCallRecord, LLMProvider, LLMResult
 from app.core.config import settings
 from app.core.db import get_session_factory
-from app.core.enums import AIPurpose, CheckResult, DocumentRole, ParseQuality
+from app.core.enums import AIPurpose, CheckResult, DocumentRole, ParseQuality, RegulationType
 from app.core.errors import AppError, ProjectNotFoundError, SourceQueryError
 from app.models.audit import AIInvocationLog
 from app.models.checklist import SpecChapter, WorkItemBasis
@@ -824,7 +824,9 @@ class TestVerification:
         from app.services import checklist_service
 
         async def fake_verify(names, source):
-            return {"職業安全衛生法": RegulationStatus.ACTIVE}
+            # 從收到的 names 回答：模擬「索引裡只有這一部法」。沒送這個名稱就得不到狀態，
+            # 寫死回傳值的話，就算 build 一個名稱都沒送，這個測試照樣會過。
+            return {name: RegulationStatus.ACTIVE for name in names if name == "職業安全衛生法"}
 
         monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
         await attach_spec(
@@ -873,7 +875,17 @@ class TestVerification:
 
         await ChecklistService(db_session).build(project_with_boq.id)
 
-        assert sent and all("CNS 2473" not in batch for batch in sent)
+        # 精確斷言送了什麼，而不只是「沒送標準」：只斷言否定的話，一個名稱都沒送
+        # （sent == [set()]）也會過，查證就會悄悄地永遠不執行。依相異名稱查一次，所以
+        # 剛好一批、剛好一個名稱。
+        assert sent == [{"職業安全衛生法"}]
+
+        # 標準存進資料庫的狀態也要是 None（用全新 session 讀，見 read_back）。「沒送查」
+        # 不等於「沒存東西」：存成 NOT_FOUND 就是宣稱我們查過、而且它不存在。
+        rows = (await read_back(project_with_boq.id)).rows
+        standard = next(b for r in rows for b in r.bases if b.reference == "CNS 2473")
+        assert standard.basis_type == RegulationType.STANDARD
+        assert standard.verification_status is None
 
     async def test_the_status_survives_a_read_back(self, db_session, project_with_boq, monkeypatch):
         """GET 只讀，查證狀態要在資料庫裡，不是每次重查。"""
@@ -888,10 +900,43 @@ class TestVerification:
             db_session, project_with_boq,
             [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審")],
         )
-        service = ChecklistService(db_session)
-        await service.build(project_with_boq.id)
+        await ChecklistService(db_session).build(project_with_boq.id)
 
-        rows = (await service.checklist(project_with_boq.id)).rows
+        # 用全新的 session 讀。同一個 session 讀到的是 identity map 裡 build 剛建的物件，
+        # 看的是記憶體而不是資料庫——狀態有沒有真的存進去，要換 session 才看得出來。
+        rows = (await read_back(project_with_boq.id)).rows
         basis = next(b for r in rows for b in r.bases if b.reference == "職業安全衛生法")
 
         assert basis.verification_status == RegulationStatus.REPEALED
+
+    async def test_a_name_on_many_rows_is_verified_once(self, db_session, project_with_boq, monkeypatch):
+        """同一部法出現在兩章、兩個工項上：查證依相異名稱，不是依筆數。
+
+        只有一筆依據的測試分不出「每個名稱查一次」和「每筆依據查一次」——這裡讓同一個名稱
+        落在兩筆依據上，後者就會送出兩批。
+        """
+        from app.core.enums import RegulationStatus
+        from app.services import checklist_service
+
+        sent: list[set[str]] = []
+
+        async def fake_verify(names, source):
+            sent.append(set(names))
+            return {name: RegulationStatus.ACTIVE for name in names}
+
+        monkeypatch.setattr(checklist_service, "verify_names", fake_verify)
+        await attach_spec(
+            db_session, project_with_boq,
+            [
+                ("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審"),
+                ("03110", "03110", "模板", "3.0", "1.4 相關準則 (1) 職業安全衛生法 1.5 送審"),
+            ],
+        )
+
+        rows = (await ChecklistService(db_session).build(project_with_boq.id)).rows
+        bases = [b for r in rows for b in r.bases]
+
+        assert len(bases) == 2
+        assert sent == [{"職業安全衛生法"}]
+        # 查一次的結果要寫回每一筆同名的依據
+        assert [b.verification_status for b in bases] == [RegulationStatus.ACTIVE] * 2
