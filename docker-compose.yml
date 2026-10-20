@@ -19,6 +19,8 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        INSTALL_OCR: ${INSTALL_OCR:-false}
     depends_on:
       db:
         condition: service_healthy

@@ -65,6 +65,11 @@ class DuplicateFileError(AppError):
     code = "DUPLICATE_FILE"
 
 
+class StaleDrawingError(AppError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "STALE_DRAWING"
+
+
 class UnprocessableDocumentError(AppError):
     """檔案毀損、加密或無法解析。"""
 

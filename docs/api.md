@@ -569,7 +569,62 @@ GET 都用不到目錄。500 的原因只寫在伺服器 log 裡。
 
 ---
 
+## 圖說索引、覆核與聯集（階段 2）
+
+共同路徑：`/api/projects/{project_id}/drawings`。
+
+| 方法與相對路徑 | 用途 | JSON 欄位（除 GET 外均需 expected_revision） |
+|---|---|---|
+| GET 空路徑 | 取得 revision、documents、sheets、items、union、summary、disclaimer | — |
+| POST `/index` | 建立／替換指定文件索引 | document_id、use_ocr（預設 false） |
+| POST `/items` | 人工補登圖項 | sheet_id、name、evidence |
+| PATCH `/sheets/{sheet_id}` | 修正圖號／圖名、重設本頁覆核 | number、title、source（預設 manual） |
+| PATCH `/items/{item_id}` | 人工覆核 | decision、work_item_ids、note |
+| GET `/documents/{document_id}/file` | 開啟原 PDF，可加 `#page=10` | — |
+
+`decision` 為 `confirmed`、`rejected` 或 `pending`。確認並選取工項建立多對多關聯；
+確認但不選工項代表人工判定圖說獨有。專案尚無標單工項時不允許任何 confirmed 決策。
+拒絕／待確認不得帶入 work_item_ids，所有覆核須填寫 note。
+
+圖頁修正 `source` 只接受 `manual`／`assisted`。AI 轉錄須使用 `assisted`，
+回傳的 method 與警告明示待人工核對；保留原始 evidence 與歷史解析警告，
+並將本頁既有圖項重設 pending、清除配對。修正圖名不自動刪除或重建候選，
+可依原圖另用 POST `/items` 補登缺少的候選，所有新增圖項初始皆為 pending。
+
+每次修改須帶入 GET／前次成功修改回傳的 `revision` 作為 `expected_revision`。
+若專案已被其他修改、掛檔或重建工項，回傳 HTTP 409 `STALE_DRAWING`；
+請重新 GET 並重新核對，不要自動重送原決策。索引先完成解析再檢查版本並原子替換；
+解析或版本檢查失敗保留舊資料。重新索引成功會清除該文件既有人工修正、補登及覆核。
+
+聯集狀態為 `both`（人工確認圖說依據）、`needs_confirmation`（標單項目待確認）、
+`drawing_only`（人工確認圖說獨有）、`drawing_candidate`（未確認候選）。
+名稱建議不等於配對。重建標單後既有覆核會顯示 stale 並退出已確認配對。
+`unreadable_pages` 僅計缺少圖號或圖名的頁數，不是 OCR 錯誤率；
+欄位非空、候選存在或缺少候選均不能推論完整性或確定缺漏。
+文件、圖頁與標單工項均檢查所屬專案；此檢查不取代部署層的使用者驗證與授權。
+
 ## 7. 健康檢查與版本
+
+### 整合檢核與核對成果（唯讀）
+
+共同前綴 `/api/projects/{project_id}`：
+
+| 方法與路徑 | 用途 |
+|---|---|
+| GET `/integrated-checklist` | 整合標單、圖說配對、規範依據與工法候選；無標單時仍回傳圖說候選 |
+| GET `/integrated-checklist/export?format=xlsx\|csv\|pdf` | 匯出完整整合資料，不套用瀏覽器端搜尋條件 |
+| GET `/drawing-inspection` | 目前名稱分組、歷史引用核對與影像索引 |
+| GET `/drawing-inspection/images/{image_id}` | 專案綁定且雜湊驗證通過的白名單 PNG |
+
+整合表回傳 `revision`、`total`、`summary`、`warnings`、`contract_note`、`items`。
+每列保留來源狀態、規範結果、原始圖說證據、人工覆核狀態／註記與工法候選。
+`method.status` 僅為 `pending` 或 `unspecified`，不代表人工指定。
+明確否定／不適用的工法敘述不採為候選。
+
+核對成果回傳 `available`、目前／歷史版本、`groups`、`similar_hints`、`findings`、`images`。
+目前分組來自資料庫；歷史引用結果不回寫。`findings` 包含已定位引用與待確認事項，
+筆數不是缺陷數。manifest 限定專案、文件及檔案雜湊；缺少或失效時降級並回傳提示。
+不接受任意檔案路徑，也不提供私人 HTML 的任意瀏覽。
 
 ### `GET /api/health`
 

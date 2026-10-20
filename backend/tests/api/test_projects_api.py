@@ -4,6 +4,8 @@ import pytest
 
 from tests.factories import make_boq_bytes
 
+pytestmark = pytest.mark.usefixtures("project_pcces_catalog")
+
 
 @pytest.fixture
 async def project_id(api_client):

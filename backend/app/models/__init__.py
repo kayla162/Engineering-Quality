@@ -4,6 +4,7 @@ from app.models.audit import AIInvocationLog, RegulationQuery
 from app.models.base import Base
 from app.models.checklist import SpecChapter, WorkItemBasis
 from app.models.document import Document, DocumentSection
+from app.models.drawing import DrawingSheet, DrawingItem
 from app.models.job import Job
 from app.models.project import Project, ProjectDocument, WorkItem
 from app.models.reference import RegulationReference
@@ -14,6 +15,8 @@ __all__ = [
     "Base",
     "Document",
     "DocumentSection",
+    "DrawingSheet",
+    "DrawingItem",
     "Job",
     "Project",
     "ProjectDocument",

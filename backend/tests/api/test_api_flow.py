@@ -147,7 +147,8 @@ class TestErrors:
     async def test_duplicate_upload_returns_409(self, api_client):
         payload = upload_payload()
         assert (await api_client.post("/api/documents/upload", files=payload)).status_code == 201
-        second = await api_client.post("/api/documents/upload", files=upload_payload())
+        # Reuse identical bytes: re-creating a DOCX can change ZIP timestamps.
+        second = await api_client.post("/api/documents/upload", files=payload)
         assert second.status_code == 409
         assert second.json()["error"]["code"] == "DUPLICATE_FILE"
 

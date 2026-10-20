@@ -3,6 +3,9 @@
 上傳工程文件（DOCX / PDF / TXT），系統會抽出文件中引用的法規、標準與施工規範，
 查詢它們目前的狀態，並清楚標示哪些項目需要人工確認，最後匯出可稽核的報告。
 
+**開發交接（2026-10-21）**：[目前完成範圍、接手方式與後續待辦](docs/HANDOFF-2026-10-21.md)。
+此分支包含圖說與整合檢核程式；私人圖檔、資料庫與逐頁核對成果不隨 Git 交付。
+
 設計文件在 [`docs/`](docs/)：
 [架構](docs/architecture.md)｜[資料庫](docs/database.md)｜[API](docs/api.md)｜[開發計畫](docs/development-plan.md)
 
@@ -76,6 +79,39 @@ JSON 結構是 `{"UpdateDate": "...", "Laws": [...]}`。
 ---
 
 ## 快速開始
+
+### 階段 2：圖說索引與人工覆核
+
+「專案工項」頁面可將 PDF 掛為契約圖，再展開「圖說檢核」建立索引。
+支援多份圖檔、圖號／圖名與原文證據、原圖頁碼連結、人工修正與補登、
+圖項對應多筆標單工項，以及可篩選的工項聯集。文字名稱比對只提出候選，須人工確認。
+未找到對應不代表不存在；圖說索引目前以底部圖框為主，不包含完整圖面幾何或工程數量判讀。
+
+掃描圖可選用本機 OCR（不呼叫雲端辨識或 LLM），先在執行後端的環境安裝：
+
+```bash
+pip install -r requirements-ocr.txt
+python -m alembic upgrade head
+```
+
+上傳檔案上限預設 300 MiB，nginx 請求上限 301 MiB（保留 multipart 開銷）。
+未安裝 OCR 時仍可索引文字型 PDF，掃描頁會提示人工補登。
+OCR、缺少圖號／圖名及重複圖號均保留警告，不能以欄位非空當成辨識正確。
+AI 圖框轉錄顯示為「待人工核對」，與人工修正分開標示；原始證據與歷史警告仍保留。
+重新索引會替換該文件的人工圖頁修正、補登及覆核；標單重建會使既有配對失效。
+尚無標單工項時不能確認配對或判定「圖說獨有」。
+
+亦可從本機檔案建立專案並匯入；已建立的索引會保留：
+
+```bash
+python scripts/import_project_drawings.py --name "工程名稱" --ocr "結構圖.pdf" "建築圖.pdf"
+```
+
+原始圖檔、資料庫與 OCR 輸出只留在本機忽略路徑。
+本次實作與真實檔案驗證邊界見
+[階段 2 驗證紀錄](docs/stage2-validation.md)。
+若 Windows 的 8000 埠不可用，可替後端指定 `--port 18080`，
+啟動 Vite 前設定 `API_PROXY_TARGET=http://127.0.0.1:18080`。
 
 ### 方式一：Docker（推薦）
 
@@ -308,7 +344,7 @@ npm test --prefix frontend
 | 變數 | 預設 | 說明 |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL | 本機可改成 `sqlite+aiosqlite:///./data/app.db` |
-| `MAX_UPLOAD_SIZE_MB` | 50 | 改這個也要同步改 `docker/nginx.conf` 的 `client_max_body_size` |
+| `MAX_UPLOAD_SIZE_MB` | 300 | 改這個也要同步改 `docker/nginx.conf` 的 `client_max_body_size` |
 | `MATCH_AUTO_THRESHOLD` | 0.90 | 高於此值直接採用法規狀態 |
 | `MATCH_POSSIBLE_THRESHOLD` | 0.70 | 低於此值判定為 `NOT_FOUND` |
 | `ENABLE_LLM_FALLBACK` | true | 設 false 可完全關閉 AI |
@@ -332,8 +368,21 @@ npm test --prefix frontend
 - **官方資料庫不保留已更名法規的舊名**。例如「勞工安全衛生法」已更名為「職業安全衛生法」，
   舊名在官方資料庫查不到，只會模糊比對到新法並標示為「疑似對應」。舊名對應要靠 `data/alias_dictionary.json` 自行維護。
 - **法規資料是同步下來的快照**，不是即時查詢。官方大約每週更新，重跑 `scripts/sync_taiwan_law.py` 即可。
-- **不支援掃描版 PDF**：需要 OCR，尚未實作。解析不到文字時會明確報錯，不會安靜地產出空結果。
+- **一般文件分析尚不支援掃描版 PDF**：解析不到文字時會明確報錯。圖說索引另有選配的本機 RapidOCR，用於圖框文字輔助辨識；不代表整頁內容已完整辨識或人工確認。
 - **DOCX 沒有頁碼**：頁碼由 Word 排版決定，解析階段取不到，因此一律顯示「—」而不是猜一個數字。PDF 有頁碼。
 - **未實作 NER 抽取層**：MVP 只有規則 + 字典 + LLM fallback；要加 NER 只需在 `extractors/` 多插一層，候選格式不變。
 - **沒有登入機制**：MVP 為單機使用。`core/security.py` 已預留 `get_current_user` 注入點。
 - **向量資料庫未啟用**：Phase 2 才會加入（`docker-compose.yml` 裡已預留註解）。
+
+## 整合檢核工作區
+
+「專案工項 → 整合檢核工作區」可查閱圖說候選、標單配對狀態、規範依據及工法文字線索，
+支援搜尋、篩選、原 PDF 頁面連結和 Excel／CSV／PDF 全表匯出。
+沒有標單仍可整理圖說；候選不自動變成標單缺項，工法線索不自動視為指定工法。
+
+「名稱分組與核對疑義」讀取專案綁定的私人核對成果，區分目前資料與歷史核對版本。
+同名分組與近似提示不修改原始工項或人工註記。
+本機官方索引須自行同步並設定 `REGULATION_SOURCES=taiwan_law,pcces`；索引就緒不代表已完成本案契約核定。
+
+驗證範圍與待辦見 [續作驗證](docs/continuation-validation.md)；
+備份還原與 Docker OCR 操作見 [本機備份](docs/local-backup.md)。

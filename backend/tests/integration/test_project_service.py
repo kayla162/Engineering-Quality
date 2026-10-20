@@ -13,6 +13,8 @@ from app.services.document_service import DocumentService
 from app.services.project_service import ProjectService
 from tests.factories import make_boq_bytes
 
+pytestmark = pytest.mark.usefixtures("project_pcces_catalog")
+
 
 @pytest.fixture
 async def project(db_session):

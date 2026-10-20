@@ -1,0 +1,2 @@
+# Optional local OCR. Model weights ship with the package; documents stay local.
+rapidocr-onnxruntime==1.4.4

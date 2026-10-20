@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Checklist, ChecklistItem } from "../api/types";
+import { api } from "../api/client";
 import { stubApi } from "../test/stubApi";
 import { ProjectWorkItemsPage } from "./ProjectWorkItemsPage";
 
@@ -162,9 +163,53 @@ function buildButton(): HTMLElement {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("ProjectWorkItemsPage", () => {
+  it.each(["review", "checklist"])("refreshes integrated data after %s succeeds without reloading drawings", async (action) => {
+    stubApi({
+      "/api/projects/p1/work-items": WORK_ITEMS,
+      "/api/projects/p1/checklist": EMPTY_CHECKLIST,
+      "/api/projects": ONE_PROJECT,
+      "/api/documents": NO_DOCUMENTS,
+    });
+    const drawing = {
+      revision: 1, documents: [{ id: "d", filename: "fixture.pdf", indexed: true }],
+      sheets: [{ id: "s", document_id: "d", page: 1, number: "A1", title: "測試圖",
+        method: "text", evidence: "測試原文", warning: null }],
+      items: [{ id: "i", sheet_id: "s", name: "待覆核候選", evidence: "圖說候選",
+        review_status: "pending", work_item_ids: [], suggested_work_item_ids: [], review_note: "" }],
+      union: [], summary: { pages: 1, unreadable_pages: 0, unindexed_documents: 0,
+        work_items: 0, matched: 0, pending_items: 1 }, disclaimer: "需人工核對",
+    };
+    vi.spyOn(api, "getDrawings").mockResolvedValue(drawing);
+    vi.spyOn(api, "reviewDrawingItem").mockResolvedValue({ ...drawing, revision: 2 });
+    vi.spyOn(api, "buildChecklist").mockResolvedValue(EMPTY_CHECKLIST);
+    const integrated = {
+      project_id: "p1", revision: 1, total: 0, summary: {}, warnings: ["整合資料更新前"],
+      contract_note: "待確認", items: [],
+    };
+    vi.spyOn(api, "getIntegratedChecklist").mockResolvedValueOnce(integrated)
+      .mockResolvedValue({ ...integrated, revision: 2, warnings: ["整合資料已更新"] });
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    fireEvent.click(await screen.findByRole("button", { name: "展開整合檢核" }));
+    await screen.findByText("整合資料更新前");
+    fireEvent.click(screen.getByRole("button", { name: "展開圖說檢核" }));
+    await screen.findByText("測試原文");
+    if (action === "review") {
+      fireEvent.click(screen.getByRole("button", { name: "覆核 待覆核候選" }));
+      fireEvent.change(screen.getByLabelText("覆核說明"), { target: { value: "人工核對測試" } });
+      fireEvent.click(screen.getByRole("button", { name: "排除此候選" }));
+    } else {
+      fireEvent.click(buildButton());
+    }
+    await screen.findByText("整合資料已更新");
+    await waitFor(() => expect(api.getIntegratedChecklist).toHaveBeenCalledTimes(2));
+    expect(api.getDrawings).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("測試原文")).toBeInTheDocument();
+  });
   it("還沒有專案時引導使用者先建立一個", async () => {
     stubApi({ "/api/projects": NO_PROJECTS, "/api/documents": NO_DOCUMENTS });
 

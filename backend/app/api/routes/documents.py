@@ -14,8 +14,7 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 @router.post("/upload", response_model=DocumentOut, status_code=status.HTTP_201_CREATED)
 async def upload_document(service: DocumentServiceDep, file: UploadFile = File(...)):
     """上傳工程文件。只做驗證與落檔，不做解析（解析由 /analyze 觸發的背景任務負責）。"""
-    content = await file.read()
-    document = await service.upload(file.filename or "unnamed", content)
+    document = await service.upload_stream(file)
     return DocumentOut.from_model(document)
 
 

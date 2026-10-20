@@ -19,6 +19,7 @@ class Project(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    drawing_revision: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = created_at_column()
 

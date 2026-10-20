@@ -1,6 +1,8 @@
 // 唯一一個跟後端說話的地方。要改 API 路徑或錯誤處理都在這裡。
+import type { DrawingInspection, IntegratedChecklist } from "./integratedTypes";
 
 import type {
+  DrawingSnapshot,
   Checklist,
   DocumentList,
   DocumentRole,
@@ -57,6 +59,33 @@ function query(params: Record<string, string | number | undefined | "">): string
 }
 
 export const api = {
+  getIntegratedChecklist: (projectId: string) =>
+    request<IntegratedChecklist>(`/projects/${projectId}/integrated-checklist`),
+  getDrawingInspection: (projectId: string) =>
+    request<DrawingInspection>(`/projects/${projectId}/drawing-inspection`),
+  exportIntegratedUrl: (projectId: string, format: "xlsx" | "csv" | "pdf") =>
+    `${BASE}/projects/${projectId}/integrated-checklist/export?format=${format}`,
+  getDrawings: (projectId: string) => request<DrawingSnapshot>(`/projects/${projectId}/drawings`),
+  indexDrawing: (projectId: string, documentId: string, useOcr: boolean, revision: number) =>
+    request<DrawingSnapshot>(`/projects/${projectId}/drawings/index`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: documentId, use_ocr: useOcr, expected_revision: revision }),
+    }),
+  addDrawingItem: (projectId: string, body: { sheet_id: string; name: string; evidence: string; expected_revision: number }) =>
+    request<DrawingSnapshot>(`/projects/${projectId}/drawings/items`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+  editDrawingSheet: (projectId: string, sheetId: string, body: { number: string; title: string; expected_revision: number }) =>
+    request<DrawingSnapshot>(`/projects/${projectId}/drawings/sheets/${sheetId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+  reviewDrawingItem: (projectId: string, itemId: string,
+    body: { decision: string; work_item_ids: string[]; note: string; expected_revision: number }) =>
+    request<DrawingSnapshot>(`/projects/${projectId}/drawings/items/${itemId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+  drawingFileUrl: (projectId: string, documentId: string, page: number) =>
+    `${BASE}/projects/${projectId}/drawings/documents/${documentId}/file#page=${page}`,
   /** 法規來源現在查不查得動。前端據此在來源未就緒時提示，而不是讓使用者面對滿頁「查詢失敗」 */
   getSourcesStatus: () => request<SourcesStatus>("/sources"),
 

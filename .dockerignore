@@ -1,12 +1,38 @@
 .venv/
-node_modules/
+**/node_modules/
 frontend/dist/
-__pycache__/
-*.pyc
+**/__pycache__/
+**/*.pyc
 .pytest_cache/
-storage/
-data/app.db
 .git/
-.env
-data/taiwan_law_index.json
-data/taiwan_law_cache/
+.codex/
+.agents/
+# Local documents, inspection crops/reports, restore rehearsals and backups.
+storage/
+**/storage/
+backups/
+exports/
+private/
+# Never send SQLite databases or live sidecars to the Docker build context.
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+**/*.sqlite3-*
+# Credentials must only be supplied at runtime.
+.env*
+**/.env*
+**/*credentials*
+**/*secret*
+**/*.pem
+**/*.key
+# Downloaded/generated indexes and raw/cache inputs live in runtime volumes.
+data/generated/
+data/raw/
+data/*_index.json
+data/*_cache/
+# Only these reviewed seed files are needed in the image.
+data/*
+!data/alias_dictionary.json
+!data/mock_regulations.json

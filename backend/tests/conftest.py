@@ -5,6 +5,7 @@
 """
 
 import os
+import json
 import tempfile
 from pathlib import Path
 
@@ -25,6 +26,18 @@ from app.core.db import dispose_engine, get_engine, get_session_factory  # noqa:
 from app.models import Base  # noqa: E402
 from app.services.document_service import DocumentService  # noqa: E402
 from tests.factories import make_docx_bytes, seed_regulations  # noqa: E402
+
+
+@pytest.fixture
+def project_pcces_catalog(tmp_path, monkeypatch):
+    """Project tests must not depend on an untracked live index after clone."""
+    from app.core.config import settings
+    path = tmp_path / "project-pcces.json"
+    path.write_text(json.dumps({"chapters": [
+        {"code": "01725", "name": "施工測量", "edition": "1.0"},
+        {"code": "03310", "name": "結構用混凝土", "edition": "1.0"},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(settings, "PCCES_INDEX_PATH", path)
 
 
 @pytest.fixture(scope="function")

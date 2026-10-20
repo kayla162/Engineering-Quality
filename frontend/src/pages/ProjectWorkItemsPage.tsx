@@ -14,6 +14,8 @@ import {
   type ChecklistResultFilter,
 } from "../components/ChecklistTable";
 import { ProjectPanel } from "../components/ProjectPanel";
+import { DrawingPanel } from "../components/DrawingPanel";
+import { IntegratedWorkspace } from "../components/IntegratedWorkspace";
 import { WorkItemSummary, WorkItemTable } from "../components/WorkItemTable";
 
 const ROLE_LABELS: Record<DocumentRole, string> = {
@@ -41,6 +43,8 @@ export function ProjectWorkItemsPage() {
   const [role, setRole] = useState<DocumentRole>("boq");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [drawingRefresh, setDrawingRefresh] = useState(0);
+  const [integratedRefresh, setIntegratedRefresh] = useState(0);
 
   function report(err: unknown, fallback: string) {
     setError(err instanceof ApiError ? err.message : fallback);
@@ -100,6 +104,8 @@ export function ProjectWorkItemsPage() {
     setBusy(true);
     try {
       await api.attachDocument(selectedId, documentId, role);
+      setDrawingRefresh(value => value + 1);
+      setIntegratedRefresh(value => value + 1);
       setDocumentId("");
     } catch (err) {
       report(err, "無法把文件掛到專案");
@@ -114,6 +120,8 @@ export function ProjectWorkItemsPage() {
     setBusy(true);
     try {
       setWorkItems(await api.buildWorkItems(selectedId));
+      setDrawingRefresh(value => value + 1);
+      setIntegratedRefresh(value => value + 1);
     } catch (err) {
       report(err, "無法建立工項清單");
     } finally {
@@ -130,6 +138,7 @@ export function ProjectWorkItemsPage() {
     try {
       const data = await api.buildChecklist(projectId);
       setChecklists((previous) => ({ ...previous, [projectId]: data }));
+      setIntegratedRefresh(value => value + 1);
     } catch (err) {
       report(err, "無法建立檢核表");
     } finally {
@@ -247,6 +256,10 @@ export function ProjectWorkItemsPage() {
                 </>
               )}
             </section>
+
+            <DrawingPanel key={selectedId} projectId={selectedId!} refreshVersion={drawingRefresh}
+              onChanged={() => setIntegratedRefresh(value => value + 1)} />
+            <IntegratedWorkspace key={`integrated-${selectedId}`} projectId={selectedId!} refreshVersion={integratedRefresh} />
 
             <section className="card">
               <h2>檢核表</h2>

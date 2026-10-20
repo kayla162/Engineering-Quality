@@ -2,7 +2,8 @@
 
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
+from app.core.errors import StaleDrawingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project, ProjectDocument, WorkItem
@@ -11,6 +12,15 @@ from app.models.project import Project, ProjectDocument, WorkItem
 class ProjectRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def advance_drawing_revision(self, project_id, expected=None):
+        """Atomic compare-and-swap also serializes concurrent drawing mutations."""
+        statement = update(Project).where(Project.id == project_id)
+        if expected is not None:
+            statement = statement.where(Project.drawing_revision == expected)
+        result = await self.session.execute(statement.values(drawing_revision=Project.drawing_revision + 1))
+        if result.rowcount != 1:
+            raise StaleDrawingError("標單或圖說已更新，請重新整理後再核對")
 
     async def create(self, name: str, tenant_id: uuid.UUID | None = None) -> Project:
         project = Project(name=name, tenant_id=tenant_id)
@@ -32,6 +42,7 @@ class ProjectRepository:
     ) -> ProjectDocument:
         link = ProjectDocument(project_id=project_id, document_id=document_id, role=role)
         self.session.add(link)
+        await self.advance_drawing_revision(project_id)
         await self.session.flush()
         return link
 
@@ -69,6 +80,7 @@ class ProjectRepository:
         self, project_id: uuid.UUID, items: list[WorkItem]
     ) -> list[WorkItem]:
         """重建工項清單。重跑標單時要取代而不是累加。"""
+        await self.advance_drawing_revision(project_id)
         await self.session.execute(delete(WorkItem).where(WorkItem.project_id == project_id))
         self.session.add_all(items)
         await self.session.flush()

@@ -227,3 +227,22 @@ export interface Checklist {
   spec_warning: string | null;
   items: ChecklistItem[];
 }
+export interface DrawingSheet {
+  id: string; document_id: string; page: number; number: string | null;
+  title: string | null; method: string; warning: string | null; evidence: string;
+}
+export interface DrawingItem {
+  id: string; sheet_id: string; name: string; evidence: string; review_status: string;
+  work_item_ids: string[]; suggested_work_item_ids: string[]; review_note: string;
+}
+export interface DrawingSnapshot {
+  revision: number;
+  documents: { id: string; filename: string; indexed: boolean }[];
+  sheets: DrawingSheet[];
+  items: DrawingItem[];
+  union: { work_item_id: string | null; item_no: string | null; name: string;
+    status: string; drawing_item_ids: string[] }[];
+  summary: { pages: number; unreadable_pages: number; unindexed_documents: number;
+    work_items: number; matched: number; pending_items: number };
+  disclaimer: string;
+}

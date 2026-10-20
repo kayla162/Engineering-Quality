@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # --- 檔案上傳 ---
     UPLOAD_DIR: Path = PROJECT_ROOT / "storage" / "uploads"
-    MAX_UPLOAD_SIZE_MB: int = 50
+    MAX_UPLOAD_SIZE_MB: int = 300
     ALLOWED_EXTENSIONS: str = ".docx,.pdf,.txt,.xls,.xlsx"
 
     # --- 資料檔（種子資料、字典） ---
