@@ -11,6 +11,8 @@
 
 請求 `{ "username": "admin", "password": "…" }`。成功時回傳使用者／租戶摘要並設置 session cookie；失敗統一回傳 401。
 
+登入嘗試由資料庫共享限流，依正規化帳號與來源 IP 在 `AUTH_LOGIN_WINDOW_SECONDS` 滑動時間窗內計數；超過 `AUTH_MAX_LOGIN_ATTEMPTS` 時回傳 429。成功登入會清除該組嘗試紀錄。
+
 ### `GET /api/auth/me`、`POST /api/auth/logout`
 
 `me` 回傳目前使用者和 `must_change_password`。登出撤銷目前 session 並清除 cookie。
@@ -21,11 +23,13 @@
 
 ### 使用者管理
 
-`GET /api/users`、`POST /api/users`、`PATCH /api/users/{user_id}` 僅限租戶管理員。新增請求包含 `username` 和 `initial_password`；管理員可停用同租戶帳號，停用會撤銷其工作階段。一般成員與跨租戶 ID 均不能管理帳號。
+`GET /api/users`、`POST /api/users`、`PATCH /api/users/{user_id}` 僅限租戶管理員。新增請求包含 `username` 和 `initial_password`，`role` 可為 `member` 或 `tenant_admin`（省略時為 `member`）；租戶 ID 一律取自登入管理員。`PATCH` 使用 `{"is_active": false}` 停用帳號，並使用 `{"is_active": true, "initial_password": "..."}` 重新啟用。重新啟用會重設密碼、要求使用者首次登入時變更，並撤銷既有工作階段。一般成員與跨租戶 ID 均不能管理帳號。
 
 ### 首位管理員
 
 完成資料庫 migration 後，在後端執行 `python scripts/bootstrap_admin.py --tenant-name "租戶名稱" --username admin`，密碼會透過隱藏提示輸入。此部署已有有效管理員時不允許再次 bootstrap。
+
+管理員忘記密碼時，部署操作員可執行 `python scripts/reset_user_password.py --username admin`，並在隱藏提示中輸入新密碼。此操作要求下次登入更改密碼並撤銷既有 session，不會啟用停用帳號。
 
 ---
 

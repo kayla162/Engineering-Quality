@@ -13,6 +13,7 @@ ORM：SQLAlchemy 2.0 + Alembic（`migrations/`）
 erDiagram
     TENANTS ||--o{ USERS : contains
     USERS ||--o{ AUTH_SESSIONS : has
+    AUTH_LOGIN_THROTTLE_KEYS ||--o{ AUTH_LOGIN_ATTEMPTS : tracks
     TENANTS ||--o{ DOCUMENTS : owns
     TENANTS ||--o{ PROJECTS : owns
     TENANTS ||--o{ REGULATIONS : owns
@@ -50,6 +51,15 @@ erDiagram
         string secret_hash UK
         timestamp expires_at
         timestamp revoked_at
+    }
+    AUTH_LOGIN_THROTTLE_KEYS {
+        string identity_hash PK
+        timestamp last_seen_at
+    }
+    AUTH_LOGIN_ATTEMPTS {
+        uuid id PK
+        string identity_hash FK
+        timestamp attempted_at
     }
     DOCUMENTS {
         uuid id PK
@@ -179,6 +189,10 @@ erDiagram
 Migration `0006` 建立預設租戶並將既有文件、專案、法規資料歸入該租戶。首位管理員由 `scripts/bootstrap_admin.py` 互動建立；資料庫只保存 Argon2 密碼雜湊。瀏覽器 cookie 保存隨機 session secret，`auth_sessions` 只保存其 SHA-256 雜湊和到期／撤銷時間。若不同租戶已上傳相同檔案，downgrade 會停止，避免恢復全域唯一約束時破壞資料。
 
 使用者名稱全域唯一，以正規化後的小寫格式保存。角色為 `tenant_admin` 或 `member`；管理員新增的成員首次登入必須更改初始密碼。
+
+管理員忘記密碼時，具資料庫操作權限的部署人員可執行 `scripts/reset_user_password.py` 互動式重設；密碼只保存 Argon2 雜湊，使用者下次登入必須更改，所有既有 session 會撤銷。重設不會啟用停用帳號。
+
+Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，在資料庫共享登入嘗試狀態。識別雜湊和時間戳只保留目前限流視窗；SQLite 寫入會序列化，正式多 worker 部署使用 PostgreSQL。
 
 ### 2.2 `document_sections`
 

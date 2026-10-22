@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_tenant_admin
-from app.core.errors import PermissionDeniedError, UserNotFoundError
+from app.core.errors import UserNotFoundError
 from app.schemas.user import UserCreateIn, UserListOut, UserOut, UserUpdateIn
 from app.services.auth_service import AuthService
 
@@ -40,8 +40,8 @@ async def create_user(
     actor: CurrentUser = Depends(require_tenant_admin),
     session: AsyncSession = Depends(get_db),
 ):
-    user = await AuthService(session).create_member(
-        actor.tenant_id, payload.username, payload.initial_password
+    user = await AuthService(session).create_user(
+        actor.tenant_id, payload.username, payload.initial_password, payload.role
     )
     await session.commit()
     return _user_out(user)
@@ -55,8 +55,11 @@ async def update_user(
     session: AsyncSession = Depends(get_db),
 ):
     if payload.is_active:
-        raise PermissionDeniedError("管理員只能停用帳號；重新啟用請重新建立帳號")
-    user = await AuthService(session).deactivate_user(actor.tenant_id, actor.id, user_id)
+        user = await AuthService(session).reactivate_user(
+            actor.tenant_id, user_id, payload.initial_password or ""
+        )
+    else:
+        user = await AuthService(session).deactivate_user(actor.tenant_id, actor.id, user_id)
     if user is None:
         raise UserNotFoundError("找不到使用者")
     await session.commit()

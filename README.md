@@ -96,6 +96,14 @@ docker compose exec backend python scripts/bootstrap_admin.py --tenant-name "預
 
 命令會以隱藏輸入方式要求設定至少 12 個字元的密碼。此部署已有有效管理員時，命令會拒絕重複建立；之後由租戶管理員登入「使用者管理」新增成員。
 
+若管理員忘記密碼，具資料庫操作權限的部署人員可透過互動式命令重設。命令會撤銷既有 session、要求下次登入更改密碼，且不會啟用已停用帳號：
+
+```bash
+docker compose exec backend python scripts/reset_user_password.py --username admin
+```
+
+登入限流狀態由資料庫共享，讓多個後端 worker 使用同一個帳號/IP 時間窗。新資料庫 migration `0007` 會建立暫存限流資料表；SQLite 會序列化寫入，正式多 worker 部署建議使用 PostgreSQL。
+
 ### 方式二：本機開發
 
 ```bash

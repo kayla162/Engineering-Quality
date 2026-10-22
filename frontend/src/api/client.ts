@@ -81,11 +81,11 @@ export const api = {
 
   listUsers: () => request<{ total: number; items: ManagedUser[] }>("/users"),
 
-  createUser: (username: string, initial_password: string) =>
+  createUser: (username: string, initial_password: string, role: ManagedUser["role"]) =>
     request<ManagedUser>("/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, initial_password }),
+      body: JSON.stringify({ username, initial_password, role }),
     }),
 
   deactivateUser: (userId: string) =>
@@ -93,6 +93,13 @@ export const api = {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: false }),
+    }),
+
+  reactivateUser: (userId: string, initial_password: string) =>
+    request<ManagedUser>(`/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true, initial_password }),
     }),
 
   /** 法規來源現在查不查得動。前端據此在來源未就緒時提示，而不是讓使用者面對滿頁「查詢失敗」 */

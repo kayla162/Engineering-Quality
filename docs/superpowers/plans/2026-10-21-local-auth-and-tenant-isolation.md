@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-21-local-auth-and-tenant-isolation-design.md`
 
-**Execution status:** Implemented in the isolated worktree. Static Python syntax, `git diff --check`, frontend production build, and Alembic revision-chain inspection passed; revision `0006` is head after `0005`. Code review found and the implementation now handles concurrent duplicate usernames as HTTP 409. Tests and database migrations were not run per task constraints. The login throttle is process-local, as scoped for this first version; multi-worker deployments should use a shared limiter.
+**Execution status:** Implemented in the isolated worktree. Static Python syntax, `git diff --check`, frontend production build, and Alembic revision-chain inspection passed; shared database-backed login throttling is being added in revision `0007` after `0006`. Code review found and the implementation now handles concurrent duplicate usernames as HTTP 409. Tests and database migrations were not run per task constraints; runtime multi-worker concurrency remains unverified.
 
 ## Global Constraints
 
@@ -227,7 +227,7 @@
 - Modify: `frontend/src/styles.css`
 
 **Interfaces:**
-- `api.login(username, password)`, `api.logout()`, `api.getCurrentUser()`, `api.changePassword(oldPassword, newPassword)`, `api.listUsers()`, `api.createUser(username, initialPassword)` and `api.deactivateUser(userId)`.
+- `api.login(username, password)`, `api.logout()`, `api.getCurrentUser()`, `api.changePassword(oldPassword, newPassword)`, `api.listUsers()`, `api.createUser(username, initialPassword, role)`, `api.deactivateUser(userId)` and `api.reactivateUser(userId, initialPassword)`.
 - All API requests use `credentials: "include"`; no password/session data is written to localStorage or sessionStorage.
 
 - [x] Add session user and tenant user response types matching backend schemas.
@@ -251,6 +251,24 @@
 - [x] Inspect the final diff for secrets, unscoped UUID lookups, unrestricted user-admin operations, stale default-tenant writes and accidental test changes.
 
 ## Self-Review
+
+### Follow-up: Safe account reactivation
+
+- [x] Allow a tenant admin to reactivate an inactive same-tenant account with a new initial password.
+- [x] Hash the new password, force a password change at next login, and revoke any remaining sessions.
+- [x] Expose reactivation in the admin UI and document its PATCH request.
+
+### Follow-up: Backup tenant administrators
+
+- [x] Let a tenant administrator create another administrator in the same tenant while keeping member role selection explicit.
+- [x] Derive tenant identity from the authenticated administrator and require first-login password change for every newly created account.
+- [x] Preserve server-side restrictions that prevent members from creating accounts and prevent deactivation of the tenant's last active administrator.
+
+### Follow-up: Operator password recovery
+
+- [x] Add a hidden-input CLI for operators to reset a user's password without placing it in shell history or logs.
+- [x] Force a password change and revoke all active sessions while preserving the account's active/inactive state.
+- [x] Document the recovery operation for deployment.
 
 - Spec sections 1–3 are covered by Tasks 1, 2 and 6.
 - Spec sections 4 and 7 are covered by Tasks 2 and 3.

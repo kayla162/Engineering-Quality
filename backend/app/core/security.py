@@ -2,9 +2,7 @@
 
 import hashlib
 import re
-import time
 import uuid
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -18,7 +16,6 @@ from app.core.errors import (
     AuthenticationRequiredError,
     FileTooLargeError,
     InvalidFileTypeError,
-    LoginRateLimitError,
     PermissionDeniedError,
 )
 
@@ -30,7 +27,6 @@ _MAGIC_PREFIXES: dict[str, tuple[bytes, ...]] = {
 }
 
 _SAFE_NAME = re.compile(r"[^\w\u4e00-\u9fff.\- ]+")
-_LOGIN_FAILURES: dict[tuple[str, str], deque[float]] = {}
 
 
 @dataclass(frozen=True)
@@ -40,40 +36,6 @@ class CurrentUser:
     username: str
     role: str
     must_change_password: bool
-
-
-def _login_failures(username: str, client_ip: str) -> deque[float]:
-    key = (username.strip().casefold(), client_ip)
-    failures = _LOGIN_FAILURES.setdefault(key, deque())
-    cutoff = time.monotonic() - settings.AUTH_LOGIN_WINDOW_SECONDS
-    while failures and failures[0] < cutoff:
-        failures.popleft()
-    if not failures:
-        _LOGIN_FAILURES.pop(key, None)
-        failures = _LOGIN_FAILURES.setdefault(key, deque())
-    if len(_LOGIN_FAILURES) > 4096:
-        for identity, entries in list(_LOGIN_FAILURES.items()):
-            while entries and entries[0] < cutoff:
-                entries.popleft()
-            if not entries:
-                _LOGIN_FAILURES.pop(identity, None)
-        while len(_LOGIN_FAILURES) > 4096:
-            _LOGIN_FAILURES.pop(next(iter(_LOGIN_FAILURES)))
-        failures = _LOGIN_FAILURES.setdefault(key, deque())
-    return failures
-
-
-def login_allowed(username: str, client_ip: str) -> bool:
-    failures = _login_failures(username, client_ip)
-    return len(failures) < settings.AUTH_MAX_LOGIN_ATTEMPTS
-
-
-def record_login_failure(username: str, client_ip: str) -> None:
-    _login_failures(username, client_ip).append(time.monotonic())
-
-
-def clear_login_failures(username: str, client_ip: str) -> None:
-    _LOGIN_FAILURES.pop((username.strip().casefold(), client_ip), None)
 
 
 def enforce_origin(request: Request) -> None:

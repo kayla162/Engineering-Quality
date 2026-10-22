@@ -6,18 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import InvalidCredentialsError, LoginRateLimitError
-from app.core.security import (
-    CurrentUser,
-    clear_login_failures,
-    login_allowed,
-    record_login_failure,
-    require_current_user,
-    require_auth_write_origin,
-)
+from app.core.security import CurrentUser, require_auth_write_origin, require_current_user
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.auth import ChangePasswordIn, LoginIn, SessionUserOut
 from app.services.auth_service import AuthService
+from app.services.login_throttle_service import LoginThrottleService
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -41,20 +35,20 @@ async def login(
     session: AsyncSession = Depends(get_db),
 ):
     client_ip = request.client.host if request.client else "unknown"
-    if not login_allowed(payload.username, client_ip):
+    throttle = LoginThrottleService(session)
+    if not await throttle.reserve(payload.username, client_ip):
         raise LoginRateLimitError("登入嘗試次數過多，請稍後再試")
 
     service = AuthService(session)
     user = await service.authenticate(payload.username, payload.password)
     if user is None:
-        record_login_failure(payload.username, client_ip)
         raise InvalidCredentialsError("登入名稱或密碼不正確")
 
-    clear_login_failures(payload.username, client_ip)
     tenant = await session.get(Tenant, user.tenant_id)
     if tenant is None:
         raise InvalidCredentialsError("登入名稱或密碼不正確")
     raw_secret, _ = await service.create_session(user)
+    await throttle.clear(payload.username, client_ip)
     await session.commit()
     response.set_cookie(
         key=settings.AUTH_SESSION_COOKIE,

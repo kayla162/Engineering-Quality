@@ -151,14 +151,38 @@ class AuthService:
         )
         await self.session.flush()
 
+    async def operator_reset_password(self, username: str, new_password: str) -> User:
+        """由有資料庫操作權限的部署人員重設密碼，不啟用停用帳號。"""
+        normalized = normalize_username(username)
+        user = await self.session.scalar(
+            select(User).where(User.username == normalized).with_for_update()
+        )
+        if user is None:
+            raise UserNotFoundError("找不到使用者")
+
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = True
+        user.updated_at = utcnow()
+        await self.session.execute(
+            update(AuthSession)
+            .where(AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None))
+            .values(revoked_at=utcnow())
+        )
+        await self.session.flush()
+        return user
+
     async def list_users(self, tenant_id: uuid.UUID) -> list[User]:
         result = await self.session.scalars(
             select(User).where(User.tenant_id == tenant_id).order_by(User.username)
         )
         return list(result)
 
-    async def create_member(
-        self, tenant_id: uuid.UUID, username: str, initial_password: str
+    async def create_user(
+        self,
+        tenant_id: uuid.UUID,
+        username: str,
+        initial_password: str,
+        role: UserRole = UserRole.MEMBER,
     ) -> User:
         normalized = normalize_username(username)
         if not normalized:
@@ -169,7 +193,7 @@ class AuthService:
             tenant_id=tenant_id,
             username=normalized,
             password_hash=hash_password(initial_password),
-            role=UserRole.MEMBER,
+            role=role,
             is_active=True,
             must_change_password=True,
         )
@@ -209,6 +233,31 @@ class AuthService:
             if (active_admins or 0) <= 1:
                 raise PasswordPolicyError("不能停用租戶最後一位管理員")
         user.is_active = False
+        user.updated_at = utcnow()
+        await self.session.execute(
+            update(AuthSession)
+            .where(AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None))
+            .values(revoked_at=utcnow())
+        )
+        await self.session.flush()
+        return user
+
+    async def reactivate_user(
+        self, tenant_id: uuid.UUID, target_id: uuid.UUID, initial_password: str
+    ) -> User | None:
+        user = await self.session.scalar(
+            select(User)
+            .where(User.id == target_id, User.tenant_id == tenant_id)
+            .with_for_update()
+        )
+        if user is None:
+            return None
+        if user.is_active:
+            raise PasswordPolicyError("使用者帳號已啟用")
+
+        user.password_hash = hash_password(initial_password)
+        user.is_active = True
+        user.must_change_password = True
         user.updated_at = utcnow()
         await self.session.execute(
             update(AuthSession)

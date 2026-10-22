@@ -5,6 +5,7 @@ from app.models.base import Base
 from app.models.checklist import SpecChapter, WorkItemBasis
 from app.models.document import Document, DocumentSection
 from app.models.job import Job
+from app.models.login_throttle import LoginAttempt, LoginThrottleKey
 from app.models.project import Project, ProjectDocument, WorkItem
 from app.models.reference import RegulationReference
 from app.models.regulation import Regulation, RegulationAlias, RegulationVersion
@@ -19,6 +20,8 @@ __all__ = [
     "Document",
     "DocumentSection",
     "Job",
+    "LoginAttempt",
+    "LoginThrottleKey",
     "Project",
     "ProjectDocument",
     "Regulation",
