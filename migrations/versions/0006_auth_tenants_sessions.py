@@ -49,8 +49,11 @@ def upgrade() -> None:
 
     bind = op.get_bind()
     for table_name in ("documents", "projects", "regulations"):
+        statement = sa.text(
+            f"UPDATE {table_name} SET tenant_id = :tenant_id WHERE tenant_id IS NULL"
+        ).bindparams(sa.bindparam("tenant_id", type_=sa.Uuid()))
         bind.execute(
-            sa.text(f"UPDATE {table_name} SET tenant_id = :tenant_id WHERE tenant_id IS NULL"),
+            statement,
             {"tenant_id": default_tenant_id},
         )
 

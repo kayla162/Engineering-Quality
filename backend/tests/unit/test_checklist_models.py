@@ -3,6 +3,7 @@
 import uuid
 
 import app.models as m
+from app.core.config import settings
 from app.core.enums import CheckResult, RegulationType
 from app.models.checklist import SpecChapter, WorkItemBasis
 from app.models.project import Project
@@ -63,6 +64,7 @@ class TestSpecChapter:
             file_type="pdf",
             storage_path="/tmp/spec.pdf",
             file_hash="abc123",
+            tenant_id=uuid.UUID(settings.DEFAULT_TENANT_ID),
         )
         db_session.add(doc)
         await db_session.flush()
@@ -120,7 +122,7 @@ class TestWorkItemBasis:
         await db_session.execute(text("PRAGMA foreign_keys=ON"))
 
         # 建立測試用 Project 和 WorkItem
-        project = Project(name="test")
+        project = Project(name="test", tenant_id=uuid.UUID(settings.DEFAULT_TENANT_ID))
         db_session.add(project)
         await db_session.flush()
 

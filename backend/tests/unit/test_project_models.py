@@ -25,7 +25,7 @@ class TestDocumentRole:
 
 class TestModels:
     def test_project_holds_documents_and_work_items(self, db_session):
-        project = Project(name="秀山分隊興建工程")
+        project = Project(name="秀山分隊興建工程", tenant_id=uuid.uuid4())
 
         assert project.documents == []
         assert project.work_items == []

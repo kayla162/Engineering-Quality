@@ -84,7 +84,9 @@ async def attach_spec(db_session, project, chapters):
 
 async def degrade(db_session, spec):
     """把規範書標成解析品質不佳（正常是分析流程在量完圖頁佔比後寫的）。"""
-    document = await DocumentRepository(db_session).get(spec.id)
+    document = await DocumentRepository(db_session).get(
+        spec.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+    )
     document.parse_quality = ParseQuality.DEGRADED
     document.parse_quality_note = "105 頁裡有 57 頁以圖為主，圖內的文字未被讀取"
     await db_session.commit()
@@ -647,7 +649,11 @@ class TestGuards:
         一張全部「請確認依據」的表，看起來像「這個案子沒有依據」。
         SQLite 預設不強制外鍵，刪掉文件後專案的 link 會留著——正是要擋的狀態。"""
         spec = await attach_spec(db_session, project_with_boq, SPEC_WITH_BASIS)
-        await db_session.delete(await DocumentRepository(db_session).get(spec.id))
+        await db_session.delete(
+            await DocumentRepository(db_session).get(
+                spec.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+            )
+        )
         await db_session.commit()
 
         with pytest.raises(AppError, match="不存在"):

@@ -68,11 +68,10 @@ class TestFullFlow:
             f"/api/regulation-references/{item['reference_id']}/review",
             json={
                 "review_status": "CONFIRMED",
-                "reviewed_by": "kayla3377@gmail.com",
                 "review_note": "已人工核對官網條文",
             },
         )
-        assert review.status_code == 200
+        assert review.status_code == 200, review.text
         assert review.json()["review_status"] == "CONFIRMED"
         assert review.json()["reviewed_at"] is not None
         # 人工覆核不會覆蓋系統判斷
