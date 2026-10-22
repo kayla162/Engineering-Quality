@@ -8,6 +8,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.ai.factory import get_llm_provider
 from app.core.enums import NEEDS_ATTENTION_STATUSES, RegulationStatus
 from app.models.base import utcnow
@@ -38,10 +39,11 @@ DISCLAIMER = (
 
 
 class ReportService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
         self.references = ReferenceRepository(session)
-        self.documents = DocumentService(session)
+        self.documents = DocumentService(session, self.tenant_id)
         self.audit = AuditRepository(session)
 
     async def build(self, document_id: uuid.UUID, with_narrative: bool = False) -> ReportData:

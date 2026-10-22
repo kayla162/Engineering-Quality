@@ -29,7 +29,9 @@ class Regulation(Base):
     official_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     # 最後一次確認資料的來源 adapter 名稱，或 manual（人工建立）
     source: Mapped[str] = mapped_column(String(64), nullable=False, default="manual")
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False

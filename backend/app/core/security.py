@@ -1,16 +1,26 @@
-"""上傳檔案驗證與（預留的）使用者驗證。
-
-MVP 為單機使用，沒有登入機制。未來要加權限時，只需要實作
-`get_current_user`，router 端的相依注入點不用改。
-"""
+"""上傳檔案驗證、登入 session 解析與瀏覽器寫入請求防護。"""
 
 import hashlib
 import re
+import time
 import uuid
+from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.errors import FileTooLargeError, InvalidFileTypeError
+from app.core.db import get_db
+from app.core.errors import (
+    AuthenticationRequiredError,
+    FileTooLargeError,
+    InvalidFileTypeError,
+    LoginRateLimitError,
+    PermissionDeniedError,
+)
 
 #: 副檔名 -> 允許的 magic number 前綴。用來擋「改副檔名」的偽造檔案。
 _MAGIC_PREFIXES: dict[str, tuple[bytes, ...]] = {
@@ -20,6 +30,60 @@ _MAGIC_PREFIXES: dict[str, tuple[bytes, ...]] = {
 }
 
 _SAFE_NAME = re.compile(r"[^\w\u4e00-\u9fff.\- ]+")
+_LOGIN_FAILURES: dict[tuple[str, str], deque[float]] = {}
+
+
+@dataclass(frozen=True)
+class CurrentUser:
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    username: str
+    role: str
+    must_change_password: bool
+
+
+def _login_failures(username: str, client_ip: str) -> deque[float]:
+    key = (username.strip().casefold(), client_ip)
+    failures = _LOGIN_FAILURES.setdefault(key, deque())
+    cutoff = time.monotonic() - settings.AUTH_LOGIN_WINDOW_SECONDS
+    while failures and failures[0] < cutoff:
+        failures.popleft()
+    if not failures:
+        _LOGIN_FAILURES.pop(key, None)
+        failures = _LOGIN_FAILURES.setdefault(key, deque())
+    if len(_LOGIN_FAILURES) > 4096:
+        for identity, entries in list(_LOGIN_FAILURES.items()):
+            while entries and entries[0] < cutoff:
+                entries.popleft()
+            if not entries:
+                _LOGIN_FAILURES.pop(identity, None)
+        while len(_LOGIN_FAILURES) > 4096:
+            _LOGIN_FAILURES.pop(next(iter(_LOGIN_FAILURES)))
+        failures = _LOGIN_FAILURES.setdefault(key, deque())
+    return failures
+
+
+def login_allowed(username: str, client_ip: str) -> bool:
+    failures = _login_failures(username, client_ip)
+    return len(failures) < settings.AUTH_MAX_LOGIN_ATTEMPTS
+
+
+def record_login_failure(username: str, client_ip: str) -> None:
+    _login_failures(username, client_ip).append(time.monotonic())
+
+
+def clear_login_failures(username: str, client_ip: str) -> None:
+    _LOGIN_FAILURES.pop((username.strip().casefold(), client_ip), None)
+
+
+def enforce_origin(request: Request) -> None:
+    origin = request.headers.get("origin")
+    if not origin:
+        raise PermissionDeniedError("請求來源未通過驗證")
+    parsed = urlsplit(origin)
+    normalized = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+    if normalized not in settings.cors_origins:
+        raise PermissionDeniedError("請求來源未通過驗證")
 
 
 def validate_upload(filename: str, content: bytes) -> str:
@@ -60,6 +124,59 @@ def build_storage_path(ext: str) -> Path:
     return settings.UPLOAD_DIR / f"{uuid.uuid4().hex}{ext}"
 
 
-async def get_current_user() -> str | None:
-    """預留的使用者相依注入點。MVP 永遠回傳 None（未登入）。"""
-    return None
+async def get_current_user(
+    request: Request, session: AsyncSession = Depends(get_db)
+) -> CurrentUser | None:
+    """從資料庫 session cookie 解析目前使用者；失效 cookie 視同未登入。"""
+    raw_secret = request.cookies.get(settings.AUTH_SESSION_COOKIE)
+    if not raw_secret:
+        return None
+    from app.services.auth_service import AuthService
+
+    resolved = await AuthService(session).resolve_session(raw_secret)
+    if resolved is None:
+        return None
+    user, tenant = resolved
+    return CurrentUser(
+        id=user.id,
+        tenant_id=tenant.id,
+        username=user.username,
+        role=user.role,
+        must_change_password=user.must_change_password,
+    )
+
+
+async def require_current_user(
+    user: CurrentUser | None = Depends(get_current_user),
+) -> CurrentUser:
+    if user is None:
+        raise AuthenticationRequiredError("請先登入")
+    return user
+
+
+async def require_business_user(
+    request: Request,
+    user: CurrentUser = Depends(require_current_user),
+) -> CurrentUser:
+    if request.method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+        enforce_origin(request)
+    if user.must_change_password and request.url.path not in {
+        "/api/auth/me",
+        "/api/auth/logout",
+        "/api/auth/change-password",
+    }:
+        raise PermissionDeniedError("請先變更初始密碼")
+    return user
+
+
+async def require_tenant_admin(
+    request: Request,
+    user: CurrentUser = Depends(require_business_user),
+) -> CurrentUser:
+    if user.role != "tenant_admin":
+        raise PermissionDeniedError("只有租戶管理員可以管理使用者")
+    return user
+
+
+async def require_auth_write_origin(request: Request) -> None:
+    enforce_origin(request)

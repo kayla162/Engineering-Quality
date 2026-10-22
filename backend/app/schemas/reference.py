@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import RegulationStatus, ReviewStatus
 from app.models.audit import AIInvocationLog, RegulationQuery
@@ -149,6 +149,7 @@ class ReferenceDetail(BaseModel):
 
 
 class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     review_status: ReviewStatus
-    reviewed_by: str = Field(min_length=1, max_length=255)
     review_note: str | None = None

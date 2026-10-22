@@ -7,8 +7,9 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.enums import DocumentRole
-from app.core.errors import AppError, ProjectNotFoundError
+from app.core.errors import AppError, DocumentNotFoundError, ProjectNotFoundError
 from app.core.logging import log_context
 from app.models.project import Project, ProjectDocument, WorkItem
 from app.repositories.documents import DocumentRepository
@@ -26,14 +27,15 @@ class SpecChapter:
 
 
 class ProjectService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
         self.projects = ProjectRepository(session)
         self.documents = DocumentRepository(session)
         self._pcces = PccesSource()
 
     async def create_project(self, name: str) -> Project:
-        project = await self.projects.create(name)
+        project = await self.projects.create(name, self.tenant_id)
         await self.session.commit()
         return project
 
@@ -41,6 +43,8 @@ class ProjectService:
         self, project_id: uuid.UUID, document_id: uuid.UUID, role: DocumentRole
     ) -> ProjectDocument:
         await self._require_project(project_id)
+        if await self.documents.get(document_id, self.tenant_id) is None:
+            raise DocumentNotFoundError("找不到指定的文件")
         if await self.projects.get_link(project_id, document_id) is not None:
             raise AppError("這份文件已經掛在這個專案裡了，要換角色請先移除")
         link = await self.projects.add_document(project_id, document_id, role)
@@ -58,7 +62,7 @@ class ProjectService:
         if not links:
             raise AppError("這個專案還沒有掛標單，沒有工項來源")
 
-        document = await self.documents.get(links[0].document_id)
+        document = await self.documents.get(links[0].document_id, self.tenant_id)
         if document is None:
             raise AppError("標單文件不存在，可能已被刪除")
 
@@ -84,7 +88,7 @@ class ProjectService:
         return result
 
     async def list_projects(self) -> list[Project]:
-        return await self.projects.list_all()
+        return await self.projects.list_all(self.tenant_id)
 
     async def work_items(self, project_id: uuid.UUID) -> list[WorkItem]:
         await self._require_project(project_id)
@@ -104,7 +108,7 @@ class ProjectService:
         return SpecChapter(code=cost_code[:5], name=detail.name)
 
     async def _require_project(self, project_id: uuid.UUID) -> Project:
-        project = await self.projects.get(project_id)
+        project = await self.projects.get(project_id, self.tenant_id)
         if project is None:
             raise ProjectNotFoundError("找不到指定的專案")
         return project

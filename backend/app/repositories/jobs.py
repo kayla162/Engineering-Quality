@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import utcnow
+from app.models.document import Document
 from app.models.job import Job
 
 
@@ -19,13 +20,21 @@ class JobRepository:
         await self.session.flush()
         return job
 
-    async def get(self, job_id: uuid.UUID) -> Job | None:
-        return await self.session.get(Job, job_id)
-
-    async def get_latest_for_document(self, document_id: uuid.UUID) -> Job | None:
+    async def get(self, job_id: uuid.UUID, tenant_id: uuid.UUID) -> Job | None:
         result = await self.session.execute(
             select(Job)
-            .where(Job.document_id == document_id)
+            .join(Document, Document.id == Job.document_id)
+            .where(Job.id == job_id, Document.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_latest_for_document(
+        self, document_id: uuid.UUID, tenant_id: uuid.UUID
+    ) -> Job | None:
+        result = await self.session.execute(
+            select(Job)
+            .join(Document, Document.id == Job.document_id)
+            .where(Job.document_id == document_id, Document.tenant_id == tenant_id)
             .order_by(Job.started_at.desc())
             .limit(1)
         )

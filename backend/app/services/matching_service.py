@@ -52,9 +52,14 @@ def can_confirm_currency(regulation_type: str) -> bool:
 
 
 class MatchingService:
-    def __init__(self, session: AsyncSession, llm_provider: LLMProvider | None = None):
+    def __init__(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID | None = None,
+        llm_provider: LLMProvider | None = None,
+    ):
         self.session = session
-        self.regulations = RegulationRepository(session)
+        self.regulations = RegulationRepository(session, tenant_id)
         self.audit = AuditRepository(session)
         self.engine = MatchingEngine(llm_provider)
         self.sources = get_sources()
@@ -226,7 +231,6 @@ class MatchingService:
             effective_date=result.effective_date,
             last_amended_date=result.last_amended_date,
             official_url=result.official_url,
-            tenant_id=uuid.UUID(settings.DEFAULT_TENANT_ID),
         )
         if result.standard_number:
             await self.regulations.add_aliases(regulation, [result.standard_number])

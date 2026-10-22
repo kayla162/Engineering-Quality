@@ -25,6 +25,12 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/regplatform
       UPLOAD_DIR: /app/storage/uploads
+      AUTH_SESSION_COOKIE: ${AUTH_SESSION_COOKIE:-eq_session}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-12}
+      # Compose exposes HTTP locally; set true only when serving through HTTPS.
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_MAX_LOGIN_ATTEMPTS: ${AUTH_MAX_LOGIN_ATTEMPTS:-10}
+      AUTH_LOGIN_WINDOW_SECONDS: ${AUTH_LOGIN_WINDOW_SECONDS:-300}
       # AI 相關設定由 .env 帶入；沒有 API key 時系統一樣可以完整運作
       ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-true}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -33,7 +39,7 @@ services:
       # 索引放在 volume，重建映像檔不必重新下載 31MB
       TAIWAN_LAW_INDEX_PATH: /app/data/generated/taiwan_law_index.json
       PCCES_INDEX_PATH: /app/data/generated/pcces_index.json
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     volumes:
       # 上傳的檔案存在 volume，容器重建不會遺失
       - uploads:/app/storage/uploads

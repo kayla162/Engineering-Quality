@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.core.security import CurrentUser, require_business_user
 from app.jobs.background_runner import BackgroundTasksJobRunner
 from app.services.checklist_service import ChecklistService
 from app.services.document_service import DocumentService
@@ -16,35 +17,38 @@ from app.services.regulation_service import RegulationService
 from app.services.report_service import ReportService
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+CurrentUserDep = Annotated[CurrentUser, Depends(require_business_user)]
 
 
-def get_document_service(session: DbSession) -> DocumentService:
-    return DocumentService(session)
+def get_document_service(session: DbSession, user: CurrentUserDep) -> DocumentService:
+    return DocumentService(session, user.tenant_id)
 
 
-def get_reference_service(session: DbSession) -> ReferenceService:
-    return ReferenceService(session)
+def get_reference_service(session: DbSession, user: CurrentUserDep) -> ReferenceService:
+    return ReferenceService(session, user.tenant_id)
 
 
-def get_regulation_service(session: DbSession) -> RegulationService:
-    return RegulationService(session)
+def get_regulation_service(session: DbSession, user: CurrentUserDep) -> RegulationService:
+    return RegulationService(session, user.tenant_id)
 
 
-def get_report_service(session: DbSession) -> ReportService:
-    return ReportService(session)
+def get_report_service(session: DbSession, user: CurrentUserDep) -> ReportService:
+    return ReportService(session, user.tenant_id)
 
 
-def get_project_service(session: DbSession) -> ProjectService:
-    return ProjectService(session)
+def get_project_service(session: DbSession, user: CurrentUserDep) -> ProjectService:
+    return ProjectService(session, user.tenant_id)
 
 
-def get_checklist_service(session: DbSession) -> ChecklistService:
-    return ChecklistService(session)
+def get_checklist_service(session: DbSession, user: CurrentUserDep) -> ChecklistService:
+    return ChecklistService(session, user.tenant_id)
 
 
-def get_job_service(session: DbSession, background_tasks: BackgroundTasks) -> JobService:
+def get_job_service(
+    session: DbSession, background_tasks: BackgroundTasks, user: CurrentUserDep
+) -> JobService:
     # 要換成 Celery 時，只需要在這裡換成 CeleryJobRunner()
-    return JobService(session, BackgroundTasksJobRunner(background_tasks))
+    return JobService(session, BackgroundTasksJobRunner(background_tasks), user.tenant_id)
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]

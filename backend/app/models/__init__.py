@@ -8,9 +8,13 @@ from app.models.job import Job
 from app.models.project import Project, ProjectDocument, WorkItem
 from app.models.reference import RegulationReference
 from app.models.regulation import Regulation, RegulationAlias, RegulationVersion
+from app.models.session import AuthSession
+from app.models.tenant import Tenant
+from app.models.user import User
 
 __all__ = [
     "AIInvocationLog",
+    "AuthSession",
     "Base",
     "Document",
     "DocumentSection",
@@ -23,6 +27,8 @@ __all__ = [
     "RegulationReference",
     "RegulationVersion",
     "SpecChapter",
+    "Tenant",
+    "User",
     "WorkItem",
     "WorkItemBasis",
 ]

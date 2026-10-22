@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import JobNotFoundError
 from app.jobs.base import JobRunner
 from app.models.job import Job
@@ -12,10 +13,13 @@ from app.services.document_service import DocumentService
 
 
 class JobService:
-    def __init__(self, session: AsyncSession, runner: JobRunner):
+    def __init__(
+        self, session: AsyncSession, runner: JobRunner, tenant_id: uuid.UUID | None = None
+    ):
         self.session = session
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
         self.jobs = JobRepository(session)
-        self.documents = DocumentService(session)
+        self.documents = DocumentService(session, self.tenant_id)
         self.runner = runner
 
     async def start_analysis(self, document_id: uuid.UUID) -> Job:
@@ -28,7 +32,7 @@ class JobService:
         return job
 
     async def get(self, job_id: uuid.UUID) -> Job:
-        job = await self.jobs.get(job_id)
+        job = await self.jobs.get(job_id, self.tenant_id)
         if job is None:
             raise JobNotFoundError("找不到指定的分析任務")
         return job

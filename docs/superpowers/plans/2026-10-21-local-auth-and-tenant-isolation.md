@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-21-local-auth-and-tenant-isolation-design.md`
 
+**Execution status:** Implemented in the isolated worktree. Static Python syntax, `git diff --check`, frontend production build, and Alembic revision-chain inspection passed; revision `0006` is head after `0005`. Code review found and the implementation now handles concurrent duplicate usernames as HTTP 409. Tests and database migrations were not run per task constraints. The login throttle is process-local, as scoped for this first version; multi-worker deployments should use a shared limiter.
+
 ## Global Constraints
 
 - 密碼雜湊採 Argon2id 或同等現代方案；永不保存或記錄明文密碼。
@@ -76,6 +78,8 @@
 - Create: `backend/app/models/session.py`
 - Modify: `backend/app/models/__init__.py`
 - Modify: `backend/app/models/document.py`
+- Modify: `backend/app/models/project.py`
+- Modify: `backend/app/models/regulation.py`
 - Create: `migrations/versions/0006_auth_tenants_sessions.py`
 - Modify: `requirements.txt`
 
@@ -84,12 +88,13 @@
 - `User.id`, `User.tenant_id`, `User.username`, `User.password_hash`, `User.role`, `User.is_active`, `User.must_change_password`.
 - `AuthSession.id`, `AuthSession.user_id`, `AuthSession.secret_hash`, `AuthSession.created_at`, `AuthSession.expires_at`, `AuthSession.revoked_at`.
 
-- [ ] Define SQLAlchemy models using existing `uuid_pk()` and `created_at_column()` conventions; username uniqueness is global and tenant names are not treated as an authentication secret.
-- [ ] Register the models in `models/__init__.py` so Alembic metadata sees them.
-- [ ] Change the Document model from global `file_hash` uniqueness to a named `(tenant_id, file_hash)` unique constraint and retain the tenant index.
-- [ ] Write migration `0006` after `0005_basis_verification_status`; create the default tenant with `settings.DEFAULT_TENANT_ID`, backfill NULL tenant IDs in documents/projects/regulations, create user/session tables, and replace the global file hash constraint with the composite constraint.
-- [ ] Add the Argon2 password hashing dependency to `requirements.txt`.
-- [ ] Inspect migration upgrade/downgrade paths for both SQLite and PostgreSQL batch-alter behavior; do not run migration commands unless separately requested.
+- [x] Define SQLAlchemy models using existing `uuid_pk()` and `created_at_column()` conventions; username uniqueness is global and tenant names are not treated as an authentication secret.
+- [x] Register the models in `models/__init__.py` so Alembic metadata sees them.
+- [x] Change the Document model from global `file_hash` uniqueness to a named `(tenant_id, file_hash)` unique constraint and retain the tenant index.
+- [x] Make document, project and regulation tenant IDs required foreign keys to `tenants.id` so root rows cannot reference missing tenants.
+- [x] Write migration `0006` after `0005_basis_verification_status`; create the default tenant with `settings.DEFAULT_TENANT_ID`, backfill NULL tenant IDs in documents/projects/regulations, create user/session tables, and replace the global file hash constraint with the composite constraint.
+- [x] Add the Argon2 password hashing dependency to `requirements.txt`.
+- [x] Inspect migration upgrade/downgrade paths for both SQLite and PostgreSQL batch-alter behavior; do not run migration commands unless separately requested.
 
 ### Task 2: Implement authentication service and session dependencies
 
@@ -109,13 +114,13 @@
 - `AuthService.change_password(user_id: UUID, old_password: str, new_password: str) -> None`.
 - `get_current_user(request, session) -> CurrentUser | None`; `require_current_user(...) -> CurrentUser`; `require_tenant_admin(...) -> CurrentUser`.
 
-- [ ] Add settings for cookie name, session TTL, Secure flag and allowed browser origins; keep secret values environment-only.
-- [ ] Implement password hash/verify with Argon2id and a fixed dummy hash verification for unknown usernames to reduce timing differences.
-- [ ] Generate cryptographically random session secrets; persist SHA-256 hashes only; enforce expiry and revoked state when resolving sessions.
-- [ ] Revoke every active session on password change or account deactivation; revoke only the presented session on logout.
-- [ ] Add an in-process login attempt limiter keyed by normalized username and client IP with a bounded time window; return the same 401 body for unknown, disabled and incorrect-password accounts.
-- [ ] Validate Origin on unsafe cookie-authenticated requests against configured `CORS_ORIGINS`; reject absent or unapproved browser origins for those requests.
-- [ ] Add FastAPI dependencies that return 401 for unauthenticated business requests and 403 for non-admin user-management requests.
+- [x] Add settings for cookie name, session TTL, Secure flag and allowed browser origins; keep secret values environment-only.
+- [x] Implement password hash/verify with Argon2id and a fixed dummy hash verification for unknown usernames to reduce timing differences.
+- [x] Generate cryptographically random session secrets; persist SHA-256 hashes only; enforce expiry and revoked state when resolving sessions.
+- [x] Revoke every active session on password change or account deactivation; revoke only the presented session on logout.
+- [x] Add an in-process login attempt limiter keyed by normalized username and client IP with a bounded time window and bounded memory; return the same 401 body for unknown, disabled and incorrect-password accounts.
+- [x] Validate Origin on unsafe cookie-authenticated requests against configured `CORS_ORIGINS`; reject absent or unapproved browser origins for those requests.
+- [x] Add FastAPI dependencies that return 401 for unauthenticated business requests and 403 for non-admin user-management requests.
 
 ### Task 3: Add auth and tenant user APIs
 
@@ -134,11 +139,11 @@
 - `POST /api/auth/change-password` accepts `{old_password, new_password}`, revokes every session including the current session, and clears the cookie; require old password unless `must_change_password` is true.
 - `GET /api/users`, `POST /api/users`, `PATCH /api/users/{user_id}` are tenant-admin-only and never return hashes/secrets.
 
-- [ ] Add Pydantic request models that reject empty usernames, weak initial/new passwords and attempts to submit `tenant_id` or privileged role from ordinary clients.
-- [ ] Add login/logout/me/password-change handlers using database dependency and AuthService; use explicit cookie parameters for HttpOnly, SameSite=Lax, Secure and Max-Age.
-- [ ] Add tenant-admin user list/create/deactivate handlers; always use the administrator's tenant ID, prohibit self-deactivation and prohibit disabling the tenant's last active admin.
-- [ ] Mount auth/user routers; retain `/api/health` and `/api/sources` as anonymous endpoints and place authentication on all business routers.
-- [ ] Ensure a user with `must_change_password=true` can reach only `/auth/me`, `/auth/logout`, and `/auth/change-password` until the password is changed.
+- [x] Add Pydantic request models that reject empty usernames, weak initial/new passwords and attempts to submit `tenant_id` or privileged role from ordinary clients.
+- [x] Add login/logout/me/password-change handlers using database dependency and AuthService; use explicit cookie parameters for HttpOnly, SameSite=Lax, Secure and Max-Age.
+- [x] Add tenant-admin user list/create/deactivate handlers; always use the administrator's tenant ID, prohibit self-deactivation and prohibit disabling the tenant's last active admin.
+- [x] Mount auth/user routers; retain `/api/health` and `/api/sources` as anonymous endpoints and place authentication on all business routers.
+- [x] Ensure a user with `must_change_password=true` can reach only `/auth/me`, `/auth/logout`, and `/auth/change-password` until the password is changed.
 
 ### Task 4: Scope documents, projects and analysis jobs by tenant
 
@@ -159,11 +164,11 @@
 - `DocumentService(session, tenant_id)` and `ProjectService(session, tenant_id)` are request-scoped to a trusted `CurrentUser.tenant_id`.
 - Jobs are authorized through their owning document; background processing resolves the tenant from that document.
 
-- [ ] Add tenant predicates to document get/list/hash lookup and project get/list methods; constrain file-hash duplicate detection by tenant.
-- [ ] Add tenant predicates to create/update/link operations; reject attaching documents from another tenant using the same 404 behavior as missing IDs.
-- [ ] Pass the authenticated tenant ID through document and project route dependencies into their services; remove request-path use of the fixed default tenant ID.
-- [ ] Scope job status and analysis start by the owning document's tenant before returning job data or enqueueing work.
-- [ ] Make background analysis resolve document ownership from the database and pass its tenant to all analysis services.
+- [x] Add tenant predicates to document get/list/hash lookup and project get/list methods; constrain file-hash duplicate detection by tenant.
+- [x] Add tenant predicates to create/update/link operations; reject attaching documents from another tenant using the same 404 behavior as missing IDs.
+- [x] Pass the authenticated tenant ID through document and project route dependencies into their services; remove request-path use of the fixed default tenant ID.
+- [x] Scope job status and analysis start by the owning document's tenant before returning job data or enqueueing work.
+- [x] Make background analysis resolve document ownership from the database and pass its tenant to all analysis services.
 
 ### Task 5: Scope references, regulations, checklists and reports
 
@@ -187,12 +192,12 @@
 - A reference is authorized by its document's tenant; a checklist item is authorized by its project's tenant; a regulation row is authorized by its own tenant.
 - `regulations.search/get/upsert` require tenant ID and use tenant-scoped reads/writes.
 
-- [ ] Add tenant-scoped regulation search/get/upsert and ensure source results are persisted to the active tenant rather than `DEFAULT_TENANT_ID`.
-- [ ] Authorize references and review updates by joining through the reference's document; never fetch a child row by UUID alone.
-- [ ] Authorize checklist chapter/basis replacement and reads by project tenant before touching derived rows.
-- [ ] Authorize report retrieval/export by document tenant before loading any report sections or file paths.
-- [ ] Pass tenant identity from API dependency to all affected services and update analysis/matching call chains to preserve that identity.
-- [ ] Keep external source readiness anonymous and ensure authentication failures happen before external source calls or file reads.
+- [x] Add tenant-scoped regulation search/get/upsert and ensure source results are persisted to the active tenant rather than `DEFAULT_TENANT_ID`.
+- [x] Authorize references and review updates by joining through the reference's document; never fetch a child row by UUID alone.
+- [x] Authorize checklist chapter/basis replacement and reads by project tenant before touching derived rows.
+- [x] Authorize report retrieval/export by document tenant before loading any report sections or file paths.
+- [x] Pass tenant identity from API dependency to all affected services and update analysis/matching call chains to preserve that identity.
+- [x] Keep external source readiness anonymous and ensure authentication failures happen before external source calls or file reads.
 
 ### Task 6: Add secure initial-admin provisioning
 
@@ -205,10 +210,10 @@
 - `python scripts/create_admin.py` prompts for tenant name, admin username and password using hidden password input; the first invocation names and uses the migration-created default tenant, and later invocations create a new tenant and its first active `tenant_admin` transactionally.
 - Re-running the command with a tenant name that already has an active admin refuses to create a second bootstrap admin and directs the operator to the admin user API.
 
-- [ ] Build the CLI using existing settings/database session conventions; never accept password as a command-line argument or print it.
-- [ ] On the first invocation, reuse the seeded default tenant and update its display name; on later invocations, create a new tenant. Refuse duplicate active admin bootstrap for the selected tenant and roll back the transaction on failure.
-- [ ] Document first-run migration and admin creation order in README; explain that no seeded credentials exist.
-- [ ] Keep startup independent of bootstrap state so containers can start before an operator creates the first admin.
+- [x] Build the CLI using existing settings/database session conventions; never accept password as a command-line argument or print it.
+- [x] Reuse the seeded default tenant, set its display name and create the first admin; lock the tenant row and refuse bootstrap when an active admin already exists.
+- [x] Document first-run migration and admin creation order in README; explain that no seeded credentials exist.
+- [x] Keep startup independent of bootstrap state so containers can start before an operator creates the first admin.
 
 ### Task 7: Add frontend login, session and user management flows
 
@@ -225,12 +230,12 @@
 - `api.login(username, password)`, `api.logout()`, `api.getCurrentUser()`, `api.changePassword(oldPassword, newPassword)`, `api.listUsers()`, `api.createUser(username, initialPassword)` and `api.deactivateUser(userId)`.
 - All API requests use `credentials: "include"`; no password/session data is written to localStorage or sessionStorage.
 
-- [ ] Add session user and tenant user response types matching backend schemas.
-- [ ] Set `credentials: "include"` centrally in the API client and add auth methods; handle 401 by clearing in-memory user state.
-- [ ] Gate the existing document/project UI behind `/auth/me`; render LoginPage when no session exists.
-- [ ] Show account identity and logout; route `must_change_password` users to ChangePasswordPage and block navigation to business UI until completion.
-- [ ] Show UsersPage only for `tenant_admin`; create users with a temporary password and provide an explicit deactivate action.
-- [ ] Style new screens in the existing stylesheet without introducing a component framework.
+- [x] Add session user and tenant user response types matching backend schemas.
+- [x] Set `credentials: "same-origin"` centrally in the API client and add auth methods; handle 401 by clearing in-memory user state.
+- [x] Gate the existing document/project UI behind `/auth/me`; render LoginPage when no session exists.
+- [x] Show account identity and logout; route `must_change_password` users to ChangePasswordPage and block navigation to business UI until completion.
+- [x] Show UsersPage only for `tenant_admin`; create users with a temporary password and provide an explicit deactivate action.
+- [x] Style new screens in the existing stylesheet without introducing a component framework.
 
 ### Task 8: Update API/database documentation and self-review implementation
 
@@ -240,10 +245,10 @@
 - Modify: `README.md`
 - Modify: `.env.example`
 
-- [ ] Document auth and user endpoints, cookie behavior, 401/403/404 semantics, bootstrap command, required environment settings and migration behavior.
-- [ ] Remove stale claims that the app has no login mechanism or that tenant IDs are unused defaults.
-- [ ] Review each business route and repository against the spec's tenant-root list, especially report exports, background jobs and reference review mutations.
-- [ ] Inspect the final diff for secrets, unscoped UUID lookups, unrestricted user-admin operations, stale default-tenant writes and accidental test changes.
+- [x] Document auth and user endpoints, cookie behavior, 401/403/404 semantics, bootstrap command, required environment settings and migration behavior.
+- [x] Remove stale claims that the app has no login mechanism or that tenant IDs are unused defaults.
+- [x] Review each business route and repository against the spec's tenant-root list, especially report exports, background jobs and reference review mutations.
+- [x] Inspect the final diff for secrets, unscoped UUID lookups, unrestricted user-admin operations, stale default-tenant writes and accidental test changes.
 
 ## Self-Review
 

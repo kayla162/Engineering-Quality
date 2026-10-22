@@ -13,6 +13,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import get_llm_provider
+from app.core.config import settings
 from app.core.enums import DocumentStatus, JobStatus, JobStep, ParseQuality
 from app.core.errors import DocumentNotFoundError
 from app.core.logging import log_context
@@ -41,8 +42,9 @@ _PROGRESS = {
 
 
 class AnalysisService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
         self.documents = DocumentRepository(session)
         self.jobs = JobRepository(session)
         self.references = ReferenceRepository(session)
@@ -51,12 +53,12 @@ class AnalysisService:
         self.llm = get_llm_provider()
         self.extractor = ExtractionPipeline(self.llm)
         self.normalizer = NormalizationEngine()
-        self.matcher = MatchingService(session, self.llm)
+        self.matcher = MatchingService(session, self.tenant_id, self.llm)
 
     async def run(self, document_id: uuid.UUID, job_id: uuid.UUID) -> None:
         """執行完整分析。這個方法由 JobRunner 在背景呼叫。"""
-        job = await self.jobs.get(job_id)
-        document = await self.documents.get(document_id)
+        job = await self.jobs.get(job_id, self.tenant_id)
+        document = await self.documents.get(document_id, self.tenant_id)
         if job is None or document is None:
             raise DocumentNotFoundError("找不到要分析的文件或任務")
 
@@ -216,8 +218,8 @@ class AnalysisService:
     async def _fail(self, job_id: uuid.UUID, document_id: uuid.UUID, exc: Exception) -> None:
         """分析失敗：把錯誤寫進 job，讓前端看得到原因。"""
         logger.exception("分析失敗", extra=log_context(document_id=str(document_id)))
-        job = await self.jobs.get(job_id)
-        document = await self.documents.get(document_id)
+        job = await self.jobs.get(job_id, self.tenant_id)
+        document = await self.documents.get(document_id, self.tenant_id)
         if job is not None:
             await self.jobs.finish(
                 job, status=JobStatus.FAILED, error_message=f"{type(exc).__name__}: {exc}"

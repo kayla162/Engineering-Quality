@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.document import Document
 from app.models.reference import RegulationReference
 
 
@@ -24,8 +25,15 @@ class ReferenceRepository:
         )
         await self.session.flush()
 
-    async def get(self, reference_id: uuid.UUID) -> RegulationReference | None:
-        return await self.session.get(RegulationReference, reference_id)
+    async def get(
+        self, reference_id: uuid.UUID, tenant_id: uuid.UUID
+    ) -> RegulationReference | None:
+        result = await self.session.execute(
+            select(RegulationReference)
+            .join(Document, Document.id == RegulationReference.document_id)
+            .where(RegulationReference.id == reference_id, Document.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
 
     async def list_by_document(
         self,

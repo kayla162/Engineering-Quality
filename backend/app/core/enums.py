@@ -7,6 +7,11 @@
 from enum import StrEnum
 
 
+class UserRole(StrEnum):
+    TENANT_ADMIN = "tenant_admin"
+    MEMBER = "member"
+
+
 class DocumentStatus(StrEnum):
     UPLOADED = "UPLOADED"
     PARSING = "PARSING"

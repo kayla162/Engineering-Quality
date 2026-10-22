@@ -10,6 +10,24 @@ export type RegulationStatus =
 
 export type ReviewStatus = "UNREVIEWED" | "CONFIRMED" | "REJECTED";
 
+export interface SessionUser {
+  user_id: string;
+  username: string;
+  role: "tenant_admin" | "member";
+  tenant_id: string;
+  tenant_name: string;
+  must_change_password: boolean;
+}
+
+export interface ManagedUser {
+  user_id: string;
+  username: string;
+  role: "tenant_admin" | "member";
+  is_active: boolean;
+  must_change_password: boolean;
+  created_at: string;
+}
+
 /** 已啟用的法規來源整體上查不查得動（GET /api/sources） */
 export type SourceAvailability = "ok" | "degraded" | "unavailable";
 

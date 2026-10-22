@@ -5,19 +5,31 @@ import uuid
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.regulation import Regulation, RegulationAlias, RegulationVersion
 
 
 class RegulationRepository:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
+        # API services always pass the authenticated tenant explicitly. The default
+        # keeps seed/migration utilities bound to the deployment's bootstrap tenant.
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
 
     async def get(self, regulation_id: uuid.UUID) -> Regulation | None:
-        return await self.session.get(Regulation, regulation_id)
+        result = await self.session.execute(
+            select(Regulation).where(
+                Regulation.id == regulation_id, Regulation.tenant_id == self.tenant_id
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def get_by_name(self, normalized_name: str) -> Regulation | None:
         result = await self.session.execute(
-            select(Regulation).where(Regulation.normalized_name == normalized_name)
+            select(Regulation).where(
+                Regulation.normalized_name == normalized_name,
+                Regulation.tenant_id == self.tenant_id,
+            )
         )
         return result.scalars().first()
 
@@ -30,6 +42,7 @@ class RegulationRepository:
             RegulationAlias.alias.ilike(pattern)
         )
         stmt = select(Regulation).where(
+            Regulation.tenant_id == self.tenant_id,
             or_(
                 Regulation.name.ilike(pattern),
                 Regulation.normalized_name.ilike(pattern),
@@ -43,11 +56,15 @@ class RegulationRepository:
 
     async def list_all(self, limit: int = 1000) -> list[Regulation]:
         """比對時載入候選集合。資料量大時應改成先用 search 縮小範圍。"""
-        result = await self.session.execute(select(Regulation).limit(limit))
+        result = await self.session.execute(
+            select(Regulation).where(Regulation.tenant_id == self.tenant_id).limit(limit)
+        )
         return list(result.scalars().all())
 
     async def count(self) -> int:
-        return (await self.session.execute(select(func.count()).select_from(Regulation))).scalar_one()
+        return (await self.session.execute(
+            select(func.count()).select_from(Regulation).where(Regulation.tenant_id == self.tenant_id)
+        )).scalar_one()
 
     async def upsert(
         self,
@@ -67,9 +84,11 @@ class RegulationRepository:
 
         注意：status 只能由外部來源查詢結果或人工建立寫入，LLM 不得經由這裡寫入。
         """
+        if tenant_id is not None and tenant_id != self.tenant_id:
+            raise ValueError("upsert tenant_id must match the repository tenant")
         regulation = await self.get_by_name(normalized_name)
         if regulation is None:
-            regulation = Regulation(normalized_name=normalized_name, tenant_id=tenant_id)
+            regulation = Regulation(normalized_name=normalized_name, tenant_id=self.tenant_id)
             self.session.add(regulation)
 
         regulation.name = name

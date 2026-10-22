@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
+    # --- 本機帳號登入 ---
+    AUTH_SESSION_COOKIE: str = "eq_session"
+    AUTH_SESSION_TTL_HOURS: int = 12
+    AUTH_COOKIE_SECURE: bool = True
+    AUTH_MAX_LOGIN_ATTEMPTS: int = 10
+    AUTH_LOGIN_WINDOW_SECONDS: int = 300
+
     # --- 資料庫 ---
     # PostgreSQL:  postgresql+asyncpg://user:pass@host:5432/dbname
     # 本機/測試:    sqlite+aiosqlite:///./data/app.db
@@ -70,7 +77,7 @@ class Settings(BaseSettings):
     # 公共工程施工綱要規範目錄（由 scripts/sync_pcces.py 產生）
     PCCES_INDEX_PATH: Path = PROJECT_ROOT / "data" / "pcces_index.json"
 
-    # --- 多租戶（預留，MVP 全部使用同一個預設租戶）---
+    # --- Migration 回填既有資料、部署初始化預設租戶用；請求授權必須使用 CurrentUser.tenant_id ---
     DEFAULT_TENANT_ID: str = "00000000-0000-0000-0000-000000000001"
 
     # --- Log ---

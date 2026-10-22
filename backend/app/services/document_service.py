@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
         self.documents = DocumentRepository(session)
         self.jobs = JobRepository(session)
 
@@ -28,7 +29,7 @@ class DocumentService:
         ext = validate_upload(filename, content)
         digest = file_hash(content)
 
-        existing = await self.documents.get_by_hash(digest)
+        existing = await self.documents.get_by_hash(digest, self.tenant_id)
         if existing is not None:
             raise DuplicateFileError(
                 f"這個檔案已經上傳過（{existing.filename}）",
@@ -44,7 +45,7 @@ class DocumentService:
             storage_path=str(path),
             file_hash=digest,
             status=DocumentStatus.UPLOADED,
-            tenant_id=uuid.UUID(settings.DEFAULT_TENANT_ID),
+            tenant_id=self.tenant_id,
         )
         await self.documents.create(document)
         await self.session.commit()
@@ -55,13 +56,16 @@ class DocumentService:
         return document
 
     async def get(self, document_id: uuid.UUID) -> Document:
-        document = await self.documents.get(document_id)
+        document = await self.documents.get(document_id, self.tenant_id)
         if document is None:
             raise DocumentNotFoundError("找不到指定的文件")
         return document
 
     async def list_documents(self, page: int, page_size: int, status: str | None):
-        return await self.documents.list_paged(page=page, page_size=page_size, status=status)
+        return await self.documents.list_paged(
+            tenant_id=self.tenant_id, page=page, page_size=page_size, status=status
+        )
 
     async def latest_job(self, document_id: uuid.UUID):
-        return await self.jobs.get_latest_for_document(document_id)
+        await self.get(document_id)
+        return await self.jobs.get_latest_for_document(document_id, self.tenant_id)

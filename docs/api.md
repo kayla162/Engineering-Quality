@@ -3,6 +3,30 @@
 框架：FastAPI（自動產生 OpenAPI/Swagger，實際欄位以 `/docs` 為準，本文件是設計規格）
 所有回應統一使用 JSON；錯誤回應統一格式（見第 5 節）。
 
+## 0. 登入與帳號
+
+除 `GET /api/health`、`GET /api/sources` 和 `POST /api/auth/login` 外，所有 API 都需要登入。未登入回傳 401；一般成員呼叫管理員 API 回傳 403；不存在或不屬於目前租戶的資源都回傳相同 404。瀏覽器使用 HttpOnly、SameSite=Lax 的 `eq_session` cookie；正式環境必須啟用 `AUTH_COOKIE_SECURE` 並使用 HTTPS。寫入請求會檢查 Origin。租戶 ID 從 session 取得，不接受客戶端指定。
+
+### `POST /api/auth/login`
+
+請求 `{ "username": "admin", "password": "…" }`。成功時回傳使用者／租戶摘要並設置 session cookie；失敗統一回傳 401。
+
+### `GET /api/auth/me`、`POST /api/auth/logout`
+
+`me` 回傳目前使用者和 `must_change_password`。登出撤銷目前 session 並清除 cookie。
+
+### `POST /api/auth/change-password`
+
+請求 `{ "old_password": "…", "new_password": "至少 12 字元" }`。首次登入被要求改密碼時可省略 `old_password`。密碼更新會撤銷該帳號所有 session，使用者需重新登入。
+
+### 使用者管理
+
+`GET /api/users`、`POST /api/users`、`PATCH /api/users/{user_id}` 僅限租戶管理員。新增請求包含 `username` 和 `initial_password`；管理員可停用同租戶帳號，停用會撤銷其工作階段。一般成員與跨租戶 ID 均不能管理帳號。
+
+### 首位管理員
+
+完成資料庫 migration 後，在後端執行 `python scripts/bootstrap_admin.py --tenant-name "租戶名稱" --username admin`，密碼會透過隱藏提示輸入。此部署已有有效管理員時不允許再次 bootstrap。
+
 ---
 
 ## 1. 文件管理
@@ -180,8 +204,10 @@ Query 參數：
 
 請求：
 ```json
-{ "review_status": "CONFIRMED", "reviewed_by": "kayla3377@gmail.com", "review_note": "已人工核對官網條文" }
+{ "review_status": "CONFIRMED", "review_note": "已人工核對官網條文" }
 ```
+
+`reviewed_by` 由登入 session 的使用者名稱產生，客戶端不可自行指定。
 
 回應 `200`：更新後的 reference 詳細資料。
 
