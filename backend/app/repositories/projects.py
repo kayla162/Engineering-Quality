@@ -12,18 +12,24 @@ class ProjectRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self, name: str, tenant_id: uuid.UUID | None = None) -> Project:
+    async def create(self, name: str, tenant_id: uuid.UUID) -> Project:
         project = Project(name=name, tenant_id=tenant_id)
         self.session.add(project)
         await self.session.flush()
         return project
 
-    async def get(self, project_id: uuid.UUID) -> Project | None:
-        return await self.session.get(Project, project_id)
-
-    async def list_all(self, limit: int = 100) -> list[Project]:
+    async def get(self, project_id: uuid.UUID, tenant_id: uuid.UUID) -> Project | None:
         result = await self.session.execute(
-            select(Project).order_by(Project.created_at.desc()).limit(limit)
+            select(Project).where(Project.id == project_id, Project.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_all(self, tenant_id: uuid.UUID, limit: int = 100) -> list[Project]:
+        result = await self.session.execute(
+            select(Project)
+            .where(Project.tenant_id == tenant_id)
+            .order_by(Project.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 

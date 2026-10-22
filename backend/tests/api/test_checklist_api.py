@@ -365,7 +365,9 @@ class TestSpecWarning:
         """規範書若大量是圖，依據可能殘缺。警告只在 POST 的回應裡就等於大部分時候
         看不到——使用者多半是用 GET 看檢核表。"""
         spec_id = await attach_spec(api_client, project_with_boq)
-        document = await DocumentRepository(db_session).get(uuid.UUID(spec_id))
+        document = await DocumentRepository(db_session).get(
+            uuid.UUID(spec_id), uuid.UUID(settings.DEFAULT_TENANT_ID)
+        )
         document.parse_quality = ParseQuality.DEGRADED
         document.parse_quality_note = "105 頁裡有 57 頁以圖為主，圖內的文字未被讀取"
         await db_session.commit()

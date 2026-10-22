@@ -17,20 +17,31 @@ class DocumentRepository:
         await self.session.flush()
         return document
 
-    async def get(self, document_id: uuid.UUID) -> Document | None:
-        return await self.session.get(Document, document_id)
-
-    async def get_by_hash(self, file_hash: str) -> Document | None:
+    async def get(self, document_id: uuid.UUID, tenant_id: uuid.UUID) -> Document | None:
         result = await self.session.execute(
-            select(Document).where(Document.file_hash == file_hash)
+            select(Document).where(Document.id == document_id, Document.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_hash(self, file_hash: str, tenant_id: uuid.UUID) -> Document | None:
+        result = await self.session.execute(
+            select(Document).where(
+                Document.file_hash == file_hash, Document.tenant_id == tenant_id
+            )
         )
         return result.scalar_one_or_none()
 
     async def list_paged(
-        self, page: int = 1, page_size: int = 20, status: str | None = None
+        self,
+        tenant_id: uuid.UUID,
+        page: int = 1,
+        page_size: int = 20,
+        status: str | None = None,
     ) -> tuple[list[Document], int]:
-        query = select(Document)
-        count_query = select(func.count()).select_from(Document)
+        query = select(Document).where(Document.tenant_id == tenant_id)
+        count_query = select(func.count()).select_from(Document).where(
+            Document.tenant_id == tenant_id
+        )
         if status:
             query = query.where(Document.status == status)
             count_query = count_query.where(Document.status == status)

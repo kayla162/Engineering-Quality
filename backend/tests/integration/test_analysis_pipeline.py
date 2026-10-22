@@ -1,7 +1,10 @@
 """整合測試：DOCX -> 解析 -> 抽取 -> 正規化 -> 比對 -> 資料庫的完整鏈路。"""
 
+import uuid
+
 import pytest
 
+from app.core.config import settings
 from app.core.enums import DocumentStatus, JobStatus, ParseQuality, RegulationStatus
 from app.repositories.audit import AuditRepository
 from app.repositories.documents import DocumentRepository
@@ -24,8 +27,14 @@ async def analyzed(db_session, uploaded_document):
 class TestPipeline:
     async def test_document_and_job_reach_completed_state(self, db_session, analyzed):
         document, job = analyzed
-        assert (await DocumentRepository(db_session).get(document.id)).status == DocumentStatus.ANALYZED
-        refreshed = await JobRepository(db_session).get(job.id)
+        assert (
+            await DocumentRepository(db_session).get(
+                document.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+            )
+        ).status == DocumentStatus.ANALYZED
+        refreshed = await JobRepository(db_session).get(
+            job.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+        )
         assert refreshed.status == JobStatus.COMPLETED
         assert refreshed.progress == 100
         assert refreshed.finished_at is not None
@@ -100,7 +109,11 @@ class TestPipeline:
 
         assert len(await references.all_by_document(document.id)) == before
         assert second_job.id != first_job.id
-        assert (await JobRepository(db_session).get(first_job.id)) is not None
+        assert (
+            await JobRepository(db_session).get(
+                first_job.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+            )
+        ) is not None
 
 
 class TestReport:
@@ -163,7 +176,11 @@ class TestEmptyRegulationTable:
         await db_session.commit()
         await AnalysisService(db_session).run(uploaded_document.id, job.id)
 
-        assert (await JobRepository(db_session).get(job.id)).status == JobStatus.COMPLETED
+        assert (
+            await JobRepository(db_session).get(
+                job.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+            )
+        ).status == JobStatus.COMPLETED
         rows = await ReferenceRepository(db_session).all_by_document(uploaded_document.id)
         assert rows
         # 法規是在比對過程中被寫進來的
@@ -185,7 +202,9 @@ class TestParseQuality:
         job = await JobRepository(db_session).create(document.id)
         await db_session.commit()
         await AnalysisService(db_session).run(document.id, job.id)
-        return await DocumentRepository(db_session).get(document.id)
+        return await DocumentRepository(db_session).get(
+            document.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+        )
 
     async def test_a_figure_heavy_pdf_is_marked_degraded(self, db_session):
         document = await self._analyze(
@@ -213,5 +232,7 @@ class TestParseQuality:
         await db_session.commit()
         await AnalysisService(db_session).run(uploaded_document.id, job.id)
 
-        document = await DocumentRepository(db_session).get(uploaded_document.id)
+        document = await DocumentRepository(db_session).get(
+            uploaded_document.id, uuid.UUID(settings.DEFAULT_TENANT_ID)
+        )
         assert document.parse_quality == ParseQuality.OK

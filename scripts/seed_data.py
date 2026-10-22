@@ -59,7 +59,6 @@ async def seed_mock_regulations(repo: RegulationRepository, tenant_id: uuid.UUID
             effective_date=detail.effective_date,
             last_amended_date=detail.last_amended_date,
             official_url=detail.official_url,
-            tenant_id=tenant_id,
         )
         if detail.standard_number:
             await repo.add_aliases(regulation, [detail.standard_number])
@@ -95,7 +94,7 @@ async def seed() -> None:
     use_mock = "mock" in settings.regulation_sources
 
     async with get_session_factory()() as session:
-        repo = RegulationRepository(session)
+        repo = RegulationRepository(session, uuid.UUID(settings.DEFAULT_TENANT_ID))
 
         if use_mock:
             seeded = await seed_mock_regulations(repo, tenant_id)

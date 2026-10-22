@@ -12,7 +12,10 @@ from fastapi import BackgroundTasks
 from app.core.db import get_session_factory
 from app.core.logging import log_context
 from app.jobs.base import JobRunner
+from app.models.document import Document
+from app.models.job import Job
 from app.repositories.jobs import JobRepository
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +26,10 @@ async def run_analysis(job_id: uuid.UUID, document_id: uuid.UUID) -> None:
 
     async with get_session_factory()() as session:
         try:
-            await AnalysisService(session).run(document_id, job_id)
+            document = await session.get(Document, document_id)
+            if document is None:
+                return
+            await AnalysisService(session, document.tenant_id).run(document_id, job_id)
         except Exception:
             logger.exception("背景分析任務結束於失敗", extra=log_context(job_id=str(job_id)))
 
@@ -37,5 +43,5 @@ class BackgroundTasksJobRunner(JobRunner):
 
     async def get_status(self, job_id: uuid.UUID) -> str | None:
         async with get_session_factory()() as session:
-            job = await JobRepository(session).get(job_id)
+            job = await session.scalar(select(Job).where(Job.id == job_id))
             return job.status if job else None

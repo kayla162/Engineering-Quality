@@ -3,7 +3,7 @@
 資料庫：PostgreSQL 15+
 ORM：SQLAlchemy 2.0 + Alembic（`migrations/`）
 
-本文件在你需求書第十三節的基礎上，新增了 `jobs`、`ai_invocation_log` 兩張表，並在 `regulation_references` 加入人工覆核欄位、在核心表加入 `tenant_id` 預留欄位。理由見 `architecture.md` 第 1 節。
+本文件在需求書第十三節的基礎上，新增分析與稽核資料表、人工覆核欄位，以及本機登入和租戶隔離所需資料。文件、專案與法規資料各屬於一個租戶；由文件或專案衍生的資料沿外鍵回到租戶根資料。
 
 ---
 
@@ -11,6 +11,12 @@ ORM：SQLAlchemy 2.0 + Alembic（`migrations/`）
 
 ```mermaid
 erDiagram
+    TENANTS ||--o{ USERS : contains
+    USERS ||--o{ AUTH_SESSIONS : has
+    AUTH_LOGIN_THROTTLE_KEYS ||--o{ AUTH_LOGIN_ATTEMPTS : tracks
+    TENANTS ||--o{ DOCUMENTS : owns
+    TENANTS ||--o{ PROJECTS : owns
+    TENANTS ||--o{ REGULATIONS : owns
     DOCUMENTS ||--o{ DOCUMENT_SECTIONS : contains
     DOCUMENTS ||--o{ JOBS : has
     DOCUMENTS ||--o{ REGULATION_REFERENCES : produces
@@ -22,6 +28,39 @@ erDiagram
     REGULATION_REFERENCES ||--o{ AI_INVOCATION_LOG : may_use
     JOBS ||--o{ AI_INVOCATION_LOG : logs_during
 
+    TENANTS {
+        uuid id PK
+        string name
+        boolean is_active
+        timestamp created_at
+    }
+    USERS {
+        uuid id PK
+        uuid tenant_id FK
+        string username UK
+        string password_hash
+        string role
+        boolean is_active
+        boolean must_change_password
+        timestamp created_at
+        timestamp updated_at
+    }
+    AUTH_SESSIONS {
+        uuid id PK
+        uuid user_id FK
+        string secret_hash UK
+        timestamp expires_at
+        timestamp revoked_at
+    }
+    AUTH_LOGIN_THROTTLE_KEYS {
+        string identity_hash PK
+        timestamp last_seen_at
+    }
+    AUTH_LOGIN_ATTEMPTS {
+        uuid id PK
+        string identity_hash FK
+        timestamp attempted_at
+    }
     DOCUMENTS {
         uuid id PK
         string filename
@@ -140,10 +179,20 @@ erDiagram
 | storage_path | VARCHAR | 實際儲存路徑（與原始檔名分離） |
 | file_hash | VARCHAR(64) | SHA-256，用於去重與完整性驗證 |
 | status | VARCHAR | `UPLOADED / PARSING / PARSED / ANALYZING / ANALYZED / FAILED` |
-| tenant_id | UUID, nullable | 預留多租戶欄位，MVP 全部填預設租戶 |
+| tenant_id | UUID FK → tenants, required | 所屬租戶 |
 | uploaded_at | TIMESTAMPTZ | |
 
-索引：`file_hash`（唯一，去重）、`tenant_id`。
+索引：`(tenant_id, file_hash)`（唯一，租戶內去重）、`tenant_id`。
+
+### 2.0 `tenants`、`users`、`auth_sessions`
+
+Migration `0006` 建立預設租戶並將既有文件、專案、法規資料歸入該租戶。首位管理員由 `scripts/bootstrap_admin.py` 互動建立；資料庫只保存 Argon2 密碼雜湊。瀏覽器 cookie 保存隨機 session secret，`auth_sessions` 只保存其 SHA-256 雜湊和到期／撤銷時間。若不同租戶已上傳相同檔案，downgrade 會停止，避免恢復全域唯一約束時破壞資料。
+
+使用者名稱全域唯一，以正規化後的小寫格式保存。角色為 `tenant_admin` 或 `member`；管理員新增的成員首次登入必須更改初始密碼。
+
+管理員忘記密碼時，具資料庫操作權限的部署人員可執行 `scripts/reset_user_password.py` 互動式重設；密碼只保存 Argon2 雜湊，使用者下次登入必須更改，所有既有 session 會撤銷。重設不會啟用停用帳號。
+
+Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，在資料庫共享登入嘗試狀態。識別雜湊和時間戳只保留目前限流視窗；SQLite 寫入會序列化，正式多 worker 部署使用 PostgreSQL。
 
 ### 2.2 `document_sections`
 
@@ -191,7 +240,7 @@ erDiagram
 | match_confidence | FLOAT, nullable | 比對階段信心分數 |
 | status | VARCHAR | 見第 3 節「法規狀態列舉」 |
 | review_status | VARCHAR | `UNREVIEWED（預設） / CONFIRMED / REJECTED`（新增，人工覆核） |
-| reviewed_by | VARCHAR, nullable | 覆核人（MVP 先存 email/名稱字串，之後接使用者系統） |
+| reviewed_by | VARCHAR, nullable | 執行覆核之登入使用者名稱（由 session 推導，不接受客戶端指定） |
 | reviewed_at | TIMESTAMPTZ, nullable | |
 | review_note | TEXT, nullable | |
 | extraction_method | VARCHAR | `regex / dictionary / ner / llm_fallback`，記錄這筆是哪一層抽出來的 |
@@ -213,7 +262,7 @@ erDiagram
 | last_amended_date | DATE, nullable | |
 | official_url | VARCHAR, nullable | |
 | source | VARCHAR | 最後一次確認資料的來源名稱（對應 `sources/` adapter 的 `source_name`），或 `manual`（人工建立） |
-| tenant_id | UUID, nullable | 預留：未來若不同企業有自己的法規庫版本 |
+| tenant_id | UUID FK → tenants, required | 所屬租戶；本階段法規目錄依租戶隔離 |
 | created_at / updated_at | TIMESTAMPTZ | |
 
 索引：`normalized_name`（供比對查詢）、`type`、`status`。

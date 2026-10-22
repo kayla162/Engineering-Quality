@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import ReferenceServiceDep
+from app.api.deps import CurrentUserDep, ReferenceServiceDep
 from app.core.enums import RegulationStatus, ReviewStatus
 from app.schemas.reference import ReferenceDetail, ReferenceListOut, ReviewRequest
 
@@ -38,9 +38,12 @@ async def get_reference(reference_id: uuid.UUID, service: ReferenceServiceDep):
 
 @router.patch("/api/regulation-references/{reference_id}/review", response_model=ReferenceDetail)
 async def review_reference(
-    reference_id: uuid.UUID, payload: ReviewRequest, service: ReferenceServiceDep
+    reference_id: uuid.UUID,
+    payload: ReviewRequest,
+    service: ReferenceServiceDep,
+    user: CurrentUserDep,
 ):
     """人工覆核。只更新覆核欄位，不會覆蓋系統判斷出來的 status。"""
     return await service.review(
-        reference_id, payload.review_status, payload.reviewed_by, payload.review_note
+        reference_id, payload.review_status, user.username, payload.review_note
     )

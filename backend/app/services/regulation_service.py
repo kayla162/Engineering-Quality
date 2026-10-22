@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class RegulationService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
-        self.regulations = RegulationRepository(session)
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
+        self.regulations = RegulationRepository(session, self.tenant_id)
         self.audit = AuditRepository(session)
 
     async def search(
@@ -109,7 +110,6 @@ class RegulationService:
                     effective_date=result.effective_date,
                     last_amended_date=result.last_amended_date,
                     official_url=result.official_url,
-                    tenant_id=uuid.UUID(settings.DEFAULT_TENANT_ID),
                 )
                 detail = await source.get_detail(result.external_id)
                 if detail and detail.versions:

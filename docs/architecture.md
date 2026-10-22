@@ -3,7 +3,7 @@
 工程法規／規範智慧檢索與符合性檢查平台
 
 版本：v0.1（Phase 0 架構確認稿）
-狀態：待使用者確認後進入 Phase 1 實作
+狀態：Phase 0 架構紀錄；本機登入與租戶隔離已由 `docs/superpowers/specs/2026-10-21-local-auth-and-tenant-isolation-design.md` 補充並確認
 
 ---
 
@@ -36,9 +36,9 @@
 
 你在第二十四節寫得很清楚：「不要做成 AI 說有效 → 系統直接判定有效」。但目前 schema 裡的 `status` 欄位如果只由系統寫入，介面上使用者看到的「狀態」其實無從分辨這是機器判斷還是人已經確認過。因此加入 `review_status`（`UNREVIEWED / CONFIRMED / REJECTED`）、`reviewed_by`、`reviewed_at`、`review_note` 四個欄位，讓「系統判斷」與「人工覆核」是兩個獨立且都可追溯的狀態，這也直接對應第十五節前端「詳細資訊」頁面應該要有的覆核操作。
 
-### 1.4 核心資料表預留 `tenant_id`（可為 NULL，MVP 全部填同一個預設租戶）
+### 1.4 核心資料表以 `tenant_id` 隔離
 
-對應第二十九節「多專案管理」與第二十五節「未來不同企業導入」。現在不需要做多租戶邏輯，但如果現在不預留欄位，未來要幫多個企業/多個專案分帳，會是一次破壞性 migration（牽動所有既有資料與外鍵）。現在只加欄位、預設值統一，幾乎零成本；晚加則成本高很多。這是唯一一個我會主動「現在就做但先不使用」的欄位。
+Migration `0006` 建立租戶表，將既有文件、專案和法規歸入預設租戶，並把根資源的 `tenant_id` 設為必填外鍵。登入 session 決定目前租戶；文件、專案與法規的讀寫都以該租戶範圍查詢，段落、工作、引用、章節、依據及報告則先沿所屬文件或專案驗證。文件雜湊改為租戶內唯一。
 
 ### 1.5 Matching Engine 明確設計成「規則優先、LLM 可關閉」
 
@@ -294,7 +294,7 @@ class JobRunner(ABC):
 - `.env`／API Key：一律透過環境變數注入，`.env` 加入 `.gitignore`，`.env.example` 只列出變數名稱。
 - SQL Injection：全面透過 SQLAlchemy ORM／參數化查詢，不手刻字串拼接 SQL。
 - Prompt Injection 基本防護：送進 LLM 的文件內容視為不可信輸入，prompt 模板明確區隔「系統指令」與「文件內容」，並要求 Structured Output＋Pydantic 驗證，驗證失敗即丟棄該次結果並記錄，不重試以模型自由發揮的方式修正。
-- API Authentication：MVP 先不做登入（單機/本機使用），但 `core/security.py` 預留 `get_current_user` 相依注入點，之後要接使用者權限只需要在這裡實作，不用改動每個 router。
+- API Authentication：使用本機帳密與 Argon2 密碼雜湊，資料庫保存可撤銷 session 的雜湊；cookie 使用 HttpOnly、SameSite=Lax，正式環境啟用 Secure。登入身分由 FastAPI dependency 注入服務，所有業務 API 執行租戶範圍檢查；租戶管理員管理同租戶成員。
 
 ---
 
@@ -306,11 +306,11 @@ class JobRunner(ABC):
    → (Phase2)AI Agent → (Phase3)Compliance Analysis → Report
 ```
 
-不同企業導入時可替換的部分，與你原本規劃一致，並且因為第 1.4 點已預留 `tenant_id`，同一套系統理論上可以先以「多租戶 SaaS」而非「每個客戶各自部署一套」的方式服務多個企業，這是否要做取決於你未來的商業模式（自架 vs SaaS），現在不用決定，但架構沒有被鎖死。
+目前已有單一部署內的租戶帳號與資料隔離基礎。企業級 SaaS 仍需補上租戶生命週期、備份／還原、監控與更完整的稽核等營運能力；也可以維持每個客戶獨立部署。
 
 ---
 
-## 10. 待你確認的事項
+## 10. 原始 Phase 0 確認事項（歷史紀錄）
 
 1. 第 1.7 點：前端用 React+Vite 還是 Jinja2+htmx？（我先按 React+Vite 走）
 2. 官方法規資料來源的調研：這次環境內網路存取受限，無法完成。是否由你提供任何你已知的政府開放資料網址／API 文件？或是我在後續有網路存取的階段再重新嘗試調研？

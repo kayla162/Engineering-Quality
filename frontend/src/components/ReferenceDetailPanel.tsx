@@ -20,7 +20,6 @@ export function ReferenceDetailPanel({
 }) {
   const [detail, setDetail] = useState<ReferenceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [reviewer, setReviewer] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -33,7 +32,6 @@ export function ReferenceDetailPanel({
       .then((data) => {
         if (cancelled) return;
         setDetail(data);
-        setReviewer(data.reviewed_by ?? "");
         setNote(data.review_note ?? "");
       })
       .catch((err) => !cancelled && setError(err instanceof ApiError ? err.message : "載入失敗"));
@@ -43,17 +41,12 @@ export function ReferenceDetailPanel({
   }, [referenceId]);
 
   async function submitReview(status: ReviewStatus) {
-    if (!reviewer.trim()) {
-      setError("請填寫覆核人");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
       setDetail(
         await api.reviewReference(referenceId, {
           review_status: status,
-          reviewed_by: reviewer.trim(),
           review_note: note.trim() || undefined,
         }),
       );
@@ -180,14 +173,6 @@ export function ReferenceDetailPanel({
           </span>
         )}
       </p>
-      <label>
-        覆核人
-        <input
-          value={reviewer}
-          placeholder="姓名或 email"
-          onChange={(event) => setReviewer(event.target.value)}
-        />
-      </label>
       <label>
         備註
         <textarea value={note} rows={2} onChange={(event) => setNote(event.target.value)} />

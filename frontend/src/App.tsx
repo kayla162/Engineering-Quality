@@ -1,17 +1,57 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api } from "./api/client";
-import type { DocumentSummary, SourcesStatus } from "./api/types";
+import type { DocumentSummary, SessionUser, SourcesStatus } from "./api/types";
+import { UserManagementPanel } from "./components/UserManagementPanel";
 import { DocumentList } from "./components/DocumentList";
 import { SourceStatusBanner } from "./components/SourceStatusBanner";
 import { UploadPanel } from "./components/UploadPanel";
 import { DocumentAnalysisPage } from "./pages/DocumentAnalysisPage";
 import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
+import { ChangePasswordPage, LoginPage } from "./pages/AuthPage";
 
-/** 兩個頂層模式。只有兩個，裝一套 router 不划算；之後真的變多再說。 */
-type Mode = "documents" | "projects";
+type Mode = "documents" | "projects" | "users";
 
 export default function App() {
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    api.getMe().then(
+      (current) => { if (mounted) setUser(current); },
+      (err: unknown) => {
+        if (!mounted) return;
+        if (!(err instanceof ApiError && err.status === 401)) {
+          setSessionError(err instanceof ApiError ? err.message : "無法連線到平台");
+        }
+      },
+    ).finally(() => { if (mounted) setCheckingSession(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const expireSession = () => setUser(null);
+    window.addEventListener("eq:unauthorized", expireSession);
+    return () => window.removeEventListener("eq:unauthorized", expireSession);
+  }, []);
+
+  if (checkingSession) return <main className="auth-shell"><p>確認登入狀態中…</p></main>;
+  if (sessionError && !user) {
+    return <main className="auth-shell"><section className="card auth-card"><h1>無法連線</h1><p className="error">{sessionError}</p><button onClick={() => window.location.reload()}>重新載入</button></section></main>;
+  }
+  if (!user) return <LoginPage onLogin={setUser} />;
+  if (user.must_change_password) {
+    return <ChangePasswordPage user={user} onChanged={() => setUser(null)} />;
+  }
+  return <Workspace user={user} onLogout={async () => {
+    try { await api.logout(); } catch { /* clear local state when the server is unreachable */ }
+    setUser(null);
+  }} />;
+}
+
+function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [mode, setMode] = useState<Mode>("documents");
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -26,85 +66,52 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadDocuments();
-  }, [loadDocuments]);
-
-  // 來源未就緒時每一筆引用都會是「查詢失敗」，所以在使用者按下分析之前就先問。
-  // 問不到就當作沒事（null）：後端整個掛掉時，文件清單的錯誤訊息已經會說話了。
+  useEffect(() => { void loadDocuments(); }, [loadDocuments]);
   useEffect(() => {
     api.getSourcesStatus().then(setSourcesStatus, () => setSourcesStatus(null));
   }, []);
 
   const selected = documents.find((doc) => doc.document_id === selectedId) ?? null;
+  const tabs: [Mode, string][] = [["documents", "文件分析"], ["projects", "專案工項"]];
+  if (user.role === "tenant_admin") tabs.push(["users", "使用者管理"]);
 
   return (
     <div className="app">
-      <header>
-        <h1>工程法規符合性檢查平台</h1>
-        <p className="hint">
-          上傳工程文件，系統會抽出其中引用的法規與標準，查詢其狀態，並標示需要人工確認的項目。
-        </p>
+      <header className="app-header">
+        <div>
+          <h1>工程法規符合性檢查平台</h1>
+          <p className="hint">{user.tenant_name} · {user.username}</p>
+        </div>
+        <button type="button" className="secondary" onClick={() => void onLogout()}>登出</button>
       </header>
 
       <nav className="tabs">
-        {(
-          [
-            ["documents", "文件分析"],
-            ["projects", "專案工項"],
-          ] as [Mode, string][]
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={mode === value ? "tab selected" : "tab"}
-            onClick={() => setMode(value)}
-          >
+        {tabs.map(([value, label]) => (
+          <button key={value} type="button" className={mode === value ? "tab selected" : "tab"} onClick={() => setMode(value)}>
             {label}
           </button>
         ))}
       </nav>
 
-      {/* 綱要規範章節也是來源查出來的，所以兩個模式都需要這個警告 */}
       <SourceStatusBanner status={sourcesStatus} />
-
-      {mode === "projects" ? (
-        <ProjectWorkItemsPage />
-      ) : (
-      <div className="layout">
-        <div className="sidebar">
-          <UploadPanel
-            onUploaded={(doc) => {
-              void loadDocuments();
-              setSelectedId(doc.document_id);
-            }}
-          />
-          <DocumentList
-            documents={documents}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-          {error && <p className="error">{error}</p>}
+      {mode === "users" ? <UserManagementPanel /> : mode === "projects" ? <ProjectWorkItemsPage /> : (
+        <div className="layout">
+          <div className="sidebar">
+            <UploadPanel onUploaded={(doc) => { void loadDocuments(); setSelectedId(doc.document_id); }} />
+            <DocumentList documents={documents} selectedId={selectedId} onSelect={setSelectedId} />
+            {error && <p className="error">{error}</p>}
+          </div>
+          <main>
+            {selected ? (
+              <DocumentAnalysisPage documentId={selected.document_id} filename={selected.filename} onDocumentChanged={() => void loadDocuments()} />
+            ) : (
+              <section className="card">
+                <h2>請先選擇或上傳一份文件</h2>
+                <p className="hint">選好文件後按「開始分析」，系統會在背景執行解析、抽取、正規化與比對，完成後即可檢視清單、逐筆覆核並匯出報告。</p>
+              </section>
+            )}
+          </main>
         </div>
-
-        <main>
-          {selected ? (
-            <DocumentAnalysisPage
-              documentId={selected.document_id}
-              filename={selected.filename}
-              onDocumentChanged={() => void loadDocuments()}
-            />
-          ) : (
-            <section className="card">
-              <h2>請先選擇或上傳一份文件</h2>
-              <p className="hint">
-                選好文件後按「開始分析」，系統會在背景執行解析、抽取、正規化與比對，
-                完成後即可檢視清單、逐筆覆核並匯出報告。
-              </p>
-            </section>
-          )}
-        </main>
-      </div>
       )}
     </div>
   );

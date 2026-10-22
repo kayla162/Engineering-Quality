@@ -52,6 +52,39 @@ class ProjectNotFoundError(NotFoundError):
     code = "PROJECT_NOT_FOUND"
 
 
+class UserNotFoundError(NotFoundError):
+    code = "USER_NOT_FOUND"
+
+
+class UserAlreadyExistsError(AppError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "USER_ALREADY_EXISTS"
+
+
+class AuthenticationRequiredError(AppError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "AUTHENTICATION_REQUIRED"
+
+
+class InvalidCredentialsError(AppError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "INVALID_CREDENTIALS"
+
+
+class PermissionDeniedError(AppError):
+    status_code = status.HTTP_403_FORBIDDEN
+    code = "PERMISSION_DENIED"
+
+
+class LoginRateLimitError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "LOGIN_RATE_LIMITED"
+
+
+class PasswordPolicyError(AppError):
+    code = "PASSWORD_POLICY_ERROR"
+
+
 class InvalidFileTypeError(AppError):
     code = "INVALID_FILE_TYPE"
 

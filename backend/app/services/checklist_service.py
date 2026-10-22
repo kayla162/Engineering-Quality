@@ -17,6 +17,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import get_llm_provider
+from app.core.config import settings
 from app.core.enums import CheckResult, DocumentRole, ParseQuality, RegulationType
 from app.core.errors import AppError, ProjectNotFoundError
 from app.core.logging import log_context
@@ -56,8 +57,9 @@ class Checklist:
 
 
 class ChecklistService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
+        self.tenant_id = tenant_id or uuid.UUID(settings.DEFAULT_TENANT_ID)
         self.projects = ProjectRepository(session)
         self.documents = DocumentRepository(session)
         self.checklist_repo = ChecklistRepository(session)
@@ -134,7 +136,7 @@ class ChecklistService:
     # --- 內部 ---
 
     async def _require_project(self, project_id: uuid.UUID) -> Project:
-        project = await self.projects.get(project_id)
+        project = await self.projects.get(project_id, self.tenant_id)
         if project is None:
             raise ProjectNotFoundError("找不到指定的專案")
         return project
@@ -147,7 +149,7 @@ class ChecklistService:
         if not links:
             return None
 
-        document = await self.documents.get(links[0].document_id)
+        document = await self.documents.get(links[0].document_id, self.tenant_id)
         if document is None:
             # 掛了但檔案紀錄不見了，和「沒掛」是兩回事：照沒掛處理會產出一張
             # 全部「請確認依據」的表，看起來像「這個案子沒有依據」。

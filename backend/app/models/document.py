@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import ContentType, DocumentStatus, ParseQuality
@@ -17,7 +17,7 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_type: Mapped[str] = mapped_column(String(16), nullable=False)  # docx / pdf / txt
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
-    file_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default=DocumentStatus.UPLOADED
     )
@@ -27,14 +27,19 @@ class Document(Base):
         String(16), nullable=False, default=ParseQuality.OK
     )
     parse_quality_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
     uploaded_at: Mapped[datetime] = created_at_column()
 
     sections: Mapped[list["DocumentSection"]] = relationship(
         back_populates="document", cascade="all, delete-orphan", order_by="DocumentSection.order_index"
     )
 
-    __table_args__ = (Index("ix_documents_tenant_id", "tenant_id"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "file_hash", name="uq_documents_tenant_file_hash"),
+        Index("ix_documents_tenant_id", "tenant_id"),
+    )
 
 
 class DocumentSection(Base):

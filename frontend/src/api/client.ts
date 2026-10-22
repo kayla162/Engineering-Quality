@@ -6,6 +6,7 @@ import type {
   DocumentRole,
   DocumentSummary,
   Job,
+  ManagedUser,
   Project,
   ProjectDocumentLink,
   ProjectList,
@@ -14,6 +15,7 @@ import type {
   ReferenceList,
   ReviewStatus,
   SourcesStatus,
+  SessionUser,
   WorkItemList,
 } from "./types";
 
@@ -31,8 +33,9 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, init);
+  const response = await fetch(`${BASE}${path}`, { credentials: "same-origin", ...init });
   if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event("eq:unauthorized"));
     let code = "UNKNOWN";
     let message = `請求失敗（HTTP ${response.status}）`;
     try {
@@ -44,6 +47,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(code, message, response.status);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -57,6 +61,47 @@ function query(params: Record<string, string | number | undefined | "">): string
 }
 
 export const api = {
+  login: (username: string, password: string) =>
+    request<SessionUser>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }),
+
+  getMe: () => request<SessionUser>("/auth/me"),
+
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
+
+  changePassword: (old_password: string | undefined, new_password: string) =>
+    request<void>("/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_password, new_password }),
+    }),
+
+  listUsers: () => request<{ total: number; items: ManagedUser[] }>("/users"),
+
+  createUser: (username: string, initial_password: string, role: ManagedUser["role"]) =>
+    request<ManagedUser>("/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, initial_password, role }),
+    }),
+
+  deactivateUser: (userId: string) =>
+    request<ManagedUser>(`/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: false }),
+    }),
+
+  reactivateUser: (userId: string, initial_password: string) =>
+    request<ManagedUser>(`/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true, initial_password }),
+    }),
+
   /** 法規來源現在查不查得動。前端據此在來源未就緒時提示，而不是讓使用者面對滿頁「查詢失敗」 */
   getSourcesStatus: () => request<SourcesStatus>("/sources"),
 
@@ -95,7 +140,7 @@ export const api = {
 
   reviewReference: (
     referenceId: string,
-    payload: { review_status: ReviewStatus; reviewed_by: string; review_note?: string },
+    payload: { review_status: ReviewStatus; review_note?: string },
   ) =>
     request<ReferenceDetail>(`/regulation-references/${referenceId}/review`, {
       method: "PATCH",

@@ -112,7 +112,7 @@ engineering-regulation-platform/
 | 上傳檔案安全（惡意巨集、超大檔案、偽造副檔名） | 系統穩定性與安全性 | 副檔名白名單＋MIME 檢查＋大小限制＋雜湊去重；巨集內容不執行，僅用函式庫解析文字 |
 | 政府開放資料授權條款未確認 | 若資料集有特定引用/使用限制，日後商用可能有合規疑慮 | 串接前逐一確認資料集授權條款（多數台灣政府開放資料為 CC BY 或政府資料開放授權，但需逐一核實，不假設） |
 | 單一 LLM Provider 過度耦合 | 未來更換模型/供應商成本高 | `LLMProvider` 介面已抽象化，prompt 模板與 `prompt_version` 獨立管理 |
-| 多租戶/多專案需求若晚加入 | 破壞性 migration | 已於 Phase 0 在核心表預留 `tenant_id`，成本降到最低 |
+| 租戶隔離若晚加入 | 破壞性 migration 與資料外洩風險 | 已完成租戶根資料範圍、帳號角色及既有資料回填；更完整的 SaaS 營運能力仍待後續規劃 |
 
 ---
 
@@ -148,7 +148,7 @@ XXXX辦法         NOT_FOUND       41%
 
 **Phase 2（RAG / 語意能力）**：Vector DB（Qdrant）僅收錄「已確定需要語意搜尋」的內容（文件段落全文、法規條文全文、企業內部規範），不是把 Phase 1 所有資料都倒進去；LLM Agent 開始承擔「法規問答」「跨文件比較」，但比對真相仍以 Layer 1（PostgreSQL + 官方來源）為準，Vector DB 只負責「找得到相關內容」，不負責「這是不是最新有效版本」。
 
-**Phase 3（產品化 / 企業導入）**：法規異動監控（排程重新查詢已存在的 `regulations`，比對 `content_hash`/`last_amended_date` 是否變動 → 觸發通知）、企業知識庫（`EnterpriseRegulationSource` adapter + 企業自有別名字典）、多專案管理（啟用已預留的 `tenant_id` 分流）、使用者權限（啟用 `core/security.py` 預留的 `get_current_user`）、Audit Log（在現有 `ai_invocation_log`/`regulation_queries`/`review_status` 的基礎上，再加一張全域 `audit_log` 記錄誰在何時對什麼資源做了什麼操作）、Dashboard（彙總統計，資料來源就是既有的結構化表，不需要新的資料模型)。
+**Phase 3（產品化 / 企業導入）**：法規異動監控（排程重新查詢已存在的 `regulations`，比對 `content_hash`/`last_amended_date` 是否變動 → 觸發通知）、企業知識庫（`EnterpriseRegulationSource` adapter + 企業自有別名字典）、進階權限與租戶生命週期管理（現有版本提供租戶管理員與一般成員，並隔離核心業務資料）、Audit Log（在現有 `ai_invocation_log`/`regulation_queries`/`review_status` 的基礎上，再加一張全域 `audit_log` 記錄誰在何時對什麼資源做了什麼操作）、Dashboard（彙總統計，資料來源就是既有的結構化表，不需要新的資料模型)。
 
 ---
 

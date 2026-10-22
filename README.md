@@ -84,8 +84,25 @@ cp .env.example .env && docker compose up --build
 ```
 
 啟動後開啟 <http://localhost:3000>。後端 API 文件在 <http://localhost:8000/docs>。
+`.env.example` 的 cookie 設定適用於本機 HTTP；正式部署請設 `AUTH_COOKIE_SECURE=true` 並在 HTTPS 後方提供服務。
 
 後端容器啟動時會自動跑 migration 並載入種子資料，不需要額外步驟。
+
+第一次使用前，先在後端環境建立首位管理員（資料庫 migration 必須已完成）：
+
+```bash
+docker compose exec backend python scripts/bootstrap_admin.py --tenant-name "預設租戶" --username admin
+```
+
+命令會以隱藏輸入方式要求設定至少 12 個字元的密碼。此部署已有有效管理員時，命令會拒絕重複建立；之後由租戶管理員登入「使用者管理」新增成員。
+
+若管理員忘記密碼，具資料庫操作權限的部署人員可透過互動式命令重設。命令會撤銷既有 session、要求下次登入更改密碼，且不會啟用已停用帳號：
+
+```bash
+docker compose exec backend python scripts/reset_user_password.py --username admin
+```
+
+登入限流狀態由資料庫共享，讓多個後端 worker 使用同一個帳號/IP 時間窗。新資料庫 migration `0007` 會建立暫存限流資料表；SQLite 會序列化寫入，正式多 worker 部署建議使用 PostgreSQL。
 
 ### 方式二：本機開發
 
@@ -104,6 +121,14 @@ cp .env.example .env
 ```bash
 .venv/Scripts/python -m alembic upgrade head
 ```
+
+建立首位管理員（資料庫 migration 必須已完成）：
+
+```bash
+.venv/Scripts/python scripts/bootstrap_admin.py --tenant-name "預設租戶" --username admin
+```
+
+本機以 HTTP 開發時，請在 `.env` 將 `AUTH_COOKIE_SECURE=false`；正式環境必須使用 HTTPS 並保持 `AUTH_COOKIE_SECURE=true`。
 
 ```bash
 .venv/Scripts/python scripts/seed_data.py
@@ -335,5 +360,5 @@ npm test --prefix frontend
 - **不支援掃描版 PDF**：需要 OCR，尚未實作。解析不到文字時會明確報錯，不會安靜地產出空結果。
 - **DOCX 沒有頁碼**：頁碼由 Word 排版決定，解析階段取不到，因此一律顯示「—」而不是猜一個數字。PDF 有頁碼。
 - **未實作 NER 抽取層**：MVP 只有規則 + 字典 + LLM fallback；要加 NER 只需在 `extractors/` 多插一層，候選格式不變。
-- **沒有登入機制**：MVP 為單機使用。`core/security.py` 已預留 `get_current_user` 注入點。
+- **帳號登入**：使用本機帳密與租戶隔離；部署前先執行 `scripts/bootstrap_admin.py` 建立第一位管理員。未提供公開註冊或密碼重設郵件。
 - **向量資料庫未啟用**：Phase 2 才會加入（`docker-compose.yml` 裡已預留註解）。

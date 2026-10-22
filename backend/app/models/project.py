@@ -19,7 +19,9 @@ class Project(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
     created_at: Mapped[datetime] = created_at_column()
 
     documents: Mapped[list["ProjectDocument"]] = relationship(
