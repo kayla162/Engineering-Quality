@@ -191,6 +191,24 @@ def make_pdf_bytes(text_pages: int = 2, figure_pages: int = 0, sparse_pages: int
         document.close()
 
 
+def make_scanned_pdf_bytes(pages: int = 2, text: str = _PDF_BODY) -> bytes:
+    """產生測試用掃描檔：每頁只有一張點陣圖（文字畫在圖上），沒有可選取的文字。"""
+    source = pymupdf.open()
+    scanned = pymupdf.open()
+    try:
+        for _ in range(pages):
+            page = source.new_page()
+            page.insert_textbox(
+                pymupdf.Rect(50, 50, 550, 750), text, fontsize=11, fontname="china-t"
+            )
+            image = scanned.new_page(width=page.rect.width, height=page.rect.height)
+            image.insert_image(image.rect, pixmap=page.get_pixmap(dpi=200))
+        return scanned.tobytes()
+    finally:
+        source.close()
+        scanned.close()
+
+
 #: 施工規範頁首格式：<組碼> <章碼>-<頁次> V<版本> <日期>
 #: 實測 13.施工規範.pdf：組碼多半等於章碼，但 05500 05503-1 這種不相等的也有
 _SPEC_HEADER = "{group} {code}-{page} V{version} 2020/08/19"

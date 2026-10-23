@@ -57,6 +57,9 @@ export interface DocumentSummary {
   filename: string;
   file_type: string;
   status: string;
+  /** DEGRADED：有一部分內容讀不到或是 OCR 辨識的，note 說明是哪些頁 */
+  parse_quality: "OK" | "DEGRADED";
+  parse_quality_note: string | null;
   uploaded_at: string;
   latest_job: JobBrief | null;
 }
@@ -149,6 +152,8 @@ export interface ReferenceDetail {
   source_document: string;
   page: number | null;
   section_text: string | null;
+  /** 原始段落由 OCR 辨識而來，可能有錯字 */
+  section_is_ocr: boolean;
   extraction_method: string;
   extraction_confidence: number;
   matched_regulation: MatchedRegulation | null;

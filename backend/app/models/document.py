@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import ContentType, DocumentStatus, ParseQuality
@@ -58,6 +58,8 @@ class DocumentSection(Base):
         String(16), nullable=False, default=ContentType.PARAGRAPH
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: 由 OCR 辨識而來，可能有錯字，畫面要提醒對照原檔
+    is_ocr: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     document: Mapped[Document] = relationship(back_populates="sections")
 

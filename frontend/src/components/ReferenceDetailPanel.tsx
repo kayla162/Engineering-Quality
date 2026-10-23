@@ -87,6 +87,9 @@ export function ReferenceDetailPanel({
         </dd>
       </dl>
       {detail.section_text && <blockquote>{detail.section_text}</blockquote>}
+      {detail.section_is_ocr && (
+        <p className="error">這段文字由 OCR 辨識，可能有錯字，請對照原檔。</p>
+      )}
 
       <h3>比對結果</h3>
       <p>

@@ -38,7 +38,12 @@ export function DocumentList({
               className={doc.document_id === selectedId ? "selected clickable" : "clickable"}
               onClick={() => onSelect(doc.document_id)}
             >
-              <td>{doc.filename}</td>
+              <td>
+                {doc.filename}
+                {doc.parse_quality === "DEGRADED" && (
+                  <p className="error">解析品質不佳：{doc.parse_quality_note}</p>
+                )}
+              </td>
               <td>{doc.file_type}</td>
               <td>{doc.status}</td>
               <td>{formatDateTime(doc.uploaded_at)}</td>

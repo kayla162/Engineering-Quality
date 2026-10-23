@@ -163,13 +163,34 @@ Docker 環境下，若 `REGULATION_SOURCES` 含 `taiwan_law` 且索引不存在�
 docker compose exec backend python scripts/sync_taiwan_law.py --output /app/data/generated/taiwan_law_index.json
 ```
 
+### 掃描版 PDF（OCR）
+
+可選取文字不足（每頁少於 200 字）又有圖片的頁，會送 OCR 辨識。用的是 PyMuPDF 內建的
+Tesseract 引擎，**不需要另外安裝 Python 套件或 `tesseract` 執行檔，只需要語言資料**
+（預設 `chi_tra+eng`）。
+
+- **Docker**：映像檔已裝好 `tesseract-ocr-chi-tra`，不必設定。
+- **Windows 本機**：Tesseract 安裝程式只附英文語言檔。把
+  [`chi_tra.traineddata`](https://github.com/tesseract-ocr/tessdata_fast/raw/main/chi_tra.traineddata)
+  和 `eng.traineddata` 放到同一個資料夾（例如 `%LOCALAPPDATA%\tessdata`），在 `.env` 設
+  `TESSDATA_PATH` 指向它。裝好後重新分析即可，不必重啟服務。
+
+OCR 讀出來的內容一律標示：文件清單顯示「解析品質不佳：N 頁以 OCR 辨識」，詳細面板的原始段落旁註明
+「由 OCR 辨識，可能有錯字」。**辨識錯字會讓比對安靜地變成 `NOT_FOUND` 或 `POSSIBLE_MATCH`**——
+以 `sample_quality_plan_scanned.pdf` 實測，文字版抽得到 26 筆引用，掃描版抽到 24 筆，
+漏了表格裡的 `ASTM C39` 與 `ISO 14001`，並把「營造安全衛生設施標準」讀成「安全衛生設施標準」。
+
+OCR 不能用（沒有語言資料、或 `ENABLE_OCR=false`）時：整份沒有文字會報錯並寫出原因；
+只有部分頁讀不到，就照常分析，原因附在解析品質說明裡。
+
 ### 產生範例文件
 
 ```bash
 .venv/Scripts/python scripts/generate_samples.py
 ```
 
-會在 `data/samples/` 產生 `sample_quality_plan.docx` 與 `.txt`，內容涵蓋六種比對結果。
+會在 `data/samples/` 產生 `sample_quality_plan.docx` 與 `.txt`，內容涵蓋六種比對結果；
+另有同一份內容的掃描版 `sample_quality_plan_scanned.pdf`（只有點陣圖，用來驗收 OCR）。
 
 ---
 
@@ -342,6 +363,9 @@ npm test --prefix frontend
 | `PCCES_INDEX_PATH` | `data/pcces_index.json` | 施工綱要規範目錄位置 |
 | `REGULATION_CACHE_TTL_DAYS` | 7 | 幾天內的法規資料視為新鮮，不重複查外部來源（僅適用於已由最優先來源寫入的資料） |
 | `PDF_FONT_PATH` | 空 | PDF 匯出的中文字型；留空會自動搜尋常見系統字型 |
+| `ENABLE_OCR` | true | 掃描版 PDF 的 OCR；設 false 則掃描檔會報錯 |
+| `OCR_LANGUAGES` | `chi_tra+eng` | Tesseract 語言代碼，用 `+` 連接 |
+| `TESSDATA_PATH` | 空 | Tesseract 語言資料目錄；留空用 `TESSDATA_PREFIX` 或系統安裝位置 |
 
 ---
 
@@ -357,7 +381,7 @@ npm test --prefix frontend
 - **官方資料庫不保留已更名法規的舊名**。例如「勞工安全衛生法」已更名為「職業安全衛生法」，
   舊名在官方資料庫查不到，只會模糊比對到新法並標示為「疑似對應」。舊名對應要靠 `data/alias_dictionary.json` 自行維護。
 - **法規資料是同步下來的快照**，不是即時查詢。官方大約每週更新，重跑 `scripts/sync_taiwan_law.py` 即可。
-- **不支援掃描版 PDF**：需要 OCR，尚未實作。解析不到文字時會明確報錯，不會安靜地產出空結果。
+- **掃描版 PDF 靠 OCR，會有錯字**：辨識結果有標示但不會自動校正，表格與小字特別容易漏。設計圖說的圖頁也會送 OCR，但尺寸標註這類圖內文字多半讀不完整，仍會標示「以圖為主」。
 - **DOCX 沒有頁碼**：頁碼由 Word 排版決定，解析階段取不到，因此一律顯示「—」而不是猜一個數字。PDF 有頁碼。
 - **未實作 NER 抽取層**：MVP 只有規則 + 字典 + LLM fallback；要加 NER 只需在 `extractors/` 多插一層，候選格式不變。
 - **帳號登入**：使用本機帳密與租戶隔離；部署前先執行 `scripts/bootstrap_admin.py` 建立第一位管理員。未提供公開註冊或密碼重設郵件。

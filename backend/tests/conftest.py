@@ -22,6 +22,8 @@ os.environ["LOG_JSON"] = "false"
 # 才抓得到「extra 欄位名稱和 LogRecord 內建屬性衝突」這類只在寫 log 時才炸的錯誤
 os.environ["LOG_LEVEL"] = "INFO"
 os.environ["REGULATION_SOURCES"] = "mock"
+# OCR 結果取決於這台機器有沒有裝語言資料；需要 OCR 的測試自己換上假的引擎
+os.environ["ENABLE_OCR"] = "false"
 
 from app.core.db import dispose_engine, get_engine, get_session_factory  # noqa: E402
 from app.core.config import settings  # noqa: E402

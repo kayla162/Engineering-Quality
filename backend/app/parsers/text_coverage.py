@@ -32,33 +32,62 @@ MIN_PAGE_CHARS = 200
 FIGURE_PAGE_RATIO = 0.10
 
 
+#: documents.parse_quality_note 的欄位長度
+NOTE_MAX_LENGTH = 255
+
+
 @dataclass(frozen=True, slots=True)
 class TextCoverage:
-    """一份 PDF 有多少頁的內容是抽不出來的。"""
+    """一份 PDF 有多少頁的內容是抽不出來、或只能靠 OCR 讀的。
+
+    OCR 讀出來的頁不算「沒讀到」，但也不算乾淨：辨識錯字會讓比對安靜地落到
+    NOT_FOUND。所以它和圖頁一起計入警告門檻，訊息裡分開說。
+    """
 
     pages: int
     figure_pages: int
+    ocr_pages: int
+    #: 圖頁或 OCR 頁（同一頁可能兩者都是：辨識了，但讀出來的字還是很少）
+    unreliable_pages: int
+    #: 有頁面需要 OCR、但 OCR 不能用時的原因
+    ocr_unavailable: str | None = None
 
     @property
     def is_degraded(self) -> bool:
-        return self.pages > 0 and self.figure_pages / self.pages >= FIGURE_PAGE_RATIO
+        return self.pages > 0 and self.unreliable_pages / self.pages >= FIGURE_PAGE_RATIO
 
     @property
     def note(self) -> str:
-        return (
-            f"{self.pages} 頁裡有 {self.figure_pages} 頁以圖為主，"
-            f"圖內的文字（尺寸標註、構件名稱等）未被讀取"
-        )
+        parts = []
+        if self.ocr_pages:
+            parts.append(f"{self.ocr_pages} 頁以 OCR 辨識，可能有錯字，請對照原檔")
+        if self.figure_pages:
+            parts.append(
+                f"{self.figure_pages} 頁以圖為主，"
+                f"圖內的文字（尺寸標註、構件名稱等）未被讀取"
+            )
+        note = f"{self.pages} 頁裡有 " + "；".join(parts)
+        if self.figure_pages and self.ocr_unavailable:
+            note += f"（{self.ocr_unavailable}）"
+        return note[:NOTE_MAX_LENGTH]
 
 
-def measure_pages(pages: list[tuple[int, bool]]) -> TextCoverage:
-    """從「每頁的（文字長度, 有沒有圖）」算出覆蓋率。
+def measure_pages(
+    pages: list[tuple[int, bool, bool]], ocr_unavailable: str | None = None
+) -> TextCoverage:
+    """從「每頁的（文字長度, 有沒有圖, 有沒有用 OCR）」算出覆蓋率。
+
+    文字長度是 OCR 之後的長度：辨識成功的頁不再算圖頁。
 
     拆成這一層是為了讓 `PdfParser` 能在它既有的那一輪頁面迴圈裡順手餵資料，
     不必為了量測把檔案重開一次——`13.施工規範.pdf` 有 772 頁。
     """
+    figure = [length < MIN_PAGE_CHARS and has_image for length, has_image, _ in pages]
+    ocr = [used for _, _, used in pages]
     return TextCoverage(
         pages=len(pages),
-        figure_pages=sum(1 for length, has_image in pages if length < MIN_PAGE_CHARS and has_image),
+        figure_pages=sum(figure),
+        ocr_pages=sum(ocr),
+        unreliable_pages=sum(f or o for f, o in zip(figure, ocr)),
+        ocr_unavailable=ocr_unavailable,
     )
-

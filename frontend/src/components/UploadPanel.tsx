@@ -25,7 +25,7 @@ export function UploadPanel({ onUploaded }: { onUploaded: (doc: DocumentSummary)
     <section className="card">
       <h2>上傳工程文件</h2>
       <p className="hint">
-        支援 .docx / .pdf / .txt，上限 50MB。目前不支援掃描版 PDF（需要 OCR，尚未實作）。
+        支援 .docx / .pdf / .txt，上限 50MB。掃描版 PDF 會以 OCR 辨識，結果可能有錯字。
       </p>
       <input
         ref={inputRef}
