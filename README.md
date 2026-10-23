@@ -216,7 +216,7 @@ OCR 不能用（沒有語言資料、或 `ENABLE_OCR=false`）時：整份沒有
 python scripts/sync_taiwan_law.py && python scripts/check_regulation_changes.py
 ```
 
-有新異動時腳本以結束碼 2 結束，方便排程接通知。
+有新異動時腳本以結束碼 2 結束，排程可據此判斷是否有新異動。
 
 ---
 
