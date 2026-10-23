@@ -3,10 +3,11 @@
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
-from app.api.deps import ReportServiceDep
+from app.api.deps import AuditServiceDep, CurrentUserDep, ReportServiceDep
+from app.core.enums import AuditAction
 from app.reports import EXPORTERS, export
 from app.schemas.report import ReportData
 
@@ -25,11 +26,24 @@ async def get_report(
 @router.get("/{document_id}/export")
 async def export_report(
     document_id: uuid.UUID,
+    request: Request,
     service: ReportServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
     format: str = Query("xlsx", description=f"可用格式：{', '.join(EXPORTERS)}"),
 ):
     report = await service.build(document_id)
     content, filename, media_type = export(report, format)
+    # 匯出是讀取，但報告會離開系統，所以要記
+    await audit.record(
+        AuditAction.REPORT_EXPORTED,
+        actor=user,
+        resource_type="document",
+        resource_id=document_id,
+        detail={"format": format, "filename": filename},
+        request=request,
+        commit=True,
+    )
     return Response(
         content=content,
         media_type=media_type,

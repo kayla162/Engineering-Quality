@@ -150,6 +150,12 @@ XXXX辦法         NOT_FOUND       41%
 
 **Phase 3（產品化 / 企業導入）**：法規異動監控（排程重新查詢已存在的 `regulations`，比對 `content_hash`/`last_amended_date` 是否變動 → 觸發通知）、企業知識庫（`EnterpriseRegulationSource` adapter + 企業自有別名字典）、進階權限與租戶生命週期管理（現有版本提供租戶管理員與一般成員，並隔離核心業務資料）、Audit Log（在現有 `ai_invocation_log`/`regulation_queries`/`review_status` 的基礎上，再加一張全域 `audit_log` 記錄誰在何時對什麼資源做了什麼操作）、Dashboard（彙總統計，資料來源就是既有的結構化表，不需要新的資料模型)。
 
+**Phase 3 已完成的部分（2026-10）**：
+- **Audit Log**：`audit_log` 表 + `GET /api/audit-logs`（租戶管理員）＋「稽核紀錄」畫面。在 API 層逐一記錄，不用 middleware 統一攔截——middleware 看不到「改了哪一筆、改成什麼」。
+- **Dashboard**：`GET /api/dashboard` ＋「總覽」畫面，全部即時 GROUP BY，沒有另存統計表。
+- **法規異動監控**：`regulation_changes` 表、`POST /api/regulation-changes/check`、`scripts/check_regulation_changes.py`。比對的是 `status`／`effective_date`／`last_amended_date`，**不是 `content_hash`**：本地索引沒有存條文全文，沒有東西可以雜湊。偵測到變動只更新法規主檔、列出受影響文件，不改引用狀態；「觸發通知」目前是腳本結束碼 2，由排程接手。
+- 仍未做：企業知識庫 adapter、租戶生命週期管理、細粒度角色、站內／Email 通知。
+
 ---
 
 ## 6. 下一步

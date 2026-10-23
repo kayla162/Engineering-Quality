@@ -6,9 +6,10 @@
 
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 
-from app.api.deps import ProjectServiceDep
+from app.api.deps import AuditServiceDep, CurrentUserDep, ProjectServiceDep
+from app.core.enums import AuditAction
 from app.services.project_service import ProjectService
 from app.schemas.project import (
     AttachDocumentRequest,
@@ -24,9 +25,25 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
-async def create_project(payload: ProjectCreate, service: ProjectServiceDep):
+async def create_project(
+    payload: ProjectCreate,
+    request: Request,
+    service: ProjectServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
+):
     # 名稱已經由 ProjectCreate 的 validator 去過空白
-    return ProjectOut.from_model(await service.create_project(payload.name))
+    project = await service.create_project(payload.name)
+    await audit.record(
+        AuditAction.PROJECT_CREATED,
+        actor=user,
+        resource_type="project",
+        resource_id=project.id,
+        detail={"name": project.name},
+        request=request,
+        commit=True,
+    )
+    return ProjectOut.from_model(project)
 
 
 @router.get("", response_model=ProjectListOut)
@@ -43,9 +60,23 @@ async def list_projects(service: ProjectServiceDep):
     status_code=status.HTTP_201_CREATED,
 )
 async def attach_document(
-    project_id: uuid.UUID, payload: AttachDocumentRequest, service: ProjectServiceDep
+    project_id: uuid.UUID,
+    payload: AttachDocumentRequest,
+    request: Request,
+    service: ProjectServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
 ):
     link = await service.attach_document(project_id, payload.document_id, payload.role)
+    await audit.record(
+        AuditAction.PROJECT_DOCUMENT_ATTACHED,
+        actor=user,
+        resource_type="project",
+        resource_id=project_id,
+        detail={"document_id": str(payload.document_id), "role": payload.role},
+        request=request,
+        commit=True,
+    )
     return ProjectDocumentOut.from_model(link)
 
 
@@ -54,10 +85,26 @@ async def attach_document(
     response_model=WorkItemListOut,
     status_code=status.HTTP_201_CREATED,
 )
-async def build_work_items(project_id: uuid.UUID, service: ProjectServiceDep):
+async def build_work_items(
+    project_id: uuid.UUID,
+    request: Request,
+    service: ProjectServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
+):
     """從專案的標單重建工項清單。重跑會取代舊的，不會累加。"""
     await service.build_work_items(project_id)
-    return await _work_item_list(project_id, service)
+    result = await _work_item_list(project_id, service)
+    await audit.record(
+        AuditAction.WORK_ITEMS_BUILT,
+        actor=user,
+        resource_type="project",
+        resource_id=project_id,
+        detail={"total": result.total, "with_spec_chapter": result.with_spec_chapter},
+        request=request,
+        commit=True,
+    )
+    return result
 
 
 @router.get("/{project_id}/work-items", response_model=WorkItemListOut)

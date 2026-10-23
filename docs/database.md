@@ -321,6 +321,43 @@ Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，�
 | latency_ms | INT, nullable | |
 | created_at | TIMESTAMPTZ | |
 
+### 2.15 `audit_log`（Phase 3，migration `0009`）
+
+誰在何時對什麼資源做了什麼。只記成功的寫入、匯出與登入事件，查詢不記。只新增，不修改也不刪除。
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| id | UUID PK | |
+| tenant_id | UUID FK → tenants, nullable | 用不存在的帳號登入失敗時為 NULL（無從得知租戶，任何租戶都看不到） |
+| user_id | UUID FK → users, nullable（SET NULL） | |
+| username | VARCHAR(128) | 另存一份，帳號刪除後仍看得出是誰 |
+| action | VARCHAR(64) | `AuditAction`，見第 3 節 |
+| resource_type | VARCHAR, nullable | `document / reference / project / user / regulation` |
+| resource_id | VARCHAR, nullable | |
+| detail | JSONB, nullable | 例如覆核的 `review_status`、`review_note`；登入失敗的 `reason` |
+| ip_address | VARCHAR, nullable | 連線來源，不信任 X-Forwarded-For |
+| created_at | TIMESTAMPTZ | |
+
+索引：`(tenant_id, created_at)`、`action`。
+
+### 2.16 `regulation_changes`（Phase 3，migration `0009`）
+
+法規異動監控偵測到的變動。偵測時會更新 `regulations` 主檔，但**不會改引用**——
+引用狀態是當時比對的結果，要不要重新分析由人決定。
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| id | UUID PK | |
+| tenant_id | UUID FK → tenants | |
+| regulation_id | UUID FK → regulations（CASCADE） | |
+| source | VARCHAR | 回報變動的來源 |
+| changes | JSONB | `{"status": {"old": "ACTIVE", "new": "REPEALED"}}`；來源查不到時是 `{"presence": {"old": "found", "new": "missing"}}` |
+| detected_at | TIMESTAMPTZ | |
+| acknowledged_at | TIMESTAMPTZ, nullable | 有人按「已處理」的時間；NULL 表示待確認 |
+| acknowledged_by | VARCHAR, nullable | |
+
+索引：`(tenant_id, acknowledged_at)`。同一部法規已有一筆內容相同、未確認的異動時，不重複記錄。
+
 ---
 
 ## 3. 列舉值定義

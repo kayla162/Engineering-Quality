@@ -1,17 +1,18 @@
-"""稽核紀錄：外部來源查詢與 AI 呼叫（對應 docs/database.md 2.8 / 2.9）。
+"""稽核紀錄：外部來源查詢、AI 呼叫與使用者操作（對應 docs/database.md 2.8 / 2.9 / 2.15）。
 
-刻意分成兩張表：
+刻意分成三張表：
   - regulation_queries：外部法規資料來源（sources/ adapter）的查詢紀錄
   - ai_invocation_log ：LLM 呼叫紀錄
+  - audit_log         ：誰在何時對什麼資源做了什麼操作
 
-未來要分別稽核「AI 有沒有亂猜」與「官方來源有沒有查到」時，才拆得開。
+未來要分別稽核「AI 有沒有亂猜」「官方來源有沒有查到」「誰改了覆核結果」時，才拆得開。
 """
 
 import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, JsonColumn, created_at_column, uuid_pk
@@ -61,4 +62,34 @@ class AIInvocationLog(Base):
     __table_args__ = (
         Index("ix_ai_log_job_id", "job_id"),
         Index("ix_ai_log_reference_id", "reference_id"),
+    )
+
+
+class AuditLog(Base):
+    """一次使用者操作。只記成功的寫入、匯出與登入事件；查詢不記（量太大，也不改變任何東西）。
+
+    `username` 另存一份：帳號停用或刪除後，紀錄仍要看得出是誰做的。
+    `tenant_id` 可為 NULL：用不存在的帳號登入失敗時，無從得知是哪個租戶。
+    """
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    username: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    detail: Mapped[Any | None] = mapped_column(JsonColumn, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = created_at_column()
+
+    __table_args__ = (
+        Index("ix_audit_log_tenant_created", "tenant_id", "created_at"),
+        Index("ix_audit_log_action", "action"),
     )

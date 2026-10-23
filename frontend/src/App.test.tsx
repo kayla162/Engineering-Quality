@@ -68,6 +68,28 @@ describe("App", () => {
     expect(await screen.findByLabelText(/專案名稱/)).toBeInTheDocument();
   });
 
+  it("管理員看得到總覽與稽核紀錄", async () => {
+    stubApi({ ...SIGNED_IN, "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "總覽" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "稽核紀錄" })).toBeInTheDocument();
+  });
+
+  it("一般成員有總覽，但沒有稽核紀錄", async () => {
+    stubApi({
+      "/api/auth/me": { ...SIGNED_IN["/api/auth/me"], role: "member" },
+      "/api/sources": ALL_READY,
+      "/api/documents": NO_DOCUMENTS,
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "總覽" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "稽核紀錄" })).not.toBeInTheDocument();
+  });
+
   it("預設停在文件分析", async () => {
     stubApi({ ...SIGNED_IN, "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
 

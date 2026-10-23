@@ -81,6 +81,29 @@ class ReviewStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class AuditAction(StrEnum):
+    """audit_log.action 的值。前端顯示文字在 frontend/src/labels.ts 的 AUDIT_ACTION_LABELS。"""
+
+    LOGIN = "login"
+    LOGIN_FAILED = "login_failed"
+    LOGOUT = "logout"
+    PASSWORD_CHANGED = "password_changed"
+    USER_CREATED = "user_created"
+    USER_DEACTIVATED = "user_deactivated"
+    USER_REACTIVATED = "user_reactivated"
+    DOCUMENT_UPLOADED = "document_uploaded"
+    ANALYSIS_STARTED = "analysis_started"
+    REFERENCE_REVIEWED = "reference_reviewed"
+    REPORT_EXPORTED = "report_exported"
+    PROJECT_CREATED = "project_created"
+    PROJECT_DOCUMENT_ATTACHED = "project_document_attached"
+    WORK_ITEMS_BUILT = "work_items_built"
+    CHECKLIST_BUILT = "checklist_built"
+    REGULATION_VERIFIED = "regulation_verified"
+    REGULATION_CHANGES_CHECKED = "regulation_changes_checked"
+    REGULATION_CHANGE_ACKNOWLEDGED = "regulation_change_acknowledged"
+
+
 class RegulationType(StrEnum):
     LAW = "law"                          # 法律
     REGULATION = "regulation"            # 法規命令、辦法、細則

@@ -10,9 +10,10 @@ GET 只讀已經建好的。GET 不能順手重建——重建很貴，而且有
 
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 
-from app.api.deps import ChecklistServiceDep
+from app.api.deps import AuditServiceDep, ChecklistServiceDep, CurrentUserDep
+from app.core.enums import AuditAction
 from app.schemas.checklist import ChecklistOut
 
 router = APIRouter(prefix="/api/projects", tags=["checklist"])
@@ -23,12 +24,27 @@ router = APIRouter(prefix="/api/projects", tags=["checklist"])
     response_model=ChecklistOut,
     status_code=status.HTTP_201_CREATED,
 )
-async def build_checklist(project_id: uuid.UUID, service: ChecklistServiceDep):
+async def build_checklist(
+    project_id: uuid.UUID,
+    request: Request,
+    service: ChecklistServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
+):
     """重建依據並回傳檢核表。重跑取代，不累加。
 
     沒掛施工規範不會報錯：工項都在，只是依據欄空白（和沒掛標單是 400 刻意不對稱）。
     """
-    return ChecklistOut.from_checklist(await service.build(project_id))
+    checklist = ChecklistOut.from_checklist(await service.build(project_id))
+    await audit.record(
+        AuditAction.CHECKLIST_BUILT,
+        actor=user,
+        resource_type="project",
+        resource_id=project_id,
+        request=request,
+        commit=True,
+    )
+    return checklist
 
 
 @router.get("/{project_id}/checklist", response_model=ChecklistOut)

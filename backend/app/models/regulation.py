@@ -2,12 +2,13 @@
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import RegulationStatus
-from app.models.base import Base, created_at_column, utcnow, uuid_pk
+from app.models.base import Base, JsonColumn, created_at_column, utcnow, uuid_pk
 
 
 class Regulation(Base):
@@ -82,3 +83,33 @@ class RegulationVersion(Base):
     source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     regulation: Mapped[Regulation] = relationship(back_populates="versions")
+
+
+class RegulationChange(Base):
+    """法規異動監控偵測到的一次變動（Phase 3）。
+
+    只記錄、不回頭改引用：引用的狀態是當時比對的結果，要不要重新分析由人決定。
+    `changes` 格式：{"status": {"old": "ACTIVE", "new": "REPEALED"}, ...}；
+    來源已查不到這部法規時是 {"presence": {"old": "found", "new": "missing"}}。
+    """
+
+    __tablename__ = "regulation_changes"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    regulation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("regulations.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    changes: Mapped[Any] = mapped_column(JsonColumn, nullable=False)
+    detected_at: Mapped[datetime] = created_at_column()
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acknowledged_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    regulation: Mapped[Regulation] = relationship(lazy="selectin")
+
+    __table_args__ = (
+        Index("ix_regulation_changes_tenant_open", "tenant_id", "acknowledged_at"),
+    )

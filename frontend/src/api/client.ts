@@ -1,7 +1,10 @@
 // 唯一一個跟後端說話的地方。要改 API 路徑或錯誤處理都在這裡。
 
 import type {
+  AuditLogList,
+  ChangeCheckResult,
   Checklist,
+  Dashboard,
   DocumentList,
   DocumentRole,
   DocumentSummary,
@@ -13,6 +16,7 @@ import type {
   ReferenceDetail,
   ReferenceFilters,
   ReferenceList,
+  RegulationChange,
   ReviewStatus,
   SourcesStatus,
   SessionUser,
@@ -101,6 +105,24 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: true, initial_password }),
     }),
+
+  listAuditLogs: (filters: { action?: string; username?: string }, page = 1, pageSize = 50) =>
+    request<AuditLogList>(
+      `/audit-logs${query({ action: filters.action, username: filters.username, page, page_size: pageSize })}`,
+    ),
+
+  getDashboard: () => request<Dashboard>("/dashboard"),
+
+  listRegulationChanges: (includeAcknowledged = false) =>
+    request<{ total: number; items: RegulationChange[] }>(
+      `/regulation-changes${query({ include_acknowledged: includeAcknowledged ? "true" : undefined })}`,
+    ),
+
+  checkRegulationChanges: () =>
+    request<ChangeCheckResult>("/regulation-changes/check", { method: "POST" }),
+
+  acknowledgeRegulationChange: (changeId: string) =>
+    request<RegulationChange>(`/regulation-changes/${changeId}/acknowledge`, { method: "POST" }),
 
   /** 法規來源現在查不查得動。前端據此在來源未就緒時提示，而不是讓使用者面對滿頁「查詢失敗」 */
   getSourcesStatus: () => request<SourcesStatus>("/sources"),

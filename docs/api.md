@@ -614,6 +614,91 @@ GET 都用不到目錄。500 的原因只寫在伺服器 log 裡。
 
 ---
 
+## 6.7 總覽、稽核紀錄、法規異動（Phase 3）
+
+### `GET /api/dashboard`
+
+同租戶的彙總統計，全部由既有資料表即時算出，和各清單畫面的數字一致。
+
+```json
+{
+  "documents": { "total": 2, "by_status": { "ANALYZED": 2 }, "degraded": 0, "failed": 0 },
+  "references": {
+    "total": 52,
+    "by_status": { "ACTIVE": 20, "AMENDED": 6, "REPEALED": 2, "POSSIBLE_MATCH": 22, "NOT_FOUND": 2 },
+    "by_review": { "UNREVIEWED": 52 },
+    "needs_action": 32,
+    "by_source": { "mock": 50 }
+  },
+  "projects": 0,
+  "open_regulation_changes": 1,
+  "top_regulations": [
+    { "regulation_id": "uuid", "name": "政府採購法", "status": "ACTIVE", "source": "mock", "references": 6, "documents": 2 }
+  ],
+  "documents_needing_action": [
+    { "document_id": "uuid", "filename": "整體品質計畫.docx", "parse_quality": "OK", "references": 26, "unreviewed": 26, "needs_action": 16 }
+  ]
+}
+```
+
+`needs_action`：狀態屬於需要人工介入的五種（`AMENDED / REPEALED / NOT_FOUND / POSSIBLE_MATCH / UNKNOWN`）
+**且**還沒覆核。`top_regulations` 與 `documents_needing_action` 各最多 10 筆。
+
+### `GET /api/audit-logs`（僅租戶管理員）
+
+參數：`action`（`AuditAction` 值）、`username`、`page`、`page_size`（最大 200）。新的在前。
+一般成員呼叫回 403。
+
+```json
+{
+  "total": 9, "page": 1, "page_size": 50,
+  "items": [
+    {
+      "audit_id": "uuid", "created_at": "...", "username": "admin",
+      "action": "reference_reviewed", "resource_type": "reference", "resource_id": "uuid",
+      "detail": { "raw_text": "採購法", "review_status": "CONFIRMED", "review_note": "已查證" },
+      "ip_address": "127.0.0.1"
+    }
+  ]
+}
+```
+
+紀錄的操作：登入、登入失敗、登出、變更密碼、新增／停用／重新啟用使用者、上傳文件、開始分析、
+人工覆核、匯出報告、建立專案、專案掛上文件、建立工項清單、建立檢核表、重新查證法規、
+檢查法規異動、確認法規異動。操作失敗不記；登入失敗例外（它本身就是事件）。
+
+### `GET /api/regulation-changes?include_acknowledged=false`
+
+待確認（或全部）的法規異動，新的在前。每筆附 `affected_documents`：引用了這部法規的文件與次數。
+
+### `POST /api/regulation-changes/check`（僅租戶管理員）
+
+對同租戶文件引用到的每一部法規，重新查詢**寫入它的那個來源**，只認完全同名，比對
+`status / effective_date / last_amended_date`。有變就更新法規主檔並新增異動紀錄。
+
+```json
+{
+  "checked": 21, "changed": 1,
+  "skipped": [{ "regulation_id": "uuid", "name": "某辦法", "reason": "來源 pcces 未啟用" }],
+  "new_changes": [
+    {
+      "change_id": "uuid", "regulation_name": "政府採購法", "current_status": "ACTIVE", "source": "mock",
+      "changes": { "last_amended_date": { "old": "2010-01-01", "new": "2019-05-22" } },
+      "affected_documents": [{ "document_id": "uuid", "filename": "整體品質計畫.docx", "references": 2 }]
+    }
+  ]
+}
+```
+
+`skipped` 讓「沒有異動」和「沒查」分得出來：來源未啟用、未就緒或查詢失敗的法規會列在這裡。
+排程執行請用 `scripts/check_regulation_changes.py`。
+
+### `POST /api/regulation-changes/{change_id}/acknowledge`
+
+標記為已處理，記下時間與使用者。重複呼叫不會覆蓋第一次的紀錄。
+
+---
+
 ## 7. 健康檢查與版本
 
 ### `GET /api/health`

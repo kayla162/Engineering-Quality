@@ -250,3 +250,77 @@ export interface Checklist {
   spec_warning: string | null;
   items: ChecklistItem[];
 }
+
+export interface AuditLogItem {
+  audit_id: string;
+  created_at: string;
+  username: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  detail: Record<string, unknown> | null;
+  ip_address: string | null;
+}
+
+export interface AuditLogList {
+  total: number;
+  page: number;
+  page_size: number;
+  items: AuditLogItem[];
+}
+
+export interface Dashboard {
+  documents: {
+    total: number;
+    by_status: Record<string, number>;
+    degraded: number;
+    failed: number;
+  };
+  references: {
+    total: number;
+    by_status: Partial<Record<RegulationStatus, number>>;
+    by_review: Partial<Record<ReviewStatus, number>>;
+    /** 狀態需要人工介入、且還沒覆核過 */
+    needs_action: number;
+    by_source: Record<string, number>;
+  };
+  projects: number;
+  open_regulation_changes: number;
+  top_regulations: {
+    regulation_id: string;
+    name: string;
+    status: RegulationStatus;
+    source: string;
+    references: number;
+    documents: number;
+  }[];
+  documents_needing_action: {
+    document_id: string;
+    filename: string;
+    parse_quality: "OK" | "DEGRADED";
+    references: number;
+    unreviewed: number;
+    needs_action: number;
+  }[];
+}
+
+export interface RegulationChange {
+  change_id: string;
+  regulation_id: string;
+  regulation_name: string;
+  current_status: RegulationStatus;
+  source: string;
+  /** {"status": {"old": "ACTIVE", "new": "REPEALED"}}；來源查不到時是 presence */
+  changes: Record<string, { old: string | null; new: string | null }>;
+  detected_at: string;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  affected_documents: { document_id: string; filename: string; references: number }[];
+}
+
+export interface ChangeCheckResult {
+  checked: number;
+  changed: number;
+  skipped: { regulation_id: string; name: string; reason: string }[];
+  new_changes: RegulationChange[];
+}
