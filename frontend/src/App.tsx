@@ -2,15 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api } from "./api/client";
 import type { DocumentSummary, SessionUser, SourcesStatus } from "./api/types";
+import { AuditLogPanel } from "./components/AuditLogPanel";
 import { UserManagementPanel } from "./components/UserManagementPanel";
 import { DocumentList } from "./components/DocumentList";
 import { SourceStatusBanner } from "./components/SourceStatusBanner";
 import { UploadPanel } from "./components/UploadPanel";
+import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentAnalysisPage } from "./pages/DocumentAnalysisPage";
 import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
 import { ChangePasswordPage, LoginPage } from "./pages/AuthPage";
 
-type Mode = "documents" | "projects" | "users";
+type Mode = "documents" | "projects" | "dashboard" | "users" | "audit";
 
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -72,8 +74,16 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
   }, []);
 
   const selected = documents.find((doc) => doc.document_id === selectedId) ?? null;
-  const tabs: [Mode, string][] = [["documents", "文件分析"], ["projects", "專案工項"]];
-  if (user.role === "tenant_admin") tabs.push(["users", "使用者管理"]);
+  const isAdmin = user.role === "tenant_admin";
+  const tabs: [Mode, string][] = [["documents", "文件分析"], ["projects", "專案工項"], ["dashboard", "總覽"]];
+  if (isAdmin) tabs.push(["users", "使用者管理"], ["audit", "稽核紀錄"]);
+
+  const openDocument = (documentId: string) => {
+    // 總覽列出的文件可能是別的成員上傳的，本頁清單還沒有它
+    void loadDocuments();
+    setSelectedId(documentId);
+    setMode("documents");
+  };
 
   return (
     <div className="app">
@@ -94,7 +104,10 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
       </nav>
 
       <SourceStatusBanner status={sourcesStatus} />
-      {mode === "users" ? <UserManagementPanel /> : mode === "projects" ? <ProjectWorkItemsPage /> : (
+      {mode === "users" ? <UserManagementPanel />
+        : mode === "audit" ? <AuditLogPanel />
+        : mode === "dashboard" ? <DashboardPage canCheckChanges={isAdmin} onOpenDocument={openDocument} />
+        : mode === "projects" ? <ProjectWorkItemsPage /> : (
         <div className="layout">
           <div className="sidebar">
             <UploadPanel onUploaded={(doc) => { void loadDocuments(); setSelectedId(doc.document_id); }} />

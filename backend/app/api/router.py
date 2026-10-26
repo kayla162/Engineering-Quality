@@ -3,12 +3,15 @@
 from fastapi import APIRouter, Depends
 
 from app.api.routes import (
+    audit_logs,
     checklist,
+    dashboard,
     documents,
     health,
     jobs,
     projects,
     references,
+    regulation_changes,
     regulations,
     reports,
     sources,
@@ -22,6 +25,7 @@ api_router.include_router(health.router)
 api_router.include_router(sources.router)
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
+api_router.include_router(audit_logs.router)
 
 for business_router in (
     documents.router,
@@ -31,6 +35,8 @@ for business_router in (
     reports.router,
     projects.router,
     checklist.router,
+    dashboard.router,
+    regulation_changes.router,
 ):
     api_router.include_router(
         business_router, dependencies=[Depends(require_business_user)]

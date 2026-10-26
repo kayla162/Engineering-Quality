@@ -2,9 +2,10 @@
 
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from app.api.deps import RegulationServiceDep
+from app.api.deps import AuditServiceDep, CurrentUserDep, RegulationServiceDep
+from app.core.enums import AuditAction
 from app.schemas.regulation import (
     RegulationDetailOut,
     RegulationOut,
@@ -38,9 +39,24 @@ async def get_regulation(regulation_id: uuid.UUID, service: RegulationServiceDep
 
 
 @router.post("/verify", response_model=VerifyResponse)
-async def verify_regulation(payload: VerifyRequest, service: RegulationServiceDep):
+async def verify_regulation(
+    payload: VerifyRequest,
+    request: Request,
+    service: RegulationServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
+):
     """手動觸發重新查詢外部來源（例如懷疑資料過期時）。"""
     result = await service.verify(payload.regulation_id, payload.source)
+    await audit.record(
+        AuditAction.REGULATION_VERIFIED,
+        actor=user,
+        resource_type="regulation",
+        resource_id=payload.regulation_id,
+        detail={"changed": result["changed"], "sources_queried": result["sources_queried"]},
+        request=request,
+        commit=True,
+    )
     return VerifyResponse(
         regulation=RegulationDetailOut.from_model(result["regulation"]),
         sources_queried=result["sources_queried"],

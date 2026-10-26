@@ -56,6 +56,10 @@ class UserNotFoundError(NotFoundError):
     code = "USER_NOT_FOUND"
 
 
+class RegulationChangeNotFoundError(NotFoundError):
+    code = "REGULATION_CHANGE_NOT_FOUND"
+
+
 class UserAlreadyExistsError(AppError):
     status_code = status.HTTP_409_CONFLICT
     code = "USER_ALREADY_EXISTS"

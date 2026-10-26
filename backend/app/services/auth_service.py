@@ -81,6 +81,12 @@ class AuthService:
             return None
         return user
 
+    async def find_user(self, username: str) -> User | None:
+        """依登入名稱找帳號，不驗密碼。稽核紀錄用來把登入失敗歸到正確的租戶。"""
+        return await self.session.scalar(
+            select(User).where(User.username == normalize_username(username))
+        )
+
     async def create_session(self, user: User) -> tuple[str, AuthSession]:
         raw_secret = secrets.token_urlsafe(32)
         now = utcnow()

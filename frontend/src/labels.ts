@@ -94,11 +94,55 @@ export const AI_PURPOSE_LABELS: Record<string, string> = {
   report_summary: "報告摘要",
 };
 
+/** audit_log.action 的顯示文字（後端定義在 app/core/enums.py 的 AuditAction） */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  login: "登入",
+  login_failed: "登入失敗",
+  logout: "登出",
+  password_changed: "變更密碼",
+  user_created: "新增使用者",
+  user_deactivated: "停用使用者",
+  user_reactivated: "重新啟用使用者",
+  document_uploaded: "上傳文件",
+  analysis_started: "開始分析",
+  reference_reviewed: "人工覆核",
+  report_exported: "匯出報告",
+  project_created: "建立專案",
+  project_document_attached: "專案掛上文件",
+  work_items_built: "建立工項清單",
+  checklist_built: "建立檢核表",
+  regulation_verified: "重新查證法規",
+  regulation_changes_checked: "檢查法規異動",
+  regulation_change_acknowledged: "確認法規異動",
+};
+
+/** 法規異動的欄位名稱 */
+export const CHANGE_FIELD_LABELS: Record<string, string> = {
+  status: "狀態",
+  effective_date: "生效日",
+  last_amended_date: "最後修正日",
+  presence: "來源資料",
+};
+
+/** 資料來源的顯示文字。mock 一定要讓人看出是假資料 */
+export const SOURCE_LABELS: Record<string, string> = {
+  taiwan_law: "全國法規資料庫",
+  pcces: "施工綱要規範",
+  mock: "假資料（僅供 Demo）",
+  manual: "人工建立",
+};
+
 export function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
+/** 結尾有 Z 或 +08:00 這類時區標記 */
+const HAS_TIMEZONE = /(Z|[+-]\d{2}:?\d{2})$/;
+
 export function formatDateTime(value: string | null): string {
   if (!value) return "—";
-  return new Date(value).toLocaleString("zh-TW", { hour12: false });
+  // 後端一律存 UTC。SQLite 不保存時區，回來的字串沒有時區標記，
+  // 直接 new Date() 會被當成本地時間，台灣會差 8 小時。
+  const iso = HAS_TIMEZONE.test(value) ? value : `${value}Z`;
+  return new Date(iso).toLocaleString("zh-TW", { hour12: false });
 }

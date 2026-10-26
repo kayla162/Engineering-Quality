@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.security import CurrentUser, require_business_user
 from app.jobs.background_runner import BackgroundTasksJobRunner
+from app.services.audit_service import AuditService
 from app.services.checklist_service import ChecklistService
 from app.services.document_service import DocumentService
 from app.services.job_service import JobService
@@ -44,6 +45,10 @@ def get_checklist_service(session: DbSession, user: CurrentUserDep) -> Checklist
     return ChecklistService(session, user.tenant_id)
 
 
+def get_audit_service(session: DbSession) -> AuditService:
+    return AuditService(session)
+
+
 def get_job_service(
     session: DbSession, background_tasks: BackgroundTasks, user: CurrentUserDep
 ) -> JobService:
@@ -58,3 +63,4 @@ ReportServiceDep = Annotated[ReportService, Depends(get_report_service)]
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
 ChecklistServiceDep = Annotated[ChecklistService, Depends(get_checklist_service)]
 JobServiceDep = Annotated[JobService, Depends(get_job_service)]
+AuditServiceDep = Annotated[AuditService, Depends(get_audit_service)]
