@@ -6,6 +6,7 @@
 任何一步整體失敗 -> job = FAILED；單一筆引用失敗 -> 只有那一筆變成 UNKNOWN。
 """
 
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -92,7 +93,9 @@ class AnalysisService:
         await self.documents.set_status(document, DocumentStatus.PARSING)
         await self.session.commit()
 
-        parsed = parse_document(Path(document.storage_path))
+        # 解析是同步的 CPU 工作，掃描檔 OCR 每頁約半秒；放到執行緒裡跑，
+        # 免得一份大檔案卡住整個服務的其他請求
+        parsed = await asyncio.to_thread(parse_document, Path(document.storage_path))
         sections = [
             DocumentSection(
                 document_id=document.id,
@@ -101,6 +104,7 @@ class AnalysisService:
                 content_type=item.content_type,
                 page=item.page,
                 section_title=item.section_title,
+                is_ocr=item.is_ocr,
             )
             for item in parsed.sections
         ]

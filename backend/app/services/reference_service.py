@@ -105,6 +105,7 @@ class ReferenceService:
             source_document=document.filename if document else "",
             page=reference.section.page if reference.section else None,
             section_text=reference.section.content if reference.section else None,
+            section_is_ocr=reference.section.is_ocr if reference.section else False,
             extraction_method=reference.extraction_method,
             extraction_confidence=reference.extraction_confidence,
             matched_regulation=matched,

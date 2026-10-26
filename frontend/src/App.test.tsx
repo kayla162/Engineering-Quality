@@ -20,6 +20,18 @@ const UNAVAILABLE = {
 
 const NO_PROJECTS = { total: 0, items: [] };
 
+/** App 先問 /api/auth/me，沒登入只會看到登入頁 */
+const SIGNED_IN = {
+  "/api/auth/me": {
+    user_id: "u1",
+    username: "admin",
+    role: "tenant_admin",
+    tenant_id: "t1",
+    tenant_name: "測試租戶",
+    must_change_password: false,
+  },
+};
+
 const ALL_READY = {
   status: "ok",
   sources: [{ source: "mock", ready: true, detail: null, remedy: null }],
@@ -31,7 +43,7 @@ afterEach(() => {
 
 describe("App", () => {
   it("來源未就緒時，還沒選文件就先看得到警告", async () => {
-    stubApi({ "/api/sources": UNAVAILABLE, "/api/documents": NO_DOCUMENTS });
+    stubApi({ ...SIGNED_IN, "/api/sources": UNAVAILABLE, "/api/documents": NO_DOCUMENTS });
 
     render(<App />);
 
@@ -39,7 +51,7 @@ describe("App", () => {
   });
 
   it("來源就緒時完全不出現警告", async () => {
-    stubApi({ "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
+    stubApi({ ...SIGNED_IN, "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
 
     render(<App />);
 
@@ -48,7 +60,7 @@ describe("App", () => {
   });
 
   it("可以切到專案工項，看到專案面板", async () => {
-    stubApi({ "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS, "/api/projects": NO_PROJECTS });
+    stubApi({ ...SIGNED_IN, "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS, "/api/projects": NO_PROJECTS });
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "專案工項" }));
@@ -57,7 +69,7 @@ describe("App", () => {
   });
 
   it("預設停在文件分析", async () => {
-    stubApi({ "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
+    stubApi({ ...SIGNED_IN, "/api/sources": ALL_READY, "/api/documents": NO_DOCUMENTS });
 
     render(<App />);
 

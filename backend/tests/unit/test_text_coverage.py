@@ -16,9 +16,21 @@ from app.parsers.text_coverage import FIGURE_PAGE_RATIO, measure_pages
 from tests.factories import make_docx_bytes, make_pdf_bytes
 
 
-def pages(text: int = 0, figure: int = 0, sparse: int = 0) -> list[tuple[int, bool]]:
-    """每頁的（文字長度, 有沒有圖）。sparse = 字少但沒有圖，例如扉頁。"""
-    return [(900, False)] * text + [(12, True)] * figure + [(12, False)] * sparse
+def pages(
+    text: int = 0, figure: int = 0, sparse: int = 0, ocr: int = 0, ocr_figure: int = 0
+) -> list[tuple[int, bool, bool]]:
+    """每頁的（文字長度, 有沒有圖, 有沒有用 OCR）。
+
+    sparse = 字少但沒有圖，例如扉頁。ocr = OCR 讀回整頁內文的掃描頁。
+    ocr_figure = 送了 OCR，但讀回來的字還是很少的圖頁。
+    """
+    return (
+        [(900, False, False)] * text
+        + [(12, True, False)] * figure
+        + [(12, False, False)] * sparse
+        + [(900, True, True)] * ocr
+        + [(30, True, True)] * ocr_figure
+    )
 
 
 @pytest.fixture
@@ -79,6 +91,47 @@ class TestMeasurePages:
         note = measure_pages(pages(text=4, figure=6)).note
 
         assert "10" in note and "6" in note
+
+
+class TestOcrCoverage:
+    """OCR 讀回來的頁不算沒讀到，但辨識會有錯字，所以照樣要提醒。"""
+
+    def test_ocr_pages_are_not_figure_pages(self):
+        coverage = measure_pages(pages(ocr=5))
+
+        assert (coverage.figure_pages, coverage.ocr_pages) == (0, 5)
+
+    def test_a_scanned_document_is_still_flagged(self):
+        """全部靠 OCR 讀的文件，使用者要知道要對照原檔。"""
+        assert measure_pages(pages(ocr=5)).is_degraded is True
+
+    def test_the_note_mentions_ocr(self):
+        note = measure_pages(pages(text=5, ocr=5)).note
+
+        assert "OCR" in note and "以圖為主" not in note
+
+    def test_a_page_that_is_both_ocr_and_figure_counts_once(self):
+        """1 頁 OCR 後仍是圖頁 + 11 頁內文 = 1/12 ≈ 8%，不能被算成 2/12。"""
+        coverage = measure_pages(pages(text=11, ocr_figure=1))
+
+        assert (coverage.figure_pages, coverage.ocr_pages) == (1, 1)
+        assert coverage.is_degraded is False
+
+    def test_the_reason_ocr_could_not_run_is_in_the_note(self):
+        note = measure_pages(pages(text=4, figure=6), ocr_unavailable="OCR 已關閉").note
+
+        assert "OCR 已關閉" in note
+
+    def test_the_reason_is_left_out_when_nothing_was_lost(self):
+        """沒有頁面需要 OCR，就不必解釋 OCR 為什麼不能用。"""
+        note = measure_pages(pages(text=4, ocr=6), ocr_unavailable="OCR 已關閉").note
+
+        assert "OCR 已關閉" not in note
+
+    def test_the_note_fits_the_database_column(self):
+        note = measure_pages(pages(text=4, figure=6), ocr_unavailable="很長" * 200).note
+
+        assert len(note) <= 255
 
 
 class TestPdfCoverage:

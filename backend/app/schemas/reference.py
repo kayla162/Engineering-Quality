@@ -133,6 +133,8 @@ class ReferenceDetail(BaseModel):
     source_document: str
     page: int | None
     section_text: str | None
+    #: 原始段落由 OCR 辨識而來，可能有錯字
+    section_is_ocr: bool = False
     extraction_method: str
     extraction_confidence: float
     matched_regulation: MatchedRegulation | None

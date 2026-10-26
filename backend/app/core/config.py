@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     # PDF 匯出用的中文字型（.ttf/.ttc）。留空則自動搜尋常見系統字型，見 reports/fonts.py
     PDF_FONT_PATH: str = ""
 
+    # --- OCR（掃描版 PDF） ---
+    # 可選取文字不足、但有圖片的頁才會送 OCR，見 parsers/ocr.py
+    ENABLE_OCR: bool = True
+    # Tesseract 語言代碼，用 + 連接
+    OCR_LANGUAGES: str = "chi_tra+eng"
+    OCR_DPI: int = 300
+    # 語言資料目錄（含 chi_tra.traineddata）。留空則用 TESSDATA_PREFIX 或系統安裝的位置
+    TESSDATA_PATH: str = ""
+
     # --- 比對引擎門檻 ---
     # >= AUTO：直接採用比對到的法規狀態，視為高信心
     # >= POSSIBLE 且 < AUTO：仍採用該法規狀態，但標記為「疑似」，且是 LLM fallback 的觸發區間

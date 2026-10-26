@@ -79,6 +79,7 @@ erDiagram
         text content
         string content_type
         int order_index
+        bool is_ocr
     }
     JOBS {
         uuid id PK
@@ -205,6 +206,7 @@ Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，�
 | content | TEXT | 原始文字 |
 | content_type | VARCHAR | `paragraph / heading / table / cell` |
 | order_index | INT | 在文件中的順序，供前端還原原始文件排列 |
+| is_ocr | BOOLEAN, default false | 由 OCR 辨識而來（掃描版 PDF），可能有錯字；migration `0008` |
 
 索引：`document_id, order_index`。
 

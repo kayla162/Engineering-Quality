@@ -22,6 +22,8 @@ class ParsedSection:
     content_type: ContentType = ContentType.PARAGRAPH
     page: int | None = None
     section_title: str | None = None
+    #: 由 OCR 辨識而來（只有 PDF 會有），可能有錯字
+    is_ocr: bool = False
 
 
 @dataclass(slots=True)

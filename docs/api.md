@@ -98,6 +98,19 @@
 佔全文件 10% 以上就標記為 `DEGRADED`。門檻校準自 4 份真實工程文件，實測圖頁佔比
 0%、0.8%、22%、54%——後兩份被標記，前兩份放行。
 
+這種頁會先送 OCR。OCR 讀回來的頁不再算「以圖為主」，但辨識可能有錯字，所以**一樣計入
+10% 門檻**，說明另外列出：
+
+```json
+{
+  "parse_quality": "DEGRADED",
+  "parse_quality_note": "12 頁裡有 12 頁以 OCR 辨識，可能有錯字，請對照原檔"
+}
+```
+
+OCR 不能用時，原因會附在說明最後，例如「（Tesseract 語言資料缺少 chi_tra（目錄：…））」。
+引用詳細資料的 `section_is_ocr` 表示該筆的原始段落由 OCR 辨識而來。
+
 門檻刻意訂得寬鬆：這一層不擋文件也不中斷分析，誤報只是多一行警告，漏報卻會讓人
 拿著一份空結果當成「查無問題」。樣本只有 4 份，拿到更多文件（特別是契約圖）之後
 會重新校準。只有 PDF 會做這個判定，其他格式一律 `OK`。
@@ -179,6 +192,8 @@ Query 參數：
   "raw_text": "採購法",
   "source_document": "整體品質計畫.docx",
   "page": 12,
+  "section_text": "本計畫依採購法第70條辦理……",
+  "section_is_ocr": false,
   "extraction_method": "dictionary",
   "extraction_confidence": 1.0,
   "matched_regulation": {

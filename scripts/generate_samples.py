@@ -1,4 +1,4 @@
-"""產生示範用的工程文件（DOCX / TXT），放在 data/samples/。
+"""產生示範用的工程文件（DOCX / TXT / 掃描版 PDF），放在 data/samples/。
 
     python scripts/generate_samples.py
 
@@ -8,11 +8,14 @@
   混凝土結構施工規範      -> AMENDED（疑似，名稱與官方全名顛倒）
   營建剩餘土石方處理辦法  -> NOT_FOUND（假資料庫裡沒有）
   勞工安全衛生法          -> REPEALED（已更名）
+
+掃描版 PDF 是同一份內容畫成點陣圖、沒有可選取的文字，用來驗收 OCR。
 """
 
 import sys
 from pathlib import Path
 
+import pymupdf
 from docx import Document
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,7 +90,7 @@ def build_docx(path: Path) -> None:
     document.save(str(path))
 
 
-def build_txt(path: Path) -> None:
+def build_lines() -> list[str]:
     lines = [TITLE, ""]
     for heading, paragraphs in SECTIONS:
         lines.append(heading)
@@ -95,17 +98,43 @@ def build_txt(path: Path) -> None:
         lines.append("")
     lines.append("五、檢驗項目對照表")
     lines.extend(" | ".join(row) for row in TABLE_ROWS)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    return lines
+
+
+def build_txt(path: Path) -> None:
+    path.write_text("\n".join(build_lines()), encoding="utf-8")
+
+
+def build_scanned_pdf(path: Path) -> None:
+    """把同一份內容排版成 PDF 再轉成點陣圖，模擬掃描檔：每頁只有一張圖。"""
+    source = pymupdf.open()
+    scanned = pymupdf.open()
+    try:
+        page = source.new_page()
+        overflow = page.insert_textbox(
+            pymupdf.Rect(50, 50, 545, 800), "\n".join(build_lines()), fontsize=10, fontname="china-t"
+        )
+        if overflow < 0:
+            raise RuntimeError("範例內容超過一頁，請調整字級或版面")
+        image = scanned.new_page(width=page.rect.width, height=page.rect.height)
+        image.insert_image(image.rect, pixmap=page.get_pixmap(dpi=200))
+        scanned.save(str(path), garbage=4, deflate=True)
+    finally:
+        source.close()
+        scanned.close()
 
 
 def main() -> int:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     docx_path = OUTPUT_DIR / "sample_quality_plan.docx"
     txt_path = OUTPUT_DIR / "sample_quality_plan.txt"
+    scanned_path = OUTPUT_DIR / "sample_quality_plan_scanned.pdf"
     build_docx(docx_path)
     build_txt(txt_path)
+    build_scanned_pdf(scanned_path)
     print(f"已產生：{docx_path}")
     print(f"已產生：{txt_path}")
+    print(f"已產生：{scanned_path}")
     return 0
 
 
