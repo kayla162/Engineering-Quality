@@ -1,0 +1,93 @@
+# 每個 PR 與推到 master 都跑：後端測試、前端型別檢查與測試、Docker 整套啟動。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 後端測試
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # 和 docker/backend.Dockerfile 一樣的系統套件：PDF 匯出的中文字型、OCR 語言資料。
+      # 有了語言資料，test_pdf_ocr.py 的真 Tesseract 測試就不會被略過。
+      - name: 安裝中文字型與 OCR 語言資料
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-arphic-uming tesseract-ocr-chi-tra tesseract-ocr-eng
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安裝 Python 套件
+        run: pip install -r requirements.txt
+
+      - name: pytest
+        # SQLAlchemy 警告當錯誤：寫錯的查詢常常只會先冒警告
+        run: python -m pytest -W error::sqlalchemy.exc.SAWarning
+
+      - name: Migration 與模型一致
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./ci-migration-check.db
+        run: |
+          python -m alembic upgrade head
+          python -m alembic check
+
+  frontend:
+    name: 前端型別檢查與測試
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npm test
+
+  docker:
+    name: Docker 整套啟動
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # 開發都在 SQLite 上跑；這裡是唯一會對 PostgreSQL 跑完所有 migration 的地方
+      # （backend 容器的 entrypoint 會先 alembic upgrade head 再啟動）。
+      - name: 建置並啟動
+        run: docker compose up --build --detach --wait --wait-timeout 300
+
+      - name: 後端健康檢查
+        run: curl -fsS http://localhost:8000/api/health
+
+      - name: 前端可以開啟、/api 有轉給後端
+        run: |
+          curl -fsS http://localhost:3000/ | grep -q '<div id="root">'
+          curl -fsS http://localhost:3000/api/health
+
+      - name: 失敗時印出容器 log
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: 清除
+        if: always()
+        run: docker compose down --volumes
