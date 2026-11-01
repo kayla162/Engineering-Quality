@@ -9,15 +9,22 @@ NER 層在 MVP 未實作（development-plan.md Phase 4 明確說先不做），
 
 from app.ai.base import LLMCallRecord, LLMProvider
 from app.extractors.base import Candidate, dedupe
-from app.extractors.dictionary_extractor import DictionaryExtractor
+from app.extractors.dictionary_extractor import AliasEntry, DictionaryExtractor, load_alias_entries
 from app.extractors.llm_extractor import LLMExtractor
 from app.extractors.rule_engine import RuleEngine
 
 
 class ExtractionPipeline:
-    def __init__(self, llm_provider: LLMProvider | None = None):
+    def __init__(
+        self,
+        llm_provider: LLMProvider | None = None,
+        extra_entries: tuple[AliasEntry, ...] = (),
+    ):
+        """`extra_entries`：這個租戶的企業內部文件名稱、編號、別名，和公用別名字典一起查。"""
         self._rule = RuleEngine()
-        self._dictionary = DictionaryExtractor()
+        self._dictionary = DictionaryExtractor(
+            (*load_alias_entries(), *extra_entries) if extra_entries else None
+        )
         # AI 關閉時整層不建立，管線就完全不會走到 LLM
         self._llm = (
             LLMExtractor(llm_provider)

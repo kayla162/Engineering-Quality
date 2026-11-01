@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api } from "../api/client";
 import type { Dashboard, RegulationStatus } from "../api/types";
+import { EnterpriseDocumentsPanel } from "../components/EnterpriseDocumentsPanel";
 import { RegulationChangesPanel } from "../components/RegulationChangesPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { REVIEW_LABELS, SOURCE_LABELS, STATUS_LABELS } from "../labels";
@@ -26,10 +27,11 @@ function Cell({ value, label, tone }: { value: number; label: string; tone?: str
 
 /** 租戶總覽：數字全部來自既有清單的彙總，和各清單畫面一致。 */
 export function DashboardPage({
-  canCheckChanges,
+  isAdmin,
   onOpenDocument,
 }: {
-  canCheckChanges: boolean;
+  /** 租戶管理員可以檢查法規異動、匯入企業內部文件 */
+  isAdmin: boolean;
   onOpenDocument: (documentId: string) => void;
 }) {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -97,7 +99,9 @@ export function DashboardPage({
         )}
       </section>
 
-      <RegulationChangesPanel canCheck={canCheckChanges} onOpenDocument={onOpenDocument} onChanged={() => void refresh()} />
+      <RegulationChangesPanel canCheck={isAdmin} onOpenDocument={onOpenDocument} onChanged={() => void refresh()} />
+
+      <EnterpriseDocumentsPanel canImport={isAdmin} onImported={() => void refresh()} />
 
       <section className="card">
         <h2>待處理最多的文件</h2>

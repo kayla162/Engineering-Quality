@@ -58,7 +58,10 @@ class EditableSource(RegulationSource):
 @pytest.fixture
 def source(monkeypatch):
     fake = EditableSource()
-    monkeypatch.setattr(regulation_change_service, "get_sources", lambda: [fake])
+    async def bound(session, tenant_id):
+        return [fake]
+
+    monkeypatch.setattr(regulation_change_service, "sources_for_tenant", bound)
     return fake
 
 

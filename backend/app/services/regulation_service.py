@@ -13,7 +13,7 @@ from app.matching.normalizer import clean_text
 from app.models.regulation import Regulation
 from app.repositories.audit import AuditRepository
 from app.repositories.regulations import RegulationRepository
-from app.sources import get_sources
+from app.sources import sources_for_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class RegulationService:
     async def verify(self, regulation_id: uuid.UUID, source_name: str | None = None) -> dict:
         """手動重新查詢外部來源，更新法規主檔。"""
         regulation = await self.get(regulation_id)
-        sources = get_sources()
+        sources = await sources_for_tenant(self.session, self.tenant_id)
         if source_name:
             sources = [s for s in sources if s.source_name == source_name]
             if not sources:
@@ -72,7 +72,9 @@ class RegulationService:
     async def _query_external(self, query: str, sources=None) -> list[str]:
         """查詢外部來源並把結果寫入法規主檔，回傳成功查詢的來源名稱。"""
         queried: list[str] = []
-        for source in sources if sources is not None else get_sources():
+        if sources is None:
+            sources = await sources_for_tenant(self.session, self.tenant_id)
+        for source in sources:
             started = time.perf_counter()
             try:
                 results = await source.search(query)

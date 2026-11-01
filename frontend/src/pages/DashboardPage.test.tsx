@@ -37,18 +37,22 @@ const CHANGE: RegulationChange = {
   affected_documents: [{ document_id: "d1", filename: "品質計畫.docx", references: 2 }],
 };
 
+const NO_ENTERPRISE = {
+  "/api/enterprise-documents": { total: 0, imported_at: null, imported_by: null, items: [] },
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderPage(canCheckChanges = true, onOpenDocument = vi.fn()) {
-  render(<DashboardPage canCheckChanges={canCheckChanges} onOpenDocument={onOpenDocument} />);
+function renderPage(isAdmin = true, onOpenDocument = vi.fn()) {
+  render(<DashboardPage isAdmin={isAdmin} onOpenDocument={onOpenDocument} />);
   return onOpenDocument;
 }
 
 describe("DashboardPage", () => {
   it("顯示待處理數與待確認異動數", async () => {
-    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] } });
+    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 
     renderPage();
 
@@ -58,7 +62,7 @@ describe("DashboardPage", () => {
   });
 
   it("比對到假資料時明確警告", async () => {
-    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] } });
+    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 
     renderPage();
 
@@ -66,7 +70,7 @@ describe("DashboardPage", () => {
   });
 
   it("解析品質不佳的文件數要看得到", async () => {
-    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] } });
+    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 
     renderPage();
 
@@ -74,7 +78,7 @@ describe("DashboardPage", () => {
   });
 
   it("點待處理文件會打開那份文件", async () => {
-    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] } });
+    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 
     const onOpen = renderPage();
     fireEvent.click(await screen.findByText("品質計畫.docx"));
@@ -83,7 +87,7 @@ describe("DashboardPage", () => {
   });
 
   it("法規異動列出變動內容與受影響文件", async () => {
-    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 1, items: [CHANGE] } });
+    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 1, items: [CHANGE] }, ...NO_ENTERPRISE });
 
     renderPage();
 
@@ -97,6 +101,7 @@ describe("DashboardPage", () => {
       "/api/dashboard": DASHBOARD,
       "/api/regulation-changes": { total: 1, items: [CHANGE] },
       "/api/regulation-changes/c1/acknowledge": CHANGE,
+      ...NO_ENTERPRISE,
     });
 
     renderPage();
@@ -109,7 +114,7 @@ describe("DashboardPage", () => {
   });
 
   it("一般成員看不到「立即檢查」", async () => {
-    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] } });
+    stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 
     renderPage(false);
 
@@ -127,6 +132,7 @@ describe("DashboardPage", () => {
         new_changes: [],
       },
       "/api/regulation-changes": { total: 0, items: [] },
+      ...NO_ENTERPRISE,
     });
 
     renderPage();

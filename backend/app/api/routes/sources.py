@@ -6,18 +6,27 @@ UNKNOWN。前端在使用者按下「開始分析」之前就打這支 API，才
 而不是讓人對著滿頁 UNKNOWN 猜。
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.sources import SourcesReadiness, readiness_report
+from app.core.db import get_db
+from app.core.security import CurrentUser, get_current_user
+from app.sources import SourcesReadiness, readiness_report, sources_for_tenant
 
 router = APIRouter(prefix="/api", tags=["sources"])
 
 
 @router.get("/sources", response_model=SourcesReadiness)
-async def get_sources_status():
+async def get_sources_status(
+    user: CurrentUser | None = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
     """回報每個已啟用來源現在查不查得動。
 
     每次呼叫都重新檢查（adapter 載入失敗時不會快取失敗結果），
     所以維運跑完同步腳本之後不需要重啟服務，前端重新整理就會變成就緒。
     """
+    # 登入時用這個租戶的來源回報：企業內部文件有沒有匯入是各租戶自己的事
+    if user is not None:
+        return readiness_report(await sources_for_tenant(session, user.tenant_id))
     return readiness_report()

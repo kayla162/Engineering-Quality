@@ -19,6 +19,7 @@ from app.core.enums import DocumentStatus, JobStatus, JobStep, ParseQuality
 from app.core.errors import DocumentNotFoundError
 from app.core.logging import log_context
 from app.extractors import ExtractionPipeline
+from app.extractors.dictionary_extractor import load_alias_entries
 from app.matching.normalizer import NormalizationEngine
 from app.models.document import Document, DocumentSection
 from app.models.reference import RegulationReference
@@ -27,6 +28,7 @@ from app.repositories.audit import AuditRepository
 from app.repositories.documents import DocumentRepository
 from app.repositories.jobs import JobRepository
 from app.repositories.references import ReferenceRepository
+from app.services.enterprise_document_service import EnterpriseDocumentService
 from app.services.matching_service import MatchingService
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,7 @@ class AnalysisService:
             raise DocumentNotFoundError("找不到要分析的文件或任務")
 
         try:
+            await self._load_enterprise_terms()
             sections = await self._parse(document, job)
             references = await self._extract(document, sections, job)
             await self._match(references, sections, job)
@@ -116,6 +119,18 @@ class AnalysisService:
         )
         await self.session.commit()
         return sections
+
+    async def _load_enterprise_terms(self) -> None:
+        """把這個租戶的企業內部文件加進字典。
+
+        規則引擎只認得法規字尾（法、規範、標準…），「品質手冊」「程序書」與文件編號
+        「QP-07-03」都抽不到，只能靠字典；正規化也要知道「QP-07-03」就是哪份文件。
+        公用字典放在後面：同一個詞兩邊都有時，以官方法規為準。
+        """
+        terms = await EnterpriseDocumentService(self.session, self.tenant_id).alias_entries()
+        if terms:
+            self.extractor = ExtractionPipeline(self.llm, extra_entries=terms)
+            self.normalizer = NormalizationEngine((*terms, *load_alias_entries()))
 
     def _record_parse_quality(self, document: Document, coverage) -> None:
         """把「有多少內容沒讀到」記在文件上。

@@ -8,12 +8,13 @@
 
 ## 法規資料來源
 
-系統支援兩個來源，用 `REGULATION_SOURCES` 切換（逗號分隔，**順序即優先順序**）：
+系統支援下列來源，用 `REGULATION_SOURCES` 切換（逗號分隔，**順序即優先順序**）：
 
 | 來源 | 內容 | 可信度 |
 |---|---|---|
 | `taiwan_law` | 法務部**全國法規資料庫** Open API：法律約 1,346 筆、法規命令約 10,447 筆 | 官方資料 |
 | `pcces` | 工程會**公共工程施工綱要規範**目錄，315 章（含已刪除章節） | 官方資料 |
+| `enterprise` | 各租戶匯入的**企業內部文件清單**（品質手冊、程序書、作業標準、公司版規範、業主特訂條款） | 公司自己的資料，正確性由提供清單的單位負責 |
 | `mock` | `data/mock_regulations.json` 的假資料，補官方資料庫沒有的 CNS/施工規範 | **僅供 Demo，不可作為查核依據** |
 
 `taiwan_law` 使用前要先建立本地索引：
@@ -183,6 +184,32 @@ OCR 讀出來的內容一律標示：文件清單顯示「解析品質不佳：N
 OCR 不能用（沒有語言資料、或 `ENABLE_OCR=false`）時：整份沒有文字會報錯並寫出原因；
 只有部分頁讀不到，就照常分析，原因附在解析品質說明裡。
 
+### 企業內部文件（企業知識庫）
+
+工程文件常引用公司自己的品質手冊、程序書、作業標準，官方資料庫查不到。`enterprise` 來源讓
+各租戶匯入自己的文件管制一覽表（只要目錄：編號、名稱、版次、狀態，不要全文），之後：
+
+- 用**文件名稱、別名或文件編號**（例如「QP-07-03」）引用的內部文件都抽得到——規則引擎只認得
+  法規字尾，「品質手冊」「程序書」與文件編號原本完全抽不到，匯入的清單會加進該租戶的抽取字典。
+- 依清單狀態判定：現行 → 現行有效、已修訂 → 已修正、作廢 → 已廢止。
+- 重新匯入後跑法規異動檢查，改版或作廢的內部文件會列出受影響的文件。
+- 清單依租戶隔離，別家公司的內部文件不會出現在你的比對裡。
+
+**怎麼匯入**：租戶管理員在「總覽」的「企業內部文件」下載範本、填好後上傳；或用命令：
+
+```bash
+.venv/Scripts/python scripts/import_enterprise_documents.py <清單.xlsx> --tenant <租戶名稱>
+```
+
+匯入是**整份取代、全有或全無**：任何一列有錯（必填欄空白、狀態不是三選一、文件編號重複…）
+整份不收，並逐列列出錯誤。記得在 `.env` 的 `REGULATION_SOURCES` 加上 `enterprise`。
+
+**沒有真實清單時**，可以先用假資料試：`data/samples/enterprise_documents_demo.xlsx` 是虛構的
+「示範營造股份有限公司」的 12 份內部文件（含作廢、已修訂、只用編號或別名引用的情況），
+搭配 `data/samples/sample_quality_plan_enterprise.txt` 分析，共 13 筆引用：11 筆內部文件
+（8 現行有效、2 已修正、1 已廢止）與 2 筆官方法規。範本與假資料都由
+`scripts/generate_enterprise_template.py`（`--demo`）產生。
+
 ### 產生範例文件
 
 ```bash
@@ -297,6 +324,8 @@ docker/             Dockerfile 與 nginx 設定
 | 報告要加欄位 | `backend/app/reports/columns.py`（三種格式共用） |
 | 新增匯出格式 | 新增 `backend/app/reports/xxx_report.py`，在 `reports/__init__.py` 的 `EXPORTERS` 加一行 |
 | 改前端顯示文字 | `frontend/src/labels.ts` |
+| 匯入企業內部文件清單 | 「總覽」→「企業內部文件」，或 `scripts/import_enterprise_documents.py` |
+| 改企業內部文件清單的欄位或選項 | `backend/app/services/enterprise_document_service.py`（匯入檢查），再跑 `scripts/generate_enterprise_template.py` 重產範本 |
 | 改「來源未就緒」的警告文案 | `frontend/src/labels.ts` 的 `SOURCE_WARNINGS` |
 | 新來源要回報就緒狀態 | 在該 adapter 覆寫 `readiness()`（見 `sources/base.py`） |
 
