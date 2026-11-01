@@ -125,7 +125,7 @@ describe("DashboardPage", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "重新分析受影響文件" }));
 
-    expect(confirm.mock.calls[0][0]).toContain("人工覆核結果會被清除");
+    expect(confirm.mock.calls[0][0]).toContain("狀態改變的要重新覆核");
     expect(await screen.findByText(/已開始重新分析 1 份文件/)).toBeInTheDocument();
     expect(calls).toContain("POST /api/regulation-changes/c1/reanalyze");
     confirm.mockRestore();

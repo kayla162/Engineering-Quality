@@ -9,13 +9,15 @@
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import get_llm_provider
 from app.core.config import settings
-from app.core.enums import DocumentStatus, JobStatus, JobStep, ParseQuality
+from app.core.enums import DocumentStatus, JobStatus, JobStep, ParseQuality, ReviewStatus
 from app.core.errors import DocumentNotFoundError
 from app.core.logging import log_context
 from app.extractors import ExtractionPipeline
@@ -44,6 +46,15 @@ _PROGRESS = {
 }
 
 
+@dataclass(frozen=True)
+class _PriorReview:
+    status: str
+    review_status: str
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    review_note: str | None
+
+
 class AnalysisService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID | None = None):
         self.session = session
@@ -67,9 +78,12 @@ class AnalysisService:
 
         try:
             await self._load_enterprise_terms()
+            # 重新分析前先記下人工覆核：解析會換掉段落，舊引用的段落連結會被清空
+            prior_reviews = await self._snapshot_reviews(document.id)
             sections = await self._parse(document, job)
             references = await self._extract(document, sections, job)
             await self._match(references, sections, job)
+            self._restore_reviews(references, sections, prior_reviews)
 
             await self.documents.set_status(document, DocumentStatus.ANALYZED)
             await self.jobs.update_progress(
@@ -239,6 +253,56 @@ class AnalysisService:
                 progress=_PROGRESS[JobStep.MATCHING] + int(span * index / total),
             )
             await self.session.commit()
+
+    async def _snapshot_reviews(self, document_id: uuid.UUID) -> dict[tuple, list[_PriorReview]]:
+        """上一次分析留下、有人覆核過的引用，依（原始文字, 所在段落全文）分組。"""
+        prior: dict[tuple, list[_PriorReview]] = {}
+        for reference in await self.references.all_by_document(document_id):
+            if reference.review_status == ReviewStatus.UNREVIEWED:
+                continue
+            key = (reference.raw_text, reference.section.content if reference.section else None)
+            prior.setdefault(key, []).append(
+                _PriorReview(
+                    status=reference.status,
+                    review_status=reference.review_status,
+                    reviewed_by=reference.reviewed_by,
+                    reviewed_at=reference.reviewed_at,
+                    review_note=reference.review_note,
+                )
+            )
+        return prior
+
+    def _restore_reviews(
+        self,
+        references: list[RegulationReference],
+        sections: list[DocumentSection],
+        prior: dict[tuple, list[_PriorReview]],
+    ) -> None:
+        """重新分析後，同一段落裡同一筆引用沿用原本的覆核。
+
+        狀態沒變：覆核照舊——人確認過的結論，重跑一次比對不該讓人再確認一次。
+        狀態變了：回到未覆核，比對理由寫明從什麼變成什麼、原本誰覆核過。人確認的是
+        舊狀態，不能拿來背書新狀態。段落文字改過的引用對不上，一律重新覆核。
+        """
+        if not prior:
+            return
+        section_text = {section.id: section.content for section in sections}
+        for reference in references:
+            candidates = prior.get((reference.raw_text, section_text.get(reference.section_id)))
+            if not candidates:
+                continue
+            old = candidates.pop(0)
+            if old.status == reference.status:
+                reference.review_status = old.review_status
+                reference.reviewed_by = old.reviewed_by
+                reference.reviewed_at = old.reviewed_at
+                reference.review_note = old.review_note
+            else:
+                reason = (
+                    f"重新分析後狀態由 {old.status} 變為 {reference.status}，"
+                    f"原本的人工覆核（{old.review_status}，{old.reviewed_by or '未知'}）需要重新確認"
+                )
+                reference.match_reasons = "\n".join(filter(None, [reference.match_reasons, reason]))
 
     async def _fail(self, job_id: uuid.UUID, document_id: uuid.UUID, exc: Exception) -> None:
         """分析失敗：把錯誤寫進 job，讓前端看得到原因。"""

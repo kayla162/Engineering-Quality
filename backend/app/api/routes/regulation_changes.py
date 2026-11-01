@@ -106,8 +106,8 @@ async def reanalyze_affected(
     user: CurrentUserDep,
 ):
     """重新分析引用了這部法規的所有文件。引用狀態只會在重新分析時更新，這裡是讓人
-    看過異動之後一鍵觸發，而不是一份一份去按。人工覆核的結果會隨重新分析清掉，
-    和在文件頁按「重新分析」一樣。"""
+    看過異動之後一鍵觸發，而不是一份一份去按。狀態沒變的引用保留人工覆核，狀態變了的
+    回到未覆核（見 AnalysisService._restore_reviews），和在文件頁按「重新分析」一樣。"""
     service = RegulationChangeService(session, user.tenant_id)
     change = await service.get(change_id)
     affected = await service.affected_documents(change.regulation_id)

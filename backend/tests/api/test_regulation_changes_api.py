@@ -308,3 +308,70 @@ class TestReanalyze:
             await api_client.get("/api/audit-logs", params={"action": AuditAction.ANALYSIS_STARTED})
         ).json()["items"][0]
         assert item["detail"]["reason"] == "regulation_change"
+
+
+async def review_all(api_client, document_id: str, review_status=ReviewStatus.CONFIRMED) -> dict[str, dict]:
+    items = (
+        await api_client.get(f"/api/documents/{document_id}/references", params={"page_size": 500})
+    ).json()["items"]
+    for item in items:
+        await api_client.patch(
+            f"/api/regulation-references/{item['reference_id']}/review",
+            json={"review_status": review_status, "review_note": "已查證"},
+        )
+    return {item["raw_text"]: item for item in items}
+
+
+async def reference_details(api_client, document_id: str) -> list[dict]:
+    items = (
+        await api_client.get(f"/api/documents/{document_id}/references", params={"page_size": 500})
+    ).json()["items"]
+    return [
+        (await api_client.get(f"/api/regulation-references/{item['reference_id']}")).json()
+        for item in items
+    ]
+
+
+class TestReviewsSurviveReanalysis:
+    async def test_an_unchanged_status_keeps_its_review(self, api_client, analyzed):
+        """重跑一次比對，人確認過的結論不該要人再確認一次。"""
+        await review_all(api_client, analyzed)
+
+        await api_client.post(f"/api/documents/{analyzed}/analyze")
+
+        details = await reference_details(api_client, analyzed)
+        assert details and all(d["review_status"] == ReviewStatus.CONFIRMED for d in details)
+        assert all(d["review_note"] == "已查證" and d["reviewed_by"] == "test-admin" for d in details)
+
+    async def test_a_changed_status_needs_review_again_with_the_reason(
+        self, api_client, source, analyzed, monkeypatch
+    ):
+        """人確認的是舊狀態，不能拿來背書新狀態。"""
+        from app.services import matching_service
+
+        await review_all(api_client, analyzed)
+        source.overrides["政府採購法"] = {"status": RegulationStatus.REPEALED}
+        change = (await check(api_client))["new_changes"][0]
+
+        async def bound(session, tenant_id):
+            return [source]
+
+        monkeypatch.setattr(matching_service, "sources_for_tenant", bound)
+        await api_client.post(f"/api/regulation-changes/{change['change_id']}/reanalyze")
+
+        details = await reference_details(api_client, analyzed)
+        procurement = [d for d in details if d["normalized_name"] == "政府採購法"]
+        others = [d for d in details if d["normalized_name"] != "政府採購法"]
+        assert procurement and all(d["review_status"] == ReviewStatus.UNREVIEWED for d in procurement)
+        assert all(
+            any("ACTIVE 變為 REPEALED" in r and "test-admin" in r for r in d["match_reasons"])
+            for d in procurement
+        )
+        # 狀態沒變的其他引用照樣保留覆核
+        assert others and all(d["review_status"] == ReviewStatus.CONFIRMED for d in others)
+
+    async def test_unreviewed_references_stay_unreviewed(self, api_client, analyzed):
+        await api_client.post(f"/api/documents/{analyzed}/analyze")
+
+        details = await reference_details(api_client, analyzed)
+        assert all(d["review_status"] == ReviewStatus.UNREVIEWED for d in details)
