@@ -56,7 +56,7 @@ export function RegulationChangesPanel({
 
   async function reanalyze(change: RegulationChange) {
     const count = change.affected_documents.length;
-    if (!window.confirm(`重新分析 ${count} 份引用「${change.regulation_name}」的文件？這些文件的人工覆核結果會被清除。`)) return;
+    if (!window.confirm(`重新分析 ${count} 份引用「${change.regulation_name}」的文件？狀態沒變的引用會保留人工覆核，狀態改變的要重新覆核。`)) return;
     setError(null);
     setNotice(null);
     try {
