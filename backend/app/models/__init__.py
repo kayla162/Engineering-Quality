@@ -2,7 +2,7 @@
 
 from app.models.audit import AIInvocationLog, AuditLog, RegulationQuery
 from app.models.base import Base
-from app.models.checklist import SpecChapter, WorkItemBasis
+from app.models.checklist import DrawingSheet, SpecChapter, WorkItemBasis, WorkItemMethod
 from app.models.document import Document, DocumentSection
 from app.models.enterprise import EnterpriseDocument
 from app.models.job import Job
@@ -26,6 +26,7 @@ __all__ = [
     "Base",
     "Document",
     "DocumentSection",
+    "DrawingSheet",
     "EnterpriseDocument",
     "Job",
     "LoginAttempt",
@@ -42,5 +43,6 @@ __all__ = [
     "Tenant",
     "User",
     "WorkItem",
+    "WorkItemMethod",
     "WorkItemBasis",
 ]

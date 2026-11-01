@@ -1,7 +1,7 @@
-import type { CheckResult, ChecklistItem } from "../api/types";
+import type { CheckResult, ChecklistItem, DrawingSheet } from "../api/types";
 import { CHECK_RESULT_LABELS, UNVERIFIED_LABEL, VERIFICATION_LABELS } from "../labels";
 
-/** 篩選值：三個檢核結果，加上「全部」。 */
+/** 篩選值：檢核結果，加上「全部」。 */
 export type ChecklistResultFilter = CheckResult | "ALL";
 
 const FILTER_OPTIONS: [ChecklistResultFilter, string][] = [
@@ -9,19 +9,31 @@ const FILTER_OPTIONS: [ChecklistResultFilter, string][] = [
   ["OK", CHECK_RESULT_LABELS.OK],
   ["SPEC_NOT_INCLUDED", CHECK_RESULT_LABELS.SPEC_NOT_INCLUDED],
   ["NEEDS_CONFIRMATION", CHECK_RESULT_LABELS.NEEDS_CONFIRMATION],
+  ["BOQ_NOT_IN_DRAWINGS", CHECK_RESULT_LABELS.BOQ_NOT_IN_DRAWINGS],
+  ["METHOD_UNDECIDED", CHECK_RESULT_LABELS.METHOD_UNDECIDED],
 ];
 
 export function ChecklistSummary({
   ok,
   specNotIncluded,
   needsConfirmation,
+  boqNotInDrawings = 0,
+  methodUndecided = 0,
+  hasDrawings = false,
+  drawingsWithoutItems = [],
 }: {
   ok: number;
   specNotIncluded: number;
   needsConfirmation: number;
+  boqNotInDrawings?: number;
+  methodUndecided?: number;
+  hasDrawings?: boolean;
+  drawingsWithoutItems?: DrawingSheet[];
 }) {
   const cells: [CheckResult, number][] = [
     ["OK", ok],
+    ["BOQ_NOT_IN_DRAWINGS", boqNotInDrawings],
+    ["METHOD_UNDECIDED", methodUndecided],
     ["SPEC_NOT_INCLUDED", specNotIncluded],
     ["NEEDS_CONFIRMATION", needsConfirmation],
   ];
@@ -44,6 +56,40 @@ export function ChecklistSummary({
           </div>
         ))}
       </div>
+
+      {!hasDrawings && (
+        <p className="hint">
+          這個專案沒有掛契約圖，所以不判斷「標單有，契約圖沒有」，工項也不會列出相關圖號。
+        </p>
+      )}
+
+      {boqNotInDrawings > 0 && (
+        <p className="hint">
+          「標單有，契約圖沒有」是契約圖的圖名裡找不到和這個工項相關的圖。系統只讀圖號與圖名，
+          讀不懂圖面內容，請翻圖確認；施工測量、安全衛生這類一般要求（01 類章碼）本來就不畫在圖上，不列入。
+        </p>
+      )}
+
+      {methodUndecided > 0 && (
+        <p className="hint">
+          「請檢討使用何種工法」是施工規範列出多種工法、契約文件沒有指定採用哪一種。系統不從圖面猜，
+          請依相關圖號翻圖決定。
+        </p>
+      )}
+
+      {drawingsWithoutItems.length > 0 && (
+        <div className="hint">
+          <strong>契約圖有、標單沒有</strong>：下列圖說的圖名對不到任何工項，可能是標單漏列，
+          或只是圖名寫法不同，請人工確認。
+          <ul>
+            {drawingsWithoutItems.map((sheet) => (
+              <li key={sheet.sheet_no}>
+                {sheet.sheet_no} {sheet.title}（第 {sheet.page} 頁）
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/*
         「本案規範未收錄」不是缺漏清單，是要人工篩選的候選：這一類裡有一大塊是行政性章節
@@ -80,8 +126,8 @@ export function ChecklistSummary({
       {ok > 0 && (
         <p className="hint">
           依據欄標示「{UNVERIFIED_LABEL}」的，是系統沒有查證那一條，不代表這個法規或標準不存在：
-          標準（CNS、ASTM、ISO、JIS）沒有可查的資料來源，法規則是在全國法規索引裡找不到完全同名
-          的名稱。有標示現行有效等狀態的，才是查到完全同名的法規。
+          標準（CNS、ASTM、ISO、JIS）只有在啟用標準目錄時才查，法規則是在全國法規索引裡找不到完全同名
+          的名稱。有標示現行有效等狀態的，才是查到的。
         </p>
       )}
     </>
@@ -104,6 +150,37 @@ function VerificationTag({ status }: { status: string | null | undefined }) {
   // 不認得的狀態值照原樣顯示：它確實是查過的結果，說成「未查證」或「查無」都不對
   const label = VERIFICATION_LABELS[status] ?? status;
   return <span className={`badge badge-${status.toLowerCase()}`}>{label}</span>;
+}
+
+/** 契約圖與工法：相關圖號給人去翻，工法只填契約文件明寫的那一種。 */
+function DrawingMethodCell({ item }: { item: ChecklistItem }) {
+  // 舊版後端的回應沒有 drawings / method，當作沒有
+  const drawings = item.drawings ?? [];
+  if (drawings.length === 0 && !item.method) return <>—</>;
+  return (
+    <>
+      {drawings.length > 0 && (
+        <div>
+          圖號：
+          {drawings.map((sheet) => (
+            <span key={sheet.sheet_no} className="chapter-code" title={`${sheet.title}（第 ${sheet.page} 頁）`}>
+              {sheet.sheet_no}{" "}
+            </span>
+          ))}
+        </div>
+      )}
+      {item.method && (
+        <div title={item.method.evidence ?? undefined}>
+          工法：
+          {item.method.selected ? (
+            <strong>{item.method.selected}</strong>
+          ) : (
+            <span className="unverified">未指定（{item.method.options.join("／")}）</span>
+          )}
+        </div>
+      )}
+    </>
+  );
 }
 
 function ChapterCell({ item }: { item: ChecklistItem }) {
@@ -174,6 +251,7 @@ export function ChecklistTable({
               <th>工程項目</th>
               <th>檢核結果</th>
               <th>章節</th>
+              <th>契約圖／工法</th>
               <th className="col-bases">依據</th>
             </tr>
           </thead>
@@ -181,7 +259,7 @@ export function ChecklistTable({
             {rows.map((item) => (
               <tr
                 key={item.work_item_id}
-                className={item.result === "SPEC_NOT_INCLUDED" ? "attention" : ""}
+                className={item.result !== "OK" && item.result !== "NEEDS_CONFIRMATION" ? "attention" : ""}
               >
                 <td className="nowrap">{item.item_no}</td>
                 <td>{item.name}</td>
@@ -189,9 +267,16 @@ export function ChecklistTable({
                   <span className={`badge badge-check-${item.result.toLowerCase()}`}>
                     {CHECK_RESULT_LABELS[item.result] ?? item.result}
                   </span>
+                  {/* 同時成立的其他問題（舊版後端沒有 issues 欄位，所以用 ?.） */}
+                  {item.issues?.slice(1).map((issue) => (
+                    <div key={issue} className="hint">另：{CHECK_RESULT_LABELS[issue] ?? issue}</div>
+                  ))}
                 </td>
                 <td>
                   <ChapterCell item={item} />
+                </td>
+                <td>
+                  <DrawingMethodCell item={item} />
                 </td>
                 <td className="col-bases">
                   {item.bases.length === 0 ? (

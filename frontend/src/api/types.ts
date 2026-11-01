@@ -222,7 +222,25 @@ export interface ProjectDocumentLink {
 
 // --- 檢核表（backend/app/schemas/checklist.py）---
 
-export type CheckResult = "OK" | "SPEC_NOT_INCLUDED" | "NEEDS_CONFIRMATION";
+export type CheckResult =
+  | "OK"
+  | "SPEC_NOT_INCLUDED"
+  | "NEEDS_CONFIRMATION"
+  | "BOQ_NOT_IN_DRAWINGS"
+  | "METHOD_UNDECIDED";
+
+export interface DrawingSheet {
+  sheet_no: string;
+  title: string;
+  page: number;
+}
+
+/** 工法欄：施工規範列出多種工法時才有。selected 是 null 代表契約文件沒指定。 */
+export interface WorkItemMethod {
+  options: string[];
+  selected: string | null;
+  evidence: string | null;
+}
 
 export interface Basis {
   basis_type: string;
@@ -241,13 +259,28 @@ export interface ChecklistItem {
   chapter_code: string | null;
   chapter: { code: string; title: string; version: string } | null;
   bases: Basis[];
+  /** 所有成立的問題，依優先序；result 是第一個 */
+  issues: CheckResult[];
+  /** 圖名和工項相關的契約圖 */
+  drawings: DrawingSheet[];
+  method: WorkItemMethod | null;
 }
 
 export interface Checklist {
   total: number;
-  summary: { ok: number; spec_not_included: number; needs_confirmation: number };
+  summary: {
+    ok: number;
+    spec_not_included: number;
+    needs_confirmation: number;
+    boq_not_in_drawings: number;
+    method_undecided: number;
+  };
   contract_note: string;
   spec_warning: string | null;
+  /** 有掛契約圖才判斷「標單有，契約圖沒有」 */
+  has_drawings: boolean;
+  /** 契約圖有、標單沒有（專案層級） */
+  drawings_without_items: DrawingSheet[];
   items: ChecklistItem[];
 }
 

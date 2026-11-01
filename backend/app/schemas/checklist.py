@@ -46,6 +46,24 @@ class ChapterOut(BaseModel):
     version: str
 
 
+class DrawingOut(BaseModel):
+    """契約圖的一張圖。只有圖號與圖名——圖面內容系統讀不懂，要人去翻。"""
+
+    sheet_no: str
+    title: str
+    page: int
+
+
+class MethodOut(BaseModel):
+    """工法欄（階段 4）。施工規範列出多種工法時才有。"""
+
+    options: list[str]
+    #: 契約文件指定的工法；null = 未指定，要人看相關圖號決定
+    selected: str | None
+    #: 指定的出處，或未指定的原因
+    evidence: str | None
+
+
 class ChecklistItemOut(BaseModel):
     work_item_id: uuid.UUID
     item_no: str
@@ -58,6 +76,11 @@ class ChecklistItemOut(BaseModel):
     #: 本案規範書裡對得到的那一章。本案沒收錄、或根本沒有章碼時是 None
     chapter: ChapterOut | None
     bases: list[BasisOut]
+    #: 所有成立的問題，依優先序；`result` 是第一個。沒有問題時是空清單
+    issues: list[CheckResult]
+    #: 圖名和工項相關的契約圖（階段 2、4）
+    drawings: list[DrawingOut]
+    method: MethodOut | None
 
     @classmethod
     def from_row(cls, row: ChecklistRow) -> "ChecklistItemOut":
@@ -82,6 +105,19 @@ class ChecklistItemOut(BaseModel):
                 )
                 for basis in row.bases
             ],
+            issues=row.issues,
+            drawings=[
+                DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page) for d in row.drawings
+            ],
+            method=(
+                MethodOut(
+                    options=list(row.method.options),
+                    selected=row.method.selected,
+                    evidence=row.method.evidence,
+                )
+                if row.method is not None
+                else None
+            ),
         )
 
 
@@ -89,16 +125,22 @@ class ChecklistSummaryOut(BaseModel):
     ok: int
     spec_not_included: int
     needs_confirmation: int
+    boq_not_in_drawings: int
+    method_undecided: int
 
 
 class ChecklistOut(BaseModel):
     total: int
-    #: 三個值相加等於 total。日後 CheckResult 新增值（階段 2、4）時，這裡要同步加一欄，
+    #: 五個值相加等於 total。CheckResult 新增值時這裡要同步加一欄，
     #: 否則新值會從摘要裡消失、總和對不上 total。
     summary: ChecklistSummaryOut
     contract_note: str
     #: 規範書解析品質不佳時的警告，依據可能殘缺。正常時是 null。
     spec_warning: str | None
+    #: 專案有沒有掛契約圖。沒掛時不判斷「標單有，契約圖沒有」
+    has_drawings: bool
+    #: 契約圖有、標單沒有：圖名對不到任何工項的圖（階段 2，專案層級，不逐工項列）
+    drawings_without_items: list[DrawingOut]
     items: list[ChecklistItemOut]
 
     @classmethod
@@ -111,8 +153,15 @@ class ChecklistOut(BaseModel):
                 ok=counts[CheckResult.OK],
                 spec_not_included=counts[CheckResult.SPEC_NOT_INCLUDED],
                 needs_confirmation=counts[CheckResult.NEEDS_CONFIRMATION],
+                boq_not_in_drawings=counts[CheckResult.BOQ_NOT_IN_DRAWINGS],
+                method_undecided=counts[CheckResult.METHOD_UNDECIDED],
             ),
             contract_note=CONTRACT_NOTE,
             spec_warning=checklist.spec_warning,
+            has_drawings=checklist.has_drawings,
+            drawings_without_items=[
+                DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page)
+                for d in checklist.drawings_without_items
+            ],
             items=[ChecklistItemOut.from_row(row) for row in rows],
         )

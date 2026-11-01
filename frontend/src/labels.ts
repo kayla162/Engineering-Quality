@@ -47,6 +47,8 @@ export const CHECK_RESULT_LABELS: Record<string, string> = {
   OK: "OK",
   SPEC_NOT_INCLUDED: "本案規範未收錄",
   NEEDS_CONFIRMATION: "請確認依據",
+  BOQ_NOT_IN_DRAWINGS: "標單有，契約圖沒有",
+  METHOD_UNDECIDED: "請檢討使用何種工法",
 };
 
 /**

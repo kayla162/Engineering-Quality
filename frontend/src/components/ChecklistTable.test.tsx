@@ -15,6 +15,9 @@ const OK_ITEM: ChecklistItem = {
     { basis_type: "standard", reference: "CNS 4940", detail: "第09912章 相關準則", verification_status: null },
     { basis_type: "law", reference: "職業安全衛生法", detail: "第09912章 相關準則", verification_status: "ACTIVE" },
   ],
+  issues: [],
+  drawings: [],
+  method: null,
 };
 
 const MISSING_ITEM: ChecklistItem = {
@@ -25,6 +28,9 @@ const MISSING_ITEM: ChecklistItem = {
   chapter_code: "01510",
   chapter: null,
   bases: [],
+  issues: ["SPEC_NOT_INCLUDED"],
+  drawings: [],
+  method: null,
 };
 
 /** 某個工項在某一欄的那一格。欄位位置從表頭算，不寫死第幾欄。 */
@@ -372,7 +378,54 @@ describe("ChecklistTable 篩選選單", () => {
       ["OK", "OK"],
       ["SPEC_NOT_INCLUDED", "本案規範未收錄"],
       ["NEEDS_CONFIRMATION", "請確認依據"],
+      ["BOQ_NOT_IN_DRAWINGS", "標單有，契約圖沒有"],
+      ["METHOD_UNDECIDED", "請檢討使用何種工法"],
     ]);
+  });
+
+  it("契約圖與工法：列出相關圖號，未指定的工法列出選項", () => {
+    const item: ChecklistItem = {
+      ...OK_ITEM,
+      result: "METHOD_UNDECIDED",
+      issues: ["METHOD_UNDECIDED"],
+      drawings: [{ sheet_no: "S-03", title: "鋼筋續接詳圖", page: 3 }],
+      method: { options: ["搭接", "續接器"], selected: null, evidence: "契約文件沒有提到採用哪一種工法" },
+    };
+    render(<ChecklistTable items={[item]} resultFilter="ALL" onResultFilterChange={vi.fn()} />);
+
+    expect(screen.getByText("S-03")).toBeInTheDocument();
+    expect(screen.getByText("未指定（搭接／續接器）")).toBeInTheDocument();
+    expect(screen.getAllByText("請檢討使用何種工法").length).toBeGreaterThan(0);
+  });
+
+  it("契約文件指定的工法直接顯示", () => {
+    const item: ChecklistItem = {
+      ...OK_ITEM,
+      method: { options: ["鋼模", "系統模板"], selected: "系統模板", evidence: "需求書.txt：「…採系統模板…」" },
+    };
+    render(<ChecklistTable items={[item]} resultFilter="ALL" onResultFilterChange={vi.fn()} />);
+
+    expect(screen.getByText("系統模板")).toBeInTheDocument();
+  });
+
+  it("沒掛契約圖時說明不判斷契約圖", () => {
+    render(<ChecklistSummary ok={1} specNotIncluded={0} needsConfirmation={0} />);
+
+    expect(screen.getByText(/沒有掛契約圖/)).toBeInTheDocument();
+  });
+
+  it("契約圖有、標單沒有的圖列在摘要下方", () => {
+    render(
+      <ChecklistSummary
+        ok={1}
+        specNotIncluded={0}
+        needsConfirmation={0}
+        hasDrawings
+        drawingsWithoutItems={[{ sheet_no: "A-08", title: "景觀植栽配置圖", page: 5 }]}
+      />,
+    );
+
+    expect(screen.getByText("A-08 景觀植栽配置圖（第 5 頁）")).toBeInTheDocument();
   });
 
   it.each(["ALL", "OK", "SPEC_NOT_INCLUDED", "NEEDS_CONFIRMATION"] as const)(

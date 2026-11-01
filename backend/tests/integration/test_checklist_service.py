@@ -441,7 +441,12 @@ class TestReadBack:
 
         stored = await read_back(project_with_boq.id)
 
-        assert {r.result for r in built.rows} == set(CheckResult)
+        # 階段 3 的三種結果；階段 2、4 的值要掛契約圖、規範列出工法才會出現（另有測試）
+        assert {r.result for r in built.rows} == {
+            CheckResult.OK,
+            CheckResult.SPEC_NOT_INCLUDED,
+            CheckResult.NEEDS_CONFIRMATION,
+        }
         assert describe(stored) == describe(built)
 
     async def test_get_before_any_build_builds_nothing(self, db_session, project_with_boq):

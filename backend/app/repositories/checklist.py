@@ -1,11 +1,11 @@
-"""spec_chapters / work_item_bases 的資料存取。不含業務判斷。"""
+"""spec_chapters / work_item_bases / drawing_sheets / work_item_methods 的資料存取。不含業務判斷。"""
 
 import uuid
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.checklist import SpecChapter, WorkItemBasis
+from app.models.checklist import DrawingSheet, SpecChapter, WorkItemBasis, WorkItemMethod
 from app.models.project import WorkItem
 
 
@@ -70,3 +70,41 @@ class ChecklistRepository:
         for basis in result.scalars().all():
             grouped.setdefault(basis.work_item_id, []).append(basis)
         return grouped
+
+    async def replace_drawing_sheets(
+        self, document_id: uuid.UUID, sheets: list[DrawingSheet]
+    ) -> list[DrawingSheet]:
+        """重建一份契約圖的圖號索引。和 replace_chapters 一樣只清這一份文件的。"""
+        await self.session.execute(
+            delete(DrawingSheet).where(DrawingSheet.document_id == document_id)
+        )
+        self.session.add_all(sheets)
+        await self.session.flush()
+        return sheets
+
+    async def drawing_sheets_by_document(self, document_id: uuid.UUID) -> list[DrawingSheet]:
+        result = await self.session.execute(
+            select(DrawingSheet)
+            .where(DrawingSheet.document_id == document_id)
+            .order_by(DrawingSheet.sheet_no)
+        )
+        return list(result.scalars().all())
+
+    async def replace_methods(
+        self, work_item_ids: list[uuid.UUID], methods: list[WorkItemMethod]
+    ) -> list[WorkItemMethod]:
+        if work_item_ids:
+            await self.session.execute(
+                delete(WorkItemMethod).where(WorkItemMethod.work_item_id.in_(work_item_ids))
+            )
+        self.session.add_all(methods)
+        await self.session.flush()
+        return methods
+
+    async def methods_by_project(self, project_id: uuid.UUID) -> dict[uuid.UUID, WorkItemMethod]:
+        result = await self.session.execute(
+            select(WorkItemMethod)
+            .join(WorkItem, WorkItem.id == WorkItemMethod.work_item_id)
+            .where(WorkItem.project_id == project_id)
+        )
+        return {method.work_item_id: method for method in result.scalars().all()}
