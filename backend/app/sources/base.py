@@ -76,6 +76,11 @@ class SourcesReadiness(BaseModel):
 
 class RegulationSource(ABC):
     source_name: str = "base"
+    #: 這個來源有沒有能力確認**標準**是不是最新版。付費標準（CNS/ISO…）的公開來源通常
+    #: 只能確認存在，所以預設 False；有版次資料的標準目錄要設 True。
+    #: 和查詢結果上的 can_confirm_currency 是同一件事，但這個是來源本身的能力：
+    #: 法規已經在主檔裡、這次沒有重新查詢時，只剩這裡能回答。
+    confirms_standard_currency: bool = False
 
     async def for_tenant(self, session, tenant_id) -> "RegulationSource":
         """回傳查詢這個租戶要用的實例。

@@ -67,6 +67,12 @@ async def sources_for_tenant(session, tenant_id) -> list[RegulationSource]:
     return [await source.for_tenant(session, tenant_id) for source in get_sources()]
 
 
+def confirms_standard_currency(source_name: str) -> bool:
+    """寫入這筆法規的來源，能不能確認標準是最新版。未知或未註冊的來源視為不能。"""
+    factory = _REGISTRY.get(source_name)
+    return bool(getattr(factory, "confirms_standard_currency", False))
+
+
 def source_priority(source_name: str) -> int:
     """來源的優先序，數字越小越優先。未啟用的來源排在最後。
 
@@ -117,6 +123,7 @@ __all__ = [
     "SourceReadiness",
     "SourcesReadiness",
     "get_sources",
+    "confirms_standard_currency",
     "readiness_report",
     "sources_for_tenant",
     "source_priority",

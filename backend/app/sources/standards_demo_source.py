@@ -46,6 +46,7 @@ def standard_key(text: str) -> str | None:
 
 class DemoStandardsSource(RegulationSource):
     source_name = "standards_demo"
+    confirms_standard_currency = True
 
     def __init__(self, data_path: Path | None = None):
         self._path = data_path or (settings.DATA_DIR / "demo_standards.json")

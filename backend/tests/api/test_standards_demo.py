@@ -104,6 +104,32 @@ class TestMatching:
         assert references["CNS 99999"]["status"] == RegulationStatus.NOT_FOUND
 
 
+class TestCitedTwice:
+    async def test_the_second_citation_is_judged_the_same_as_the_first(self, api_client):
+        """回歸：第二次出現時法規已在主檔、不再查來源；不能因此從現行有效掉成疑似對應。"""
+        text = "混凝土應符合 CNS 3090。\n\n另一段也引用 CNS 3090。"
+        files = {"file": ("兩次.txt", text.encode(), "text/plain")}
+        document_id = (await api_client.post("/api/documents/upload", files=files)).json()["document_id"]
+        await api_client.post(f"/api/documents/{document_id}/analyze")
+
+        items = (await api_client.get(f"/api/documents/{document_id}/references")).json()["items"]
+
+        assert [item["status"] for item in items] == [RegulationStatus.ACTIVE, RegulationStatus.ACTIVE]
+
+
+class TestSourcePriority:
+    async def test_the_catalogue_wins_over_mock_for_the_same_number(self, api_client):
+        """回歸：別名字典把「ASTM C39」正規化成 mock 的名稱，mock 那筆以「名稱完全相同」
+        勝出、蓋過優先序較高的標準目錄。同一個編號要交給優先序決定。"""
+        references = await analyze(api_client, "抗壓強度試驗依 ASTM C39 辦理。")
+        detail = (
+            await api_client.get(f"/api/regulation-references/{references['ASTM C39']['reference_id']}")
+        ).json()
+
+        assert detail["matched_regulation"]["source"] == "standards_demo"
+        assert detail["status"] == RegulationStatus.ACTIVE
+
+
 class TestChecklistBases:
     async def test_standard_bases_are_verified_when_the_catalogue_is_enabled(
         self, api_client, project_with_boq  # noqa: F811

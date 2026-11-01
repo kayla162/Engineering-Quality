@@ -163,9 +163,16 @@ class TestWorkItemBasis:
 
 
 class TestCheckResult:
-    def test_check_result_values_are_exactly_three(self):
-        """階段 3 可達的三個值。另兩個（標單有契約圖沒有、請檢討工法）屬階段 2/4。"""
-        assert {m.value for m in CheckResult} == {"OK", "SPEC_NOT_INCLUDED", "NEEDS_CONFIRMATION"}
+    def test_check_result_values_are_exactly_five(self):
+        """階段 3 的三個值，加上階段 2（標單有契約圖沒有）與階段 4（請檢討工法）。
+        新增值時，摘要（ChecklistSummaryOut）與前端標籤都要跟著加。"""
+        assert {m.value for m in CheckResult} == {
+            "OK",
+            "SPEC_NOT_INCLUDED",
+            "NEEDS_CONFIRMATION",
+            "BOQ_NOT_IN_DRAWINGS",
+            "METHOD_UNDECIDED",
+        }
 
 
 class TestRegistration:
