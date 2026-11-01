@@ -9,12 +9,14 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from app.api.deps import AuditServiceDep, CurrentUserDep, DbSession
+from app.api.deps import AuditServiceDep, CurrentUserDep, DbSession, JobServiceDep
 from app.core.enums import AuditAction
 from app.core.security import CurrentUser, require_tenant_admin
 from app.schemas.regulation_change import (
     ChangeCheckOut,
     RegulationChangeListOut,
+    ReanalysisJob,
+    ReanalyzeOut,
     RegulationChangeOut,
     SkippedRegulation,
 )
@@ -92,3 +94,36 @@ async def acknowledge_change(
     )
     await session.commit()
     return await _out(service, change_id)
+
+
+@router.post("/{change_id}/reanalyze", response_model=ReanalyzeOut)
+async def reanalyze_affected(
+    change_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    jobs: JobServiceDep,
+    audit: AuditServiceDep,
+    user: CurrentUserDep,
+):
+    """重新分析引用了這部法規的所有文件。引用狀態只會在重新分析時更新，這裡是讓人
+    看過異動之後一鍵觸發，而不是一份一份去按。人工覆核的結果會隨重新分析清掉，
+    和在文件頁按「重新分析」一樣。"""
+    service = RegulationChangeService(session, user.tenant_id)
+    change = await service.get(change_id)
+    affected = await service.affected_documents(change.regulation_id)
+    started = []
+    for document in affected:
+        job = await jobs.start_analysis(document.document_id)
+        started.append(
+            ReanalysisJob(document_id=document.document_id, filename=document.filename, job_id=job.id)
+        )
+        await audit.record(
+            AuditAction.ANALYSIS_STARTED,
+            actor=user,
+            resource_type="document",
+            resource_id=document.document_id,
+            detail={"job_id": str(job.id), "reason": "regulation_change", "change_id": str(change_id)},
+            request=request,
+        )
+    await session.commit()
+    return ReanalyzeOut(jobs=started)

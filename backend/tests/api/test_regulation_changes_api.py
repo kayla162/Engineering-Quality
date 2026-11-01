@@ -266,3 +266,45 @@ class TestReviewIsUntouched:
 
         detail = (await api_client.get(f"/api/regulation-references/{target['reference_id']}")).json()
         assert detail["review_status"] == ReviewStatus.CONFIRMED
+
+
+class TestReanalyze:
+    async def test_affected_documents_are_reanalyzed(self, api_client, source, analyzed):
+        source.overrides["政府採購法"] = {"status": RegulationStatus.REPEALED}
+        change = (await check(api_client))["new_changes"][0]
+
+        response = await api_client.post(
+            f"/api/regulation-changes/{change['change_id']}/reanalyze"
+        )
+
+        jobs = response.json()["jobs"]
+        assert [job["document_id"] for job in jobs] == [analyzed]
+
+    async def test_reanalysis_picks_up_the_new_status(self, api_client, source, analyzed, monkeypatch):
+        """引用狀態只在重新分析時才更新——這正是這個按鈕的用途。"""
+        from app.services import matching_service
+
+        source.overrides["政府採購法"] = {"status": RegulationStatus.REPEALED}
+        change = (await check(api_client))["new_changes"][0]
+
+        async def bound(session, tenant_id):
+            return [source]
+
+        monkeypatch.setattr(matching_service, "sources_for_tenant", bound)
+        await api_client.post(f"/api/regulation-changes/{change['change_id']}/reanalyze")
+
+        references = (
+            await api_client.get(f"/api/documents/{analyzed}/references", params={"page_size": 500})
+        ).json()["items"]
+        procurement = [r for r in references if r["normalized_name"] == "政府採購法"]
+        assert procurement and all(r["status"] == RegulationStatus.REPEALED for r in procurement)
+
+    async def test_reanalysis_is_audited_with_the_reason(self, api_client, source, analyzed):
+        source.overrides["政府採購法"] = {"status": RegulationStatus.REPEALED}
+        change = (await check(api_client))["new_changes"][0]
+        await api_client.post(f"/api/regulation-changes/{change['change_id']}/reanalyze")
+
+        item = (
+            await api_client.get("/api/audit-logs", params={"action": AuditAction.ANALYSIS_STARTED})
+        ).json()["items"][0]
+        assert item["detail"]["reason"] == "regulation_change"

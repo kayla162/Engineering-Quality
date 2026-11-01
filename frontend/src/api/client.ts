@@ -137,6 +137,12 @@ export const api = {
   checkRegulationChanges: () =>
     request<ChangeCheckResult>("/regulation-changes/check", { method: "POST" }),
 
+  reanalyzeAffected: (changeId: string) =>
+    request<{ jobs: { document_id: string; filename: string; job_id: string }[] }>(
+      `/regulation-changes/${changeId}/reanalyze`,
+      { method: "POST" },
+    ),
+
   acknowledgeRegulationChange: (changeId: string) =>
     request<RegulationChange>(`/regulation-changes/${changeId}/acknowledge`, { method: "POST" }),
 

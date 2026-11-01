@@ -28,6 +28,7 @@ export function RegulationChangesPanel({
   const [lastCheck, setLastCheck] = useState<ChangeCheckResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -50,6 +51,19 @@ export function RegulationChangesPanel({
       setError(err instanceof ApiError ? err.message : "無法檢查法規異動");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function reanalyze(change: RegulationChange) {
+    const count = change.affected_documents.length;
+    if (!window.confirm(`重新分析 ${count} 份引用「${change.regulation_name}」的文件？這些文件的人工覆核結果會被清除。`)) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const body = await api.reanalyzeAffected(change.change_id);
+      setNotice(`已開始重新分析 ${body.jobs.length} 份文件，完成後到「文件分析」檢視新結果。`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "無法重新分析");
     }
   }
 
@@ -91,6 +105,8 @@ export function RegulationChangesPanel({
           ))}
         </ul>
       )}
+
+      {notice && <p className="success">{notice}</p>}
 
       {changes.length === 0 ? (
         <p className="hint">目前沒有待確認的法規異動。</p>
@@ -134,9 +150,16 @@ export function RegulationChangesPanel({
                 </td>
                 <td className="nowrap">{formatDateTime(change.detected_at)}</td>
                 <td>
-                  <button type="button" className="secondary" onClick={() => void acknowledge(change)}>
-                    已處理
-                  </button>
+                  <div className="actions">
+                    {change.affected_documents.length > 0 && (
+                      <button type="button" className="secondary" onClick={() => void reanalyze(change)}>
+                        重新分析受影響文件
+                      </button>
+                    )}
+                    <button type="button" className="secondary" onClick={() => void acknowledge(change)}>
+                      已處理
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
