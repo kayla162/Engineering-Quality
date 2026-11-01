@@ -154,7 +154,7 @@ XXXX辦法         NOT_FOUND       41%
 - **Audit Log**：`audit_log` 表 + `GET /api/audit-logs`（租戶管理員）＋「稽核紀錄」畫面。在 API 層逐一記錄，不用 middleware 統一攔截——middleware 看不到「改了哪一筆、改成什麼」。
 - **Dashboard**：`GET /api/dashboard` ＋「總覽」畫面，全部即時 GROUP BY，沒有另存統計表。
 - **法規異動監控**：`regulation_changes` 表、`POST /api/regulation-changes/check`、`scripts/check_regulation_changes.py`。比對的是 `status`／`effective_date`／`last_amended_date`，**不是 `content_hash`**：本地索引沒有存條文全文，沒有東西可以雜湊。偵測到變動只更新法規主檔、列出受影響文件，不改引用狀態；腳本有新異動時以結束碼 2 結束。
-- 仍未做：企業知識庫 adapter。
+- **企業知識庫（2026-11，以假資料驗證）**：`enterprise_documents` 表、`EnterpriseRegulationSource`、Excel 匯入（API／畫面／命令列）。還沒有真實的文件管制一覽表，用虛構的「示範營造」12 份文件（`data/samples/enterprise_documents_demo.xlsx`）驗證整條流程。拿到真實清單時要注意兩件事：欄位名稱可能和範本不同（目前依範本標題對應），以及文件名稱在工程文件裡的寫法——抽取靠字典，清單沒列到的寫法要補在「別名」。
 - **決定不做（2026-10-24）**：租戶生命週期管理、細粒度角色、站內或 Email 通知。權限維持租戶管理員與一般成員兩種角色。
 
 ---

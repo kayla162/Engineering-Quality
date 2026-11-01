@@ -29,7 +29,7 @@ from app.models.document import Document
 from app.models.reference import RegulationReference
 from app.models.regulation import Regulation, RegulationChange
 from app.repositories.audit import AuditRepository
-from app.sources import RegulationSource, get_sources
+from app.sources import RegulationSource, sources_for_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +62,17 @@ class RegulationChangeService:
     ):
         self.session = session
         self.tenant_id = tenant_id
-        self.sources = {s.source_name: s for s in (sources if sources is not None else get_sources())}
+        #: 測試可以直接給來源；否則在 check() 時綁定這個租戶的來源
+        self._given_sources = sources
         self.audit = AuditRepository(session)
 
     async def check(self) -> CheckSummary:
         """檢查一輪。呼叫端負責 commit。"""
         summary = CheckSummary()
+        sources = self._given_sources
+        if sources is None:
+            sources = await sources_for_tenant(self.session, self.tenant_id)
+        self.sources = {s.source_name: s for s in sources}
         unready: dict[str, str] = {}
         for name, source in self.sources.items():
             readiness = source.readiness()

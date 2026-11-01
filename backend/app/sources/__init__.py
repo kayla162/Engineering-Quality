@@ -23,6 +23,7 @@ from app.sources.base import (
     SourceReadiness,
     SourcesReadiness,
 )
+from app.sources.enterprise_source import EnterpriseRegulationSource
 from app.sources.mock_source import MockRegulationSource
 from app.sources.pcces_source import PccesSource
 from app.sources.taiwan_law_source import TaiwanLawSource
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 _REGISTRY: dict[str, Callable[[], RegulationSource]] = {
     "taiwan_law": TaiwanLawSource,   # 法務部全國法規資料庫（法律 + 法規命令）
     "pcces": PccesSource,            # 工程會公共工程施工綱要規範（315 章）
+    "enterprise": EnterpriseRegulationSource,  # 各租戶匯入的企業內部文件清單
     "mock": MockRegulationSource,    # 離線 Demo 用的假資料
 }
 
@@ -56,6 +58,11 @@ def get_sources() -> list[RegulationSource]:
         logger.warning("沒有啟用任何法規來源，所有引用都會是 UNKNOWN")
     _cached = sources
     return _cached
+
+
+async def sources_for_tenant(session, tenant_id) -> list[RegulationSource]:
+    """依優先序回傳綁定到這個租戶的來源。查詢一律用這個，不要直接用 get_sources()。"""
+    return [await source.for_tenant(session, tenant_id) for source in get_sources()]
 
 
 def source_priority(source_name: str) -> int:
@@ -109,6 +116,7 @@ __all__ = [
     "SourcesReadiness",
     "get_sources",
     "readiness_report",
+    "sources_for_tenant",
     "source_priority",
     "reset_sources",
 ]

@@ -8,6 +8,7 @@ import type {
   DocumentList,
   DocumentRole,
   DocumentSummary,
+  EnterpriseDocumentList,
   Job,
   ManagedUser,
   Project,
@@ -31,6 +32,8 @@ export class ApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly status: number,
+    /** 後端 error.details，例如匯入清單時逐列的錯誤 */
+    public readonly details: unknown = null,
   ) {
     super(message);
   }
@@ -42,14 +45,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (response.status === 401) window.dispatchEvent(new Event("eq:unauthorized"));
     let code = "UNKNOWN";
     let message = `請求失敗（HTTP ${response.status}）`;
+    let details: unknown = null;
     try {
       const body = await response.json();
       code = body?.error?.code ?? code;
       message = body?.error?.message ?? message;
+      details = body?.error?.details ?? null;
     } catch {
       // 回應不是 JSON，沿用預設訊息
     }
-    throw new ApiError(code, message, response.status);
+    throw new ApiError(code, message, response.status, details);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -112,6 +117,17 @@ export const api = {
     ),
 
   getDashboard: () => request<Dashboard>("/dashboard"),
+
+  listEnterpriseDocuments: () => request<EnterpriseDocumentList>("/enterprise-documents"),
+
+  importEnterpriseDocuments: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<EnterpriseDocumentList>("/enterprise-documents/import", { method: "POST", body: form });
+  },
+
+  /** 範本下載連結（瀏覽器直接開，靠同源 cookie 驗證） */
+  enterpriseTemplateUrl: `${BASE}/enterprise-documents/template`,
 
   listRegulationChanges: (includeAcknowledged = false) =>
     request<{ total: number; items: RegulationChange[] }>(

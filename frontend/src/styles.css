@@ -387,6 +387,11 @@ button.secondary,
   color: var(--primary);
 }
 
+/* 用 label 包檔案輸入當按鈕時，不要吃到表單 label 的間距 */
+label.button {
+  margin-bottom: 0;
+}
+
 button.link {
   background: none;
   border: none;

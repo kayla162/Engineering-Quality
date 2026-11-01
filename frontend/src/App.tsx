@@ -106,7 +106,7 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
       <SourceStatusBanner status={sourcesStatus} />
       {mode === "users" ? <UserManagementPanel />
         : mode === "audit" ? <AuditLogPanel />
-        : mode === "dashboard" ? <DashboardPage canCheckChanges={isAdmin} onOpenDocument={openDocument} />
+        : mode === "dashboard" ? <DashboardPage isAdmin={isAdmin} onOpenDocument={openDocument} />
         : mode === "projects" ? <ProjectWorkItemsPage /> : (
         <div className="layout">
           <div className="sidebar">

@@ -690,8 +690,39 @@ GET 都用不到目錄。500 的原因只寫在伺服器 log 裡。
 }
 ```
 
+企業內部文件（`enterprise`）也會檢查：重新匯入的清單裡狀態或日期變了就是異動，
+清單裡拿掉的文件記成 `presence: missing`。
+
 `skipped` 讓「沒有異動」和「沒查」分得出來：來源未啟用、未就緒或查詢失敗的法規會列在這裡。
 排程執行請用 `scripts/check_regulation_changes.py`。
+
+### `GET /api/enterprise-documents`
+
+這個租戶的企業內部文件清單，依文件編號排序，附最近一次匯入的時間與使用者。所有成員都可以看。
+
+### `POST /api/enterprise-documents/import`（僅租戶管理員）
+
+multipart 上傳 `.xlsx`（格式見範本），**整份取代**這個租戶的清單。備註含「範例列」的列略過。
+任何一列有錯就整份不收，回 400 `ENTERPRISE_IMPORT_INVALID`，`details` 逐列列出：
+
+```json
+{
+  "error": {
+    "code": "ENTERPRISE_IMPORT_INVALID",
+    "message": "清單有 2 處錯誤，整份未匯入",
+    "details": [
+      { "row": 2, "message": "「文件名稱」必填" },
+      { "row": 6, "message": "狀態「停用」無效，只能是：現行、已修訂、作廢" }
+    ]
+  }
+}
+```
+
+成功回傳和 `GET` 相同的清單。匯入後重新分析的文件才會用上新清單。
+
+### `GET /api/enterprise-documents/template`
+
+下載空白範本 `企業內部文件清單範本.xlsx`。
 
 ### `POST /api/regulation-changes/{change_id}/acknowledge`
 

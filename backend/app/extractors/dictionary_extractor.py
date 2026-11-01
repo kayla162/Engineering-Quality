@@ -39,22 +39,40 @@ def load_alias_entries(path: Path | None = None) -> tuple[AliasEntry, ...]:
         for term in [canonical, *item.get("aliases", [])]:
             entries.append(AliasEntry(term=term, canonical=canonical, type=reg_type))
 
+    return _longest_first(entries)
+
+
+def _longest_first(entries) -> tuple[AliasEntry, ...]:
     # 長詞優先，避免「採購法」先命中而蓋掉「政府採購法」
     return tuple(sorted(entries, key=lambda e: -len(e.term)))
+
+
+def _term_pattern(term: str) -> re.Pattern:
+    """英數字開頭或結尾的詞要有邊界：文件編號「QP-07-03」不能命中「QP-07-031」。
+
+    中文沒有這個問題，而且中文前後本來就緊鄰別的字，不能加邊界。
+    """
+    pattern = re.escape(term)
+    if term[:1].isascii() and term[:1].isalnum():
+        pattern = r"(?<![A-Za-z0-9])" + pattern
+    if term[-1:].isascii() and term[-1:].isalnum():
+        pattern += r"(?![A-Za-z0-9])"
+    return re.compile(pattern, re.IGNORECASE)
 
 
 class DictionaryExtractor:
     method = ExtractionMethod.DICTIONARY
 
     def __init__(self, entries: tuple[AliasEntry, ...] | None = None):
-        self._entries = entries if entries is not None else load_alias_entries()
+        entries = _longest_first(entries) if entries is not None else load_alias_entries()
+        self._entries = [(entry, _term_pattern(entry.term)) for entry in entries]
 
     def extract(self, text: str) -> list[Candidate]:
         results: list[Candidate] = []
         taken: list[tuple[int, int]] = []
 
-        for entry in self._entries:
-            for match in re.finditer(re.escape(entry.term), text, re.IGNORECASE):
+        for entry, pattern in self._entries:
+            for match in pattern.finditer(text):
                 span = (match.start(), match.end())
                 if any(span[0] < end and start < span[1] for start, end in taken):
                     continue  # 已被更長的詞覆蓋

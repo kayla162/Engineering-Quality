@@ -69,6 +69,7 @@ export const TYPE_LABELS: Record<string, string> = {
   engineering_spec: "工程規範",
   contract_spec: "契約規範",
   announcement: "公告/要點",
+  internal: "企業內規",
   other: "其他",
 };
 
@@ -114,6 +115,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   regulation_verified: "重新查證法規",
   regulation_changes_checked: "檢查法規異動",
   regulation_change_acknowledged: "確認法規異動",
+  enterprise_documents_imported: "匯入企業內部文件",
 };
 
 /** 法規異動的欄位名稱 */
@@ -128,6 +130,7 @@ export const CHANGE_FIELD_LABELS: Record<string, string> = {
 export const SOURCE_LABELS: Record<string, string> = {
   taiwan_law: "全國法規資料庫",
   pcces: "施工綱要規範",
+  enterprise: "企業內部文件",
   mock: "假資料（僅供 Demo）",
   manual: "人工建立",
 };

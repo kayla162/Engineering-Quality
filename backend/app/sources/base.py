@@ -77,6 +77,14 @@ class SourcesReadiness(BaseModel):
 class RegulationSource(ABC):
     source_name: str = "base"
 
+    async def for_tenant(self, session, tenant_id) -> "RegulationSource":
+        """回傳查詢這個租戶要用的實例。
+
+        大部分來源是全國共通的公開資料，直接回傳自己。資料依租戶分開的來源
+        （企業內部文件）要覆寫，回傳只看得見該租戶資料的副本。
+        """
+        return self
+
     def readiness(self) -> SourceReadiness:
         """預設：沒有前置條件，隨時可查。
 

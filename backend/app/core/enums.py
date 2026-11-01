@@ -102,6 +102,7 @@ class AuditAction(StrEnum):
     REGULATION_VERIFIED = "regulation_verified"
     REGULATION_CHANGES_CHECKED = "regulation_changes_checked"
     REGULATION_CHANGE_ACKNOWLEDGED = "regulation_change_acknowledged"
+    ENTERPRISE_DOCUMENTS_IMPORTED = "enterprise_documents_imported"
 
 
 class RegulationType(StrEnum):
@@ -111,6 +112,7 @@ class RegulationType(StrEnum):
     ENGINEERING_SPEC = "engineering_spec"  # 施工規範、設計規範
     CONTRACT_SPEC = "contract_spec"      # 契約條款
     ANNOUNCEMENT = "announcement"        # 公告、函釋、作業要點
+    INTERNAL = "internal"                # 企業內部文件：品質手冊、程序書、作業標準、公司版規範
     OTHER = "other"
 
 

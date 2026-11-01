@@ -7,6 +7,7 @@ from app.api.routes import (
     checklist,
     dashboard,
     documents,
+    enterprise_documents,
     health,
     jobs,
     projects,
@@ -37,6 +38,7 @@ for business_router in (
     checklist.router,
     dashboard.router,
     regulation_changes.router,
+    enterprise_documents.router,
 ):
     api_router.include_router(
         business_router, dependencies=[Depends(require_business_user)]

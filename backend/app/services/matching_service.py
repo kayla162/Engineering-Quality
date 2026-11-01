@@ -26,7 +26,7 @@ from app.models.reference import RegulationReference
 from app.models.regulation import Regulation
 from app.repositories.audit import AuditRepository
 from app.repositories.regulations import RegulationRepository
-from app.sources import RegulationSearchResult, get_sources, source_priority
+from app.sources import RegulationSearchResult, RegulationSource, source_priority, sources_for_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,13 @@ class MatchingService:
         self.regulations = RegulationRepository(session, tenant_id)
         self.audit = AuditRepository(session)
         self.engine = MatchingEngine(llm_provider)
-        self.sources = get_sources()
+        #: 第一次查外部來源時才綁定租戶（企業內部文件依租戶分開），一份文件只綁一次
+        self._sources: list[RegulationSource] | None = None
+
+    async def _tenant_sources(self) -> list[RegulationSource]:
+        if self._sources is None:
+            self._sources = await sources_for_tenant(self.session, self.regulations.tenant_id)
+        return self._sources
 
     async def resolve(
         self,
@@ -152,7 +158,7 @@ class MatchingService:
         overrides: dict[str, bool] = {}
         errors: list[SourceQueryError] = []
 
-        for source in self.sources:
+        for source in await self._tenant_sources():
             started = time.perf_counter()
             try:
                 results = await source.search(query_name)

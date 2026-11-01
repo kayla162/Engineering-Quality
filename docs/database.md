@@ -235,7 +235,7 @@ Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，�
 | regulation_id | UUID FK → regulations, nullable | 比對成功才會有值 |
 | raw_text | VARCHAR | 文件中出現的原始文字 |
 | normalized_name | VARCHAR, nullable | 正規化後名稱 |
-| regulation_type | VARCHAR | `law / regulation / standard(CNS/ISO/ASTM/JIS) / engineering_spec / contract_spec / announcement / other` |
+| regulation_type | VARCHAR | `law / regulation / standard(CNS/ISO/ASTM/JIS) / engineering_spec / contract_spec / announcement / internal(企業內部文件) / other` |
 | article | VARCHAR, nullable | 條號 |
 | standard_number | VARCHAR, nullable | 標準編號 |
 | extraction_confidence | FLOAT | 抽取階段信心分數（規則=1.0，NER=依模型，LLM=依回傳） |
@@ -357,6 +357,30 @@ Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，�
 | acknowledged_by | VARCHAR, nullable | |
 
 索引：`(tenant_id, acknowledged_at)`。同一部法規已有一筆內容相同、未確認的異動時，不重複記錄。
+
+### 2.17 `enterprise_documents`（Phase 3 企業知識庫，migration `0010`）
+
+各租戶匯入的企業內部文件清單。只存目錄，不存全文。匯入是整份取代（先刪後插），
+清單上沒有的文件就是不存在了。`EnterpriseRegulationSource` 從這裡查，分析時也會把
+名稱、別名、文件編號加進該租戶的抽取字典。
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| id | UUID PK | |
+| tenant_id | UUID FK → tenants（CASCADE） | |
+| doc_number | VARCHAR(64) | 文件編號，同租戶內唯一（`uq_enterprise_documents_number`） |
+| name | VARCHAR(255) | 文件名稱，即比對到的法規名稱 |
+| doc_type | VARCHAR(32) | 範本「類型」原文：品質手冊 / 程序書 / 作業標準（SOP）/ 施工規範 / 檢驗標準 / 表單 / 業主特訂條款 / 其他 |
+| revision | VARCHAR(32) | 版次 |
+| effective_date | DATE | 現行版生效日 |
+| last_revised_date | DATE, nullable | |
+| status | VARCHAR(24) | `ACTIVE`（現行）/ `AMENDED`（已修訂）/ `REPEALED`（作廢） |
+| replaced_by | VARCHAR(64), nullable | 作廢時取代它的文件編號 |
+| owner | VARCHAR(128), nullable | 主管單位，比對結果顯示為發布機關 |
+| aliases | JSONB | 別名陣列 |
+| note | VARCHAR(255), nullable | |
+| imported_at | TIMESTAMPTZ | |
+| imported_by | VARCHAR(128) | 匯入的使用者，命令列匯入是 `system:import_enterprise_documents` |
 
 ---
 

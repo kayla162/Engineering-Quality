@@ -4,6 +4,7 @@ from app.models.audit import AIInvocationLog, AuditLog, RegulationQuery
 from app.models.base import Base
 from app.models.checklist import SpecChapter, WorkItemBasis
 from app.models.document import Document, DocumentSection
+from app.models.enterprise import EnterpriseDocument
 from app.models.job import Job
 from app.models.login_throttle import LoginAttempt, LoginThrottleKey
 from app.models.project import Project, ProjectDocument, WorkItem
@@ -25,6 +26,7 @@ __all__ = [
     "Base",
     "Document",
     "DocumentSection",
+    "EnterpriseDocument",
     "Job",
     "LoginAttempt",
     "LoginThrottleKey",

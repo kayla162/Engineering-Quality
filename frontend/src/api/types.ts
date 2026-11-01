@@ -324,3 +324,27 @@ export interface ChangeCheckResult {
   skipped: { regulation_id: string; name: string; reason: string }[];
   new_changes: RegulationChange[];
 }
+
+export interface EnterpriseDocument {
+  document_id: string;
+  doc_number: string;
+  name: string;
+  doc_type: string;
+  revision: string;
+  effective_date: string;
+  last_revised_date: string | null;
+  status: RegulationStatus;
+  /** 範本上的原文：現行 / 已修訂 / 作廢 */
+  status_label: string;
+  replaced_by: string | null;
+  owner: string | null;
+  aliases: string[];
+  note: string | null;
+}
+
+export interface EnterpriseDocumentList {
+  total: number;
+  imported_at: string | null;
+  imported_by: string | null;
+  items: EnterpriseDocument[];
+}
