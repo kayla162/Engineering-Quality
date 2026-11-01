@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # --- AI ---
     # 關掉之後系統仍可完整運作，只是抽取召回率與比對信心下降（見 architecture.md 1.5）
     ENABLE_LLM_FALLBACK: bool = True
-    LLM_PROVIDER: str = "anthropic"          # anthropic | null
+    LLM_PROVIDER: str = "anthropic"          # anthropic | demo（示範規則，非真實 AI）| null
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-opus-5"
     LLM_TIMEOUT_SECONDS: float = 60.0

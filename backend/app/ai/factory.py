@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from app.ai.anthropic_provider import AnthropicProvider
 from app.ai.base import LLMProvider
+from app.ai.demo_provider import DemoProvider
 from app.ai.null_provider import NullProvider
 from app.core.config import settings
 
@@ -12,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 _PROVIDERS: dict[str, Callable[[], LLMProvider]] = {
     "anthropic": AnthropicProvider,
+    # 不呼叫模型的固定規則，讓沒有 API key 的環境也看得到 AI 流程（見 ai/demo_provider.py）
+    "demo": DemoProvider,
     "null": NullProvider,
 }
 

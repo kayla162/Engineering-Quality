@@ -163,24 +163,27 @@ class AnalysisService:
         await self.references.delete_by_document(document.id)
 
         references: list[RegulationReference] = []
-        ai_records = []
+        #: (呼叫紀錄, 這次呼叫抽出來的引用)。詳細面板依 reference_id 列出 AI 使用情形，
+        #: 抽取的呼叫不連到引用的話，「這筆是 AI 抽的」在面板上就看不到
+        ai_records: list[tuple] = []
         for section in sections:
             candidates, ai_record = await self.extractor.extract(section.content)
+            produced: list[RegulationReference] = []
             if ai_record is not None:
-                ai_records.append(ai_record)
+                ai_records.append((ai_record, produced))
             for candidate in candidates:
-                references.append(
-                    RegulationReference(
-                        document_id=document.id,
-                        section_id=section.id,
-                        raw_text=candidate.raw_text[:512],
-                        regulation_type=candidate.regulation_type,
-                        article=candidate.article,
-                        standard_number=candidate.standard_number,
-                        extraction_confidence=candidate.confidence,
-                        extraction_method=candidate.method,
-                    )
+                reference = RegulationReference(
+                    document_id=document.id,
+                    section_id=section.id,
+                    raw_text=candidate.raw_text[:512],
+                    regulation_type=candidate.regulation_type,
+                    article=candidate.article,
+                    standard_number=candidate.standard_number,
+                    extraction_confidence=candidate.confidence,
+                    extraction_method=candidate.method,
                 )
+                references.append(reference)
+                produced.append(reference)
 
         await self.jobs.update_progress(
             job, status=JobStatus.PROCESSING, progress=_PROGRESS[JobStep.EXTRACTING]
@@ -196,8 +199,11 @@ class AnalysisService:
             reference.match_reasons = "\n".join(result.reasons) or None
 
         await self.references.add_all(references)
-        for record in ai_records:
-            await self.audit.log_ai_call(record, job_id=job.id)
+        for record, produced in ai_records:
+            # 一次呼叫只有一個 reference_id 欄位：連到它抽出的第一筆；沒抽到就只連到 job
+            await self.audit.log_ai_call(
+                record, job_id=job.id, reference_id=produced[0].id if produced else None
+            )
 
         await self.jobs.update_progress(
             job, status=JobStatus.PROCESSING, progress=_PROGRESS[JobStep.NORMALIZING]
