@@ -624,6 +624,10 @@ ul.list li.selected {
 .badge-check-ok { background: var(--active); color: var(--active-text); }
 .badge-check-spec_not_included { background: var(--amended); color: var(--amended-text); }
 .badge-check-needs_confirmation { background: var(--possible); color: var(--possible-text); }
+.summary-check-boq_not_in_drawings { background: var(--repealed); }
+.summary-check-method_undecided { background: var(--amended); }
+.badge-check-boq_not_in_drawings { background: var(--repealed); color: var(--repealed-text); }
+.badge-check-method_undecided { background: var(--amended); color: var(--amended-text); }
 
 .bases {
   list-style: none;

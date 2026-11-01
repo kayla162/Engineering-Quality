@@ -113,6 +113,24 @@ describe("DashboardPage", () => {
     );
   });
 
+  it("重新分析受影響文件前先確認，並送出請求", async () => {
+    const calls = stubApi({
+      "/api/dashboard": DASHBOARD,
+      "/api/regulation-changes": { total: 1, items: [CHANGE] },
+      "/api/regulation-changes/c1/reanalyze": { jobs: [{ document_id: "d1", filename: "品質計畫.docx", job_id: "j1" }] },
+      ...NO_ENTERPRISE,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "重新分析受影響文件" }));
+
+    expect(confirm.mock.calls[0][0]).toContain("人工覆核結果會被清除");
+    expect(await screen.findByText(/已開始重新分析 1 份文件/)).toBeInTheDocument();
+    expect(calls).toContain("POST /api/regulation-changes/c1/reanalyze");
+    confirm.mockRestore();
+  });
+
   it("一般成員看不到「立即檢查」", async () => {
     stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 

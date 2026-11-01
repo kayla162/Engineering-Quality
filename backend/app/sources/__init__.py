@@ -26,6 +26,7 @@ from app.sources.base import (
 from app.sources.enterprise_source import EnterpriseRegulationSource
 from app.sources.mock_source import MockRegulationSource
 from app.sources.pcces_source import PccesSource
+from app.sources.standards_demo_source import DemoStandardsSource
 from app.sources.taiwan_law_source import TaiwanLawSource
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ _REGISTRY: dict[str, Callable[[], RegulationSource]] = {
     "taiwan_law": TaiwanLawSource,   # 法務部全國法規資料庫（法律 + 法規命令）
     "pcces": PccesSource,            # 工程會公共工程施工綱要規範（315 章）
     "enterprise": EnterpriseRegulationSource,  # 各租戶匯入的企業內部文件清單
+    "standards_demo": DemoStandardsSource,  # 示範標準目錄（CNS/ISO/ASTM 假資料，含版次與廢止）
     "mock": MockRegulationSource,    # 離線 Demo 用的假資料
 }
 
@@ -63,6 +65,12 @@ def get_sources() -> list[RegulationSource]:
 async def sources_for_tenant(session, tenant_id) -> list[RegulationSource]:
     """依優先序回傳綁定到這個租戶的來源。查詢一律用這個，不要直接用 get_sources()。"""
     return [await source.for_tenant(session, tenant_id) for source in get_sources()]
+
+
+def confirms_standard_currency(source_name: str) -> bool:
+    """寫入這筆法規的來源，能不能確認標準是最新版。未知或未註冊的來源視為不能。"""
+    factory = _REGISTRY.get(source_name)
+    return bool(getattr(factory, "confirms_standard_currency", False))
 
 
 def source_priority(source_name: str) -> int:
@@ -115,6 +123,7 @@ __all__ = [
     "SourceReadiness",
     "SourcesReadiness",
     "get_sources",
+    "confirms_standard_currency",
     "readiness_report",
     "sources_for_tenant",
     "source_priority",

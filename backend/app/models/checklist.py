@@ -11,11 +11,12 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, created_at_column, uuid_pk
+from app.models.base import Base, JsonColumn, created_at_column, uuid_pk
 
 
 class SpecChapter(Base):
@@ -68,3 +69,44 @@ class WorkItemBasis(Base):
     created_at: Mapped[datetime] = created_at_column()
 
     __table_args__ = (Index("ix_work_item_bases_work_item", "work_item_id"),)
+
+
+class DrawingSheet(Base):
+    """契約圖裡的一張圖（檢核表階段 2、4）。和 spec_chapters 一樣是對一份文件建的索引，
+    重建檢核表時重讀、取代。只有圖號、圖名、頁碼——圖面內容系統讀不懂。"""
+
+    __tablename__ = "drawing_sheets"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    #: 指向 role = drawing 的那份文件
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    sheet_no: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    page: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = created_at_column()
+
+    __table_args__ = (Index("ix_drawing_sheets_document", "document_id"),)
+
+
+class WorkItemMethod(Base):
+    """工項的工法欄（檢核表階段 4）。只存「要選」的工項：施工規範列出兩種以上工法。
+
+    `selected` 是契約文件文字裡恰好出現一種的那個選項；None 代表未指定，
+    檢核結果就是「請檢討使用何種工法」，並附相關圖號。不從圖面猜。
+    """
+
+    __tablename__ = "work_item_methods"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    work_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("work_items.id", ondelete="CASCADE"), nullable=False
+    )
+    options: Mapped[Any] = mapped_column(JsonColumn, nullable=False)
+    selected: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: 指定的出處（文件與前後文），或未指定的原因
+    evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = created_at_column()
+
+    __table_args__ = (Index("ix_work_item_methods_work_item", "work_item_id"),)

@@ -8,6 +8,7 @@
 """
 
 import logging
+import re
 import time
 import uuid
 from datetime import timedelta
@@ -26,7 +27,13 @@ from app.models.reference import RegulationReference
 from app.models.regulation import Regulation
 from app.repositories.audit import AuditRepository
 from app.repositories.regulations import RegulationRepository
-from app.sources import RegulationSearchResult, RegulationSource, source_priority, sources_for_tenant
+from app.sources import (
+    RegulationSearchResult,
+    RegulationSource,
+    confirms_standard_currency,
+    source_priority,
+    sources_for_tenant,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +45,58 @@ def _merge_candidates(*groups: list[Regulation]) -> list[Regulation]:
         for regulation in group:
             merged.setdefault(regulation.id, regulation)
     return list(merged.values())
+
+
+_CITED_YEAR = re.compile(r":\s*((?:19|20)\d{2})$")
+
+
+def _prefer_priority_for_standards(
+    candidates: list[Regulation], alias_map: dict[uuid.UUID, list[str]]
+) -> list[Regulation]:
+    """同一個標準編號在好幾個來源都有一筆時，只留優先序最高的那筆。
+
+    標準的名稱在各來源寫法不同（mock 是「ASTM C39/C39M 混凝土圓柱試體…」，標準目錄是
+    「ASTM C39 Standard Test Method…」），各自是一列。別名字典又會把「ASTM C39」正規化
+    成 mock 那個名稱，於是 mock 那列以「名稱完全相同」勝出，蓋過優先序較高的來源——
+    和「排在前面的來源優先」的規則相反。編號相同就是同一份標準，交給優先序決定。
+    """
+    from app.sources.standards_demo_source import standard_key
+
+    best: dict[str, Regulation] = {}
+    for regulation in candidates:
+        if regulation.type != RegulationType.STANDARD:
+            continue
+        keys = {standard_key(a) for a in alias_map.get(regulation.id, [])} - {None}
+        for key in keys:
+            current = best.get(key)
+            if current is None or source_priority(regulation.source) < source_priority(current.source):
+                best[key] = regulation
+    losers = {
+        regulation.id
+        for regulation in candidates
+        if regulation.type == RegulationType.STANDARD
+        and any(
+            best.get(key) is not None and best[key].id != regulation.id
+            for key in {standard_key(a) for a in alias_map.get(regulation.id, [])} - {None}
+        )
+    }
+    return [regulation for regulation in candidates if regulation.id not in losers]
+
+
+def _outdated_edition(standard_number: str | None, regulation: Regulation | None) -> str | None:
+    """文件引用的標準年份比來源的最新版舊時，回傳說明；否則 None。
+
+    判在引用上，不判在法規主檔上：同一部標準被兩份文件以不同版次引用時，
+    主檔只有一個狀態，改主檔會讓兩份文件互相蓋掉。最新版年份由來源放在
+    last_amended_date（見 sources/standards_demo_source.py）。
+    """
+    if not standard_number or regulation is None or regulation.type != RegulationType.STANDARD:
+        return None
+    cited = _CITED_YEAR.search(standard_number)
+    latest = regulation.last_amended_date
+    if cited is None or latest is None or int(cited.group(1)) >= latest.year:
+        return None
+    return f"文件引用 {cited.group(1)} 年版，來源的最新版為 {latest.year} 年版，請確認是否應更新引用"
 
 
 def can_confirm_currency(regulation_type: str) -> bool:
@@ -99,6 +158,7 @@ class MatchingService:
 
         # 2. 比對（別名一次撈齊，避免逐筆 lazy load）
         alias_map = await self.regulations.aliases_for([r.id for r in candidates])
+        candidates = _prefer_priority_for_standards(candidates, alias_map)
         decision = await self.engine.match(
             normalized_name=query_name,
             candidates=[
@@ -117,10 +177,17 @@ class MatchingService:
 
         reference.match_confidence = decision.confidence
         reference.status = decision.status
-        reference.match_reasons = "\n".join(decision.reasons)
+        reasons = list(decision.reasons)
         reference.regulation_id = (
             uuid.UUID(decision.candidate.key) if decision.candidate else None
         )
+        if reference.status == RegulationStatus.ACTIVE and reference.regulation_id:
+            matched = next((r for r in candidates if r.id == reference.regulation_id), None)
+            outdated = _outdated_edition(reference.standard_number, matched)
+            if outdated:
+                reference.status = RegulationStatus.AMENDED
+                reasons.append(outdated)
+        reference.match_reasons = "\n".join(reasons)
         await self.session.flush()
         return reference
 
@@ -257,8 +324,12 @@ class MatchingService:
             status=regulation.status,
             aliases=aliases,
             standard_number=standard_number,
+            # 這次有查來源就用來源的宣告；沒查（主檔快取命中）就看寫入它的來源有沒有這個能力。
+            # 只看型別的話，同一份標準在文件裡第二次出現時會從「現行有效」掉成「疑似對應」。
             can_confirm_currency=overrides.get(
-                regulation.normalized_name, can_confirm_currency(regulation.type)
+                regulation.normalized_name,
+                can_confirm_currency(regulation.type)
+                or confirms_standard_currency(regulation.source),
             ),
         )
 

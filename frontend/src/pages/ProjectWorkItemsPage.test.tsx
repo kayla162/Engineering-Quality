@@ -54,6 +54,9 @@ const CHECKLIST_ITEM_OK: ChecklistItem = {
     // 真實資料裡最大宗的沒查證：類型是法規、但索引裡沒有完全同名（屋內線路裝置規則是已更名的舊名稱）
     { basis_type: "law", reference: "屋內線路裝置規則", detail: "第09912章 相關準則", verification_status: null },
   ],
+  issues: [],
+  drawings: [],
+  method: null,
 };
 
 const CHECKLIST_ITEM_MISSING: ChecklistItem = {
@@ -64,6 +67,9 @@ const CHECKLIST_ITEM_MISSING: ChecklistItem = {
   chapter_code: "01510",
   chapter: null,
   bases: [],
+  issues: ["SPEC_NOT_INCLUDED"],
+  drawings: [],
+  method: null,
 };
 
 /** 同一種結果再多幾筆，讓三種結果的筆數互不相同：2、3、4。 */
@@ -72,7 +78,8 @@ function extraItem(result: ChecklistItem["result"], id: string, itemNo: string):
     result === "OK"
       ? [{ basis_type: "law", reference: "職業安全衛生法", detail: null, verification_status: "ACTIVE" }]
       : [];
-  return { ...CHECKLIST_ITEM_MISSING, work_item_id: id, item_no: itemNo, result, bases };
+  const issues = result === "OK" ? [] : [result];
+  return { ...CHECKLIST_ITEM_MISSING, work_item_id: id, item_no: itemNo, result, bases, issues };
 }
 
 const CONTRACT_NOTE = "契約依據為專案層級，不逐工項列出。";
@@ -81,9 +88,11 @@ const CONTRACT_NOTE = "契約依據為專案層級，不逐工項列出。";
 // 摘要的兩格互換、或頁面把欄位傳錯，測試都看不出來。
 const CHECKLIST: Checklist = {
   total: 9,
-  summary: { ok: 2, spec_not_included: 3, needs_confirmation: 4 },
+  summary: { ok: 2, spec_not_included: 3, needs_confirmation: 4, boq_not_in_drawings: 0, method_undecided: 0 },
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
+  has_drawings: false,
+  drawings_without_items: [],
   items: [
     CHECKLIST_ITEM_OK,
     extraItem("OK", "w3", "壹.一.1.4.9"),
@@ -99,9 +108,11 @@ const CHECKLIST: Checklist = {
 
 const EMPTY_CHECKLIST: Checklist = {
   total: 0,
-  summary: { ok: 0, spec_not_included: 0, needs_confirmation: 0 },
+  summary: { ok: 0, spec_not_included: 0, needs_confirmation: 0, boq_not_in_drawings: 0, method_undecided: 0 },
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
+  has_drawings: false,
+  drawings_without_items: [],
   items: [],
 };
 

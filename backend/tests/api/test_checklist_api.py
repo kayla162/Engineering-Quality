@@ -159,7 +159,8 @@ class TestBuildChecklist:
         expected = {"ok": 2, "spec_not_included": 1, "needs_confirmation": 3}
         # 筆數不互異的話，這個測試就守不住欄位對調
         assert len(set(expected.values())) == len(expected)
-        assert body["summary"] == expected
+        # 沒掛契約圖、規範沒列出工法：階段 2、4 的兩欄是 0
+        assert body["summary"] == {**expected, "boq_not_in_drawings": 0, "method_undecided": 0}
         assert sum(body["summary"].values()) == body["total"]
 
     async def test_each_result_comes_with_the_rows_it_describes(self, api_client, project_id):
@@ -274,9 +275,13 @@ class TestGetChecklist:
 
         body = (await api_client.get(url(project_id))).json()
 
-        assert set(body) == {"total", "summary", "contract_note", "spec_warning", "items"}
+        assert set(body) == {
+            "total", "summary", "contract_note", "spec_warning",
+            "has_drawings", "drawings_without_items", "items",
+        }
         assert set(body["items"][0]) == {
-            "work_item_id", "item_no", "name", "result", "chapter_code", "chapter", "bases"
+            "work_item_id", "item_no", "name", "result", "chapter_code", "chapter", "bases",
+            "issues", "drawings", "method",
         }
 
     async def test_a_spec_not_included_row_names_the_chapter_it_is_missing(
@@ -330,7 +335,8 @@ class TestGetChecklist:
         assert {r["result"] for r in rows.values()} == {"NEEDS_CONFIRMATION"}
         assert all(r["chapter"] is None and r["bases"] == [] for r in rows.values())
         assert response.json()["summary"] == {
-            "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS)
+            "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS),
+            "boq_not_in_drawings": 0, "method_undecided": 0,
         }
 
     @pytest.mark.parametrize("method, status_code", [("post", 201), ("get", 200)])
@@ -345,7 +351,8 @@ class TestGetChecklist:
         body = response.json()
         assert [i["item_no"] for i in body["items"]] == ITEM_NOS
         assert body["summary"] == {
-            "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS)
+            "ok": 0, "spec_not_included": 0, "needs_confirmation": len(ITEM_NOS),
+            "boq_not_in_drawings": 0, "method_undecided": 0,
         }
         assert all(i["chapter"] is None and i["bases"] == [] for i in body["items"])
         # chapter_code 只看工項自己的計價代碼，沒有規範書也一樣有

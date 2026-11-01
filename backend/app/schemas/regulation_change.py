@@ -64,6 +64,17 @@ class SkippedRegulation(BaseModel):
     reason: str
 
 
+class ReanalysisJob(BaseModel):
+    document_id: uuid.UUID
+    filename: str
+    job_id: uuid.UUID
+
+
+class ReanalyzeOut(BaseModel):
+    #: 已排進背景的分析任務，一份受影響文件一個
+    jobs: list[ReanalysisJob]
+
+
 class ChangeCheckOut(BaseModel):
     checked: int
     changed: int

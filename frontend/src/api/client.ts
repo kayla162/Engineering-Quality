@@ -19,6 +19,7 @@ import type {
   ReferenceList,
   RegulationChange,
   ReviewStatus,
+  SearchResult,
   SourcesStatus,
   SessionUser,
   WorkItemList,
@@ -118,6 +119,8 @@ export const api = {
 
   getDashboard: () => request<Dashboard>("/dashboard"),
 
+  search: (q: string, limit = 10) => request<SearchResult>(`/search${query({ q, limit })}`),
+
   listEnterpriseDocuments: () => request<EnterpriseDocumentList>("/enterprise-documents"),
 
   importEnterpriseDocuments: (file: File) => {
@@ -136,6 +139,12 @@ export const api = {
 
   checkRegulationChanges: () =>
     request<ChangeCheckResult>("/regulation-changes/check", { method: "POST" }),
+
+  reanalyzeAffected: (changeId: string) =>
+    request<{ jobs: { document_id: string; filename: string; job_id: string }[] }>(
+      `/regulation-changes/${changeId}/reanalyze`,
+      { method: "POST" },
+    ),
 
   acknowledgeRegulationChange: (changeId: string) =>
     request<RegulationChange>(`/regulation-changes/${changeId}/acknowledge`, { method: "POST" }),

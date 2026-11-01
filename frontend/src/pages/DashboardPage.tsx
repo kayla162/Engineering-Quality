@@ -50,7 +50,8 @@ export function DashboardPage({
   if (error) return <section className="card"><p className="error">{error}</p></section>;
   if (!data) return <section className="card"><p className="hint">載入中…</p></section>;
 
-  const mockCount = data.references.by_source.mock ?? 0;
+  // 兩個來源都是假資料：mock 與示範標準目錄
+  const mockCount = (data.references.by_source.mock ?? 0) + (data.references.by_source.standards_demo ?? 0);
 
   return (
     <div className="dashboard">

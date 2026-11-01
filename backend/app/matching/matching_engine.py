@@ -13,6 +13,7 @@
     來源無法確認最新版（付費標準）    -> POSSIBLE_MATCH（不論信心多高）
 """
 
+import re
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz
@@ -54,6 +55,15 @@ class MatchDecision:
     def is_tentative(self) -> bool:
         """信心不足以自動採信，前端會顯示「疑似」。"""
         return 0 < self.confidence < settings.MATCH_AUTO_THRESHOLD
+
+
+_EDITION = re.compile(r"\s*:\s*(?:19|20)\d{2}$")
+
+
+def _without_edition(number: str) -> str:
+    """「CNS 3090:2015」與「CNS 3090」是同一份標準的不同版次——是哪一份標準先比對，
+    版次新舊另外判斷（services/matching_service.py 的 _outdated_edition）。"""
+    return _EDITION.sub("", clean_text(number)).casefold()
 
 
 class MatchingEngine:
@@ -148,8 +158,7 @@ class MatchingEngine:
             if (
                 standard_number
                 and candidate.standard_number
-                and clean_text(standard_number).casefold()
-                == clean_text(candidate.standard_number).casefold()
+                and _without_edition(standard_number) == _without_edition(candidate.standard_number)
             ):
                 scored.append(
                     (SCORE_STANDARD_NUMBER, f"標準編號相同（{candidate.standard_number}）", candidate)

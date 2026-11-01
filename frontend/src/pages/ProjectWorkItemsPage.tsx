@@ -274,6 +274,10 @@ export function ProjectWorkItemsPage() {
                         ok={checklist.summary.ok}
                         specNotIncluded={checklist.summary.spec_not_included}
                         needsConfirmation={checklist.summary.needs_confirmation}
+                        boqNotInDrawings={checklist.summary.boq_not_in_drawings}
+                        methodUndecided={checklist.summary.method_undecided}
+                        hasDrawings={checklist.has_drawings}
+                        drawingsWithoutItems={checklist.drawings_without_items}
                       />
                       {/* 規範書解析品質不佳時依據可能殘缺，使用者必須在看到表之前就知道 */}
                       {checklist.spec_warning && <p className="error">{checklist.spec_warning}</p>}
