@@ -15,6 +15,7 @@ from app.api.routes import (
     regulation_changes,
     regulations,
     reports,
+    search,
     sources,
     auth,
     users,
@@ -39,6 +40,7 @@ for business_router in (
     dashboard.router,
     regulation_changes.router,
     enterprise_documents.router,
+    search.router,
 ):
     api_router.include_router(
         business_router, dependencies=[Depends(require_business_user)]

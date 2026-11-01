@@ -19,6 +19,7 @@ import type {
   ReferenceList,
   RegulationChange,
   ReviewStatus,
+  SearchResult,
   SourcesStatus,
   SessionUser,
   WorkItemList,
@@ -117,6 +118,8 @@ export const api = {
     ),
 
   getDashboard: () => request<Dashboard>("/dashboard"),
+
+  search: (q: string, limit = 10) => request<SearchResult>(`/search${query({ q, limit })}`),
 
   listEnterpriseDocuments: () => request<EnterpriseDocumentList>("/enterprise-documents"),
 

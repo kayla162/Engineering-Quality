@@ -381,3 +381,24 @@ export interface EnterpriseDocumentList {
   imported_by: string | null;
   items: EnterpriseDocument[];
 }
+
+export interface SearchResult {
+  query: string;
+  /** 檢索方式的說明（示範版是字詞相似度，不是語意） */
+  method_note: string;
+  sections: {
+    document_id: string;
+    filename: string;
+    page: number | null;
+    snippet: string;
+    score: number;
+    matched: string[];
+  }[];
+  regulations: {
+    regulation_id: string;
+    name: string;
+    status: string;
+    source: string;
+    score: number;
+  }[];
+}

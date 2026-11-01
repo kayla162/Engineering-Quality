@@ -10,9 +10,10 @@ import { UploadPanel } from "./components/UploadPanel";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentAnalysisPage } from "./pages/DocumentAnalysisPage";
 import { ProjectWorkItemsPage } from "./pages/ProjectWorkItemsPage";
+import { SearchPage } from "./pages/SearchPage";
 import { ChangePasswordPage, LoginPage } from "./pages/AuthPage";
 
-type Mode = "documents" | "projects" | "dashboard" | "users" | "audit";
+type Mode = "documents" | "projects" | "dashboard" | "search" | "users" | "audit";
 
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -75,7 +76,7 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
 
   const selected = documents.find((doc) => doc.document_id === selectedId) ?? null;
   const isAdmin = user.role === "tenant_admin";
-  const tabs: [Mode, string][] = [["documents", "文件分析"], ["projects", "專案工項"], ["dashboard", "總覽"]];
+  const tabs: [Mode, string][] = [["documents", "文件分析"], ["projects", "專案工項"], ["dashboard", "總覽"], ["search", "搜尋"]];
   if (isAdmin) tabs.push(["users", "使用者管理"], ["audit", "稽核紀錄"]);
 
   const openDocument = (documentId: string) => {
@@ -106,6 +107,7 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
       <SourceStatusBanner status={sourcesStatus} />
       {mode === "users" ? <UserManagementPanel />
         : mode === "audit" ? <AuditLogPanel />
+        : mode === "search" ? <SearchPage onOpenDocument={openDocument} />
         : mode === "dashboard" ? <DashboardPage isAdmin={isAdmin} onOpenDocument={openDocument} />
         : mode === "projects" ? <ProjectWorkItemsPage /> : (
         <div className="layout">
