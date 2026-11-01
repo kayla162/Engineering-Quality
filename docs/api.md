@@ -396,9 +396,14 @@ NOT_FOUND 只佔 4%（26 筆裡 1 筆）。差別不在抽取器，在文件型�
 ```json
 {
   "total": 1028,
-  "summary": { "ok": 248, "spec_not_included": 188, "needs_confirmation": 592 },
+  "summary": {
+    "ok": 248, "spec_not_included": 188, "needs_confirmation": 592,
+    "boq_not_in_drawings": 0, "method_undecided": 0
+  },
   "contract_note": "契約文件優先順序：招標文件內之標價清單…",
   "spec_warning": null,
+  "has_drawings": false,
+  "drawings_without_items": [],
   "items": [
     {
       "work_item_id": "...",
@@ -729,6 +734,49 @@ multipart 上傳 `.xlsx`（格式見範本），**整份取代**這個租戶的�
 標記為已處理，記下時間與使用者。重複呼叫不會覆蓋第一次的紀錄。
 
 ---
+
+### 檢核表階段 2、4 的欄位（以示範資料驗證）
+
+專案掛了**契約圖**（role `drawing`）時，建立檢核表會讀每張圖標題欄的圖號與圖名：
+
+- `items[].drawings`：圖名和這個工項相關的圖（`sheet_no`、`title`、`page`）。
+- `BOQ_NOT_IN_DRAWINGS`（標單有，契約圖沒有）：實際工項找不到任何相關的圖。第 01 類章碼（一般要求）不判斷。
+- `drawings_without_items`：圖名對不到任何工項的圖（契約圖有、標單沒有），專案層級。
+- `has_drawings`：沒掛契約圖時是 false，上面兩種都不判斷。
+
+施工規範那一章寫了「得採用下列工法之一：(1)…(2)…」時：
+
+- `items[].method`：`{ "options": ["鋼模", "木模", "系統模板"], "selected": "系統模板", "evidence": "需求書.txt：「…採系統模板…」" }`。
+  `selected` 是契約書與其他附件（role `contract`、`other`）的文字裡**恰好出現一種**的選項，否則是 null。
+- `METHOD_UNDECIDED`（請檢討使用何種工法）：`selected` 是 null。不從圖面猜，相關圖號在 `drawings`。
+
+`items[].issues` 列出所有成立的問題，依「工項來源不一致 > 工法未定 > 依據不全」排序，`result` 是第一個。
+
+## 6.8 跨文件搜尋（示範）
+
+### `GET /api/search?q=混凝土澆置&limit=10`
+
+在這個租戶所有已解析的段落與法規名稱裡找。示範版是字元雙字組 TF-IDF，**不是語意搜尋**，
+回應的 `method_note` 會說明。
+
+```json
+{
+  "query": "混凝土澆置",
+  "method_note": "示範檢索：依字詞（相鄰兩字）相似度排序，不是語意模型；換個說法可能就找不到。",
+  "sections": [
+    { "document_id": "uuid", "filename": "品質計畫.txt", "page": 3,
+      "snippet": "混凝土澆置依 QP-07-03 辦理", "score": 0.76, "matched": ["混凝", "凝土", "土澆", "澆置"] }
+  ],
+  "regulations": [
+    { "regulation_id": "uuid", "name": "混凝土澆置作業標準", "status": "ACTIVE", "source": "enterprise", "score": 0.9 }
+  ]
+}
+```
+
+### `POST /api/regulation-changes/{change_id}/reanalyze`
+
+重新分析引用了這部法規的所有文件，回傳 `{ "jobs": [{ "document_id", "filename", "job_id" }] }`。
+重新分析會取代引用，**那些文件的人工覆核結果會被清除**；畫面按下前會先確認。
 
 ## 7. 健康檢查與版本
 

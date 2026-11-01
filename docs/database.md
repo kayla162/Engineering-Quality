@@ -382,6 +382,30 @@ Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，�
 | imported_at | TIMESTAMPTZ | |
 | imported_by | VARCHAR(128) | 匯入的使用者，命令列匯入是 `system:import_enterprise_documents` |
 
+### 2.18 `drawing_sheets`、`work_item_methods`（檢核表階段 2、4，migration `0011`）
+
+`drawing_sheets` 是對契約圖建的圖號索引（和 `spec_chapters` 同一個模式，重建檢核表時取代）：
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| id | UUID PK | |
+| document_id | UUID FK → documents（CASCADE） | role = drawing 的文件 |
+| sheet_no | VARCHAR(16) | 圖號，例如 `S-02` |
+| title | VARCHAR(255) | 圖名 |
+| page | INT | 在 PDF 的第幾頁 |
+
+`work_item_methods` 只存「要選工法」的工項（施工規範列出兩種以上工法）：
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| id | UUID PK | |
+| work_item_id | UUID FK → work_items（CASCADE） | |
+| options | JSONB | 規範列出的選項 |
+| selected | VARCHAR(64), nullable | 契約文件恰好提到一種時才有；null = 未指定 |
+| evidence | TEXT, nullable | 指定的出處（文件與前後文），或未指定的原因 |
+
+工項與圖的對應不存，讀取時用圖名比對算出來（`app/specs/drawing_reader.py`）。
+
 ---
 
 ## 3. 列舉值定義
