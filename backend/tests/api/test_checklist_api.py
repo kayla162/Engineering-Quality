@@ -495,3 +495,31 @@ class TestVerificationInResponse:
                 for b in item["bases"]
             }
             assert statuses == {"測量法": RegulationStatus.ACTIVE, "CNS 2473": None}
+
+    async def test_a_law_named_like_a_standard_is_still_verified(
+        self, api_client, project_with_boq, monkeypatch
+    ):
+        """回歸：「營造安全衛生設施標準」以「標準」結尾、被歸成 standard，但它是法規命令，
+        全國法規資料庫查得到。只有帶標準編號的才不送全國法規索引。"""
+        from app.core.enums import RegulationStatus
+        from app.services import checklist_service
+
+        asked: set[str] = set()
+
+        async def verify_everything_it_is_asked(names, source):
+            asked.update(names)
+            return {name: RegulationStatus.ACTIVE for name in names}
+
+        monkeypatch.setattr(checklist_service, "verify_names", verify_everything_it_is_asked)
+        await attach_spec(
+            api_client,
+            project_with_boq,
+            [("01725", "01725", "施工測量", "3.0", "1.4 相關準則 (1) 營造安全衛生設施標準 (2) CNS 2473 鋼材 1.5 送審")],
+        )
+
+        body = (await api_client.post(url(project_with_boq))).json()
+
+        statuses = {b["reference"]: b["verification_status"] for item in body["items"] for b in item["bases"]}
+        assert statuses["營造安全衛生設施標準"] == RegulationStatus.ACTIVE
+        assert statuses["CNS 2473"] is None
+        assert "CNS 2473" not in asked

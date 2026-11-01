@@ -31,7 +31,7 @@ from app.repositories.documents import DocumentRepository
 from app.repositories.projects import ProjectRepository
 from app.services.basis_verifier import verify_names, verify_standards
 from app.sources.pcces_source import PccesSource
-from app.sources.standards_demo_source import DemoStandardsSource
+from app.sources.standards_demo_source import DemoStandardsSource, standard_key
 from app.sources.taiwan_law_source import TaiwanLawSource
 from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
@@ -307,18 +307,16 @@ class ChecklistService:
                     )
                 )
 
-        # 只送非標準的名稱去查：標準（CNS/ASTM/ISO/JIS）沒有資料來源可查，
-        # 送去只會得到模糊候選。依相異名稱查一次，不是每筆依據查一次。
-        candidates = {
-            basis.reference
-            for basis in bases
-            if basis.basis_type != RegulationType.STANDARD
-        }
+        # 帶標準編號的（CNS 3090、ASTM C39）是標準，只能拿去標準目錄查；其餘都送全國法規
+        # 索引查完全同名。不能用 basis_type 分：它是看名稱字尾猜的，「營造安全衛生設施標準」
+        # 以「標準」結尾被歸成 STANDARD，但它是法規命令，全國法規資料庫查得到。
+        # verify_names 只採完全同名，多送幾個名稱不會產生模糊誤判。依相異名稱查一次。
+        numbered = {b.reference for b in bases if standard_key(b.reference) is not None}
+        candidates = {b.reference for b in bases} - numbered
         statuses = await verify_names(candidates, TaiwanLawSource())
         # 標準只有在啟用了有版次資料的標準目錄時才查（目前只有示範用的 standards_demo）
         if DemoStandardsSource.source_name in settings.regulation_sources:
-            standards = {b.reference for b in bases if b.basis_type == RegulationType.STANDARD}
-            statuses |= await verify_standards(standards, DemoStandardsSource())
+            statuses |= await verify_standards(numbered, DemoStandardsSource())
         for basis in bases:
             basis.verification_status = statuses.get(basis.reference)
 
