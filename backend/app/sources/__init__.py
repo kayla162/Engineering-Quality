@@ -26,6 +26,7 @@ from app.sources.base import (
 from app.sources.enterprise_source import EnterpriseRegulationSource
 from app.sources.mock_source import MockRegulationSource
 from app.sources.pcces_source import PccesSource
+from app.sources.standards_demo_source import DemoStandardsSource
 from app.sources.taiwan_law_source import TaiwanLawSource
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ _REGISTRY: dict[str, Callable[[], RegulationSource]] = {
     "taiwan_law": TaiwanLawSource,   # 法務部全國法規資料庫（法律 + 法規命令）
     "pcces": PccesSource,            # 工程會公共工程施工綱要規範（315 章）
     "enterprise": EnterpriseRegulationSource,  # 各租戶匯入的企業內部文件清單
+    "standards_demo": DemoStandardsSource,  # 示範標準目錄（CNS/ISO/ASTM 假資料，含版次與廢止）
     "mock": MockRegulationSource,    # 離線 Demo 用的假資料
 }
 

@@ -1,0 +1,23 @@
+{
+  "version": "demo-standards-2026-11-01",
+  "_warning": "這是 standards_demo 來源的假資料：版次、日期、廢止與取代關係都是虛構的，不是經濟部標準檢驗局或 ISO/ASTM 的資料，不可作為查核依據。用途是示範「標準有資料來源可查時」系統會怎麼判定版次與廢止。",
+  "_fields": {
+    "number": "標準編號，比對只認編號（不比名稱）",
+    "latest_edition": "最新版的年份。文件引用的年份比它舊，該筆引用判為「已修正」",
+    "status": "ACTIVE = 現行；REPEALED = 已廢止",
+    "replaced_by": "廢止時取代它的標準編號"
+  },
+  "standards": [
+    {"number": "CNS 3090", "title": "預拌混凝土", "latest_edition": "2022", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
+    {"number": "CNS 560", "title": "鋼筋混凝土用鋼筋", "latest_edition": "2018", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
+    {"number": "CNS 1240", "title": "混凝土粒料", "latest_edition": "2021", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
+    {"number": "CNS 61", "title": "卜特蘭水泥", "latest_edition": "2011", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
+    {"number": "CNS 4750", "title": "混凝土用鋼筋（舊版示範）", "latest_edition": "2009", "status": "REPEALED", "replaced_by": "CNS 560", "authority": "經濟部標準檢驗局（示範）"},
+    {"number": "CNS 1232", "title": "混凝土圓柱試體抗壓強度檢驗法", "latest_edition": "2020", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
+    {"number": "ASTM C39", "title": "Standard Test Method for Compressive Strength of Cylindrical Concrete Specimens", "latest_edition": "2023", "status": "ACTIVE", "authority": "ASTM International（示範）"},
+    {"number": "ISO 9001", "title": "品質管理系統－要求", "latest_edition": "2015", "status": "ACTIVE", "authority": "ISO（示範）"},
+    {"number": "ISO 14001", "title": "環境管理系統", "latest_edition": "2015", "status": "ACTIVE", "authority": "ISO（示範）"},
+    {"number": "ISO 45001", "title": "職業安全衛生管理系統", "latest_edition": "2018", "status": "ACTIVE", "authority": "ISO（示範）"},
+    {"number": "OHSAS 18001", "title": "職業安全衛生管理系統（舊）", "latest_edition": "2007", "status": "REPEALED", "replaced_by": "ISO 45001", "authority": "BSI（示範）"}
+  ]
+}

@@ -132,6 +132,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   pcces: "施工綱要規範",
   enterprise: "企業內部文件",
   mock: "假資料（僅供 Demo）",
+  standards_demo: "示範標準目錄（假資料）",
   manual: "人工建立",
 };
 

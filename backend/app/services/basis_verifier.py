@@ -50,3 +50,31 @@ async def verify_names(names: set[str], source) -> dict[str, str]:
                 statuses[name] = result.status
                 break
     return statuses
+
+
+async def verify_standards(names: set[str], source) -> dict[str, str]:
+    """標準依據（CNS／ASTM／ISO…）拿去標準目錄查，只認編號相同。
+
+    和 verify_names 一樣：查不到的不在回傳裡，來源掛掉回空 dict。只有啟用了有版次
+    資料的標準來源（目前只有示範用的 standards_demo）才會呼叫。
+    """
+    from app.sources.standards_demo_source import standard_key
+
+    statuses: dict[str, str] = {}
+    for name in sorted(names):
+        key = standard_key(name)
+        if key is None:
+            continue
+        try:
+            results = await source.search(name)
+        except SourceQueryError as exc:
+            logger.warning(
+                "標準查證來源查詢失敗，整批跳過",
+                extra=log_context(name=name, detail=str(exc)),
+            )
+            return {}
+        for result in results:
+            if standard_key(result.standard_number or "") == key:
+                statuses[name] = result.status
+                break
+    return statuses

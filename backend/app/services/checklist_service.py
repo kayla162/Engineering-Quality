@@ -29,8 +29,9 @@ from app.repositories.audit import AuditRepository
 from app.repositories.checklist import ChecklistRepository
 from app.repositories.documents import DocumentRepository
 from app.repositories.projects import ProjectRepository
-from app.services.basis_verifier import verify_names
+from app.services.basis_verifier import verify_names, verify_standards
 from app.sources.pcces_source import PccesSource
+from app.sources.standards_demo_source import DemoStandardsSource
 from app.sources.taiwan_law_source import TaiwanLawSource
 from app.specs import basis_block, read_spec_chapters
 
@@ -219,6 +220,10 @@ class ChecklistService:
             if basis.basis_type != RegulationType.STANDARD
         }
         statuses = await verify_names(candidates, TaiwanLawSource())
+        # 標準只有在啟用了有版次資料的標準目錄時才查（目前只有示範用的 standards_demo）
+        if DemoStandardsSource.source_name in settings.regulation_sources:
+            standards = {b.reference for b in bases if b.basis_type == RegulationType.STANDARD}
+            statuses |= await verify_standards(standards, DemoStandardsSource())
         for basis in bases:
             basis.verification_status = statuses.get(basis.reference)
 

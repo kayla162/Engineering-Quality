@@ -8,6 +8,7 @@
 """
 
 import logging
+import re
 import time
 import uuid
 from datetime import timedelta
@@ -38,6 +39,25 @@ def _merge_candidates(*groups: list[Regulation]) -> list[Regulation]:
         for regulation in group:
             merged.setdefault(regulation.id, regulation)
     return list(merged.values())
+
+
+_CITED_YEAR = re.compile(r":\s*((?:19|20)\d{2})$")
+
+
+def _outdated_edition(standard_number: str | None, regulation: Regulation | None) -> str | None:
+    """文件引用的標準年份比來源的最新版舊時，回傳說明；否則 None。
+
+    判在引用上，不判在法規主檔上：同一部標準被兩份文件以不同版次引用時，
+    主檔只有一個狀態，改主檔會讓兩份文件互相蓋掉。最新版年份由來源放在
+    last_amended_date（見 sources/standards_demo_source.py）。
+    """
+    if not standard_number or regulation is None or regulation.type != RegulationType.STANDARD:
+        return None
+    cited = _CITED_YEAR.search(standard_number)
+    latest = regulation.last_amended_date
+    if cited is None or latest is None or int(cited.group(1)) >= latest.year:
+        return None
+    return f"文件引用 {cited.group(1)} 年版，來源的最新版為 {latest.year} 年版，請確認是否應更新引用"
 
 
 def can_confirm_currency(regulation_type: str) -> bool:
@@ -117,10 +137,17 @@ class MatchingService:
 
         reference.match_confidence = decision.confidence
         reference.status = decision.status
-        reference.match_reasons = "\n".join(decision.reasons)
+        reasons = list(decision.reasons)
         reference.regulation_id = (
             uuid.UUID(decision.candidate.key) if decision.candidate else None
         )
+        if reference.status == RegulationStatus.ACTIVE and reference.regulation_id:
+            matched = next((r for r in candidates if r.id == reference.regulation_id), None)
+            outdated = _outdated_edition(reference.standard_number, matched)
+            if outdated:
+                reference.status = RegulationStatus.AMENDED
+                reasons.append(outdated)
+        reference.match_reasons = "\n".join(reasons)
         await self.session.flush()
         return reference
 
