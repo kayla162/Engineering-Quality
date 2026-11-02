@@ -220,9 +220,9 @@ OCR 不能用（沒有語言資料、或 `ENABLE_OCR=false`）時：整份沒有
 .venv/Scripts/python scripts/generate_enterprise_template.py --from-quality-plan 工程文書/整體品質計畫.docx
 ```
 
-拿真實計畫書分析（`REGULATION_SOURCES` 含 `enterprise`）：匯入前 533 筆引用只有 14 筆判為現行；
-匯入後抽到 747 筆、327 筆現行。剩下的「查無」幾乎都是表頭字詞（「檢查標準」「抽查標準」），
-是抽取的雜訊，不是清單漏列。
+拿真實計畫書分析（`REGULATION_SOURCES` 含 `enterprise`）：匯入前 174 筆引用只有 14 筆判為現行；
+匯入後抽到 388 筆、327 筆現行、36 筆查無。查無的多半是監造單位的表單（「監造單位鋼筋抽查標準」）、
+錯字（「混擬土」）與全國法規資料庫沒有的行政規則（「加強公共工程職業安全衛生管理作業要點」）。
 
 ### 產生範例文件
 

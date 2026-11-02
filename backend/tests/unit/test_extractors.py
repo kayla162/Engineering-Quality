@@ -408,3 +408,46 @@ class TestTruncatedGenericTerms:
     )
     def test_real_names_survive(self, rule, text, expected):
         assert expected in [c.raw_text for c in rule.extract(text)]
+
+
+class TestTableHeadersAndWordsContainingStandard:
+    """品質計畫表格裡的表頭與「標準圖」這類詞，不是法規引用。
+
+    真實案例（秀山分隊整體品質計畫）：「檢查標準」「抽查標準」「測試抽驗標準」是每張
+    自主檢查表、抽查表的備註表頭，一份計畫書就抽出 260 多筆「查無此法規」，
+    把真正需要人看的項目淹掉。
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "備註：1.檢查標準及實際檢查情形應具體填寫。",
+            "設計圖說、規範之檢查標準（定量、定性）",
+            "備註：1.抽查標準及實際檢查情形應具體填寫。",
+            "3.測試抽驗標準請依契約書圖辦理。",
+            "管理要點",
+            "管理標準",
+            "合格標準",
+            "不合標準之處置方法",
+            "不合格標準之處置方法",
+            "功能及操作符合契約規範及操作說明書",
+            "#4@15依鋼筋標準圖",
+            "90度標準彎鉤",
+            "於製作時應先依各類文件標準化格式撰寫",
+        ],
+    )
+    def test_is_not_extracted(self, rule, text):
+        assert [c.raw_text for c in rule.extract(text)] == []
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            ("依公共工程施工品質管理作業要點辦理", "公共工程施工品質管理作業要點"),
+            ("監造單位鋼筋抽查標準表", "監造單位鋼筋抽查標準"),
+            ("依混凝土工程品質管理標準辦理", "混凝土工程品質管理標準"),
+            ("依營造安全衛生設施標準第59條", "營造安全衛生設施標準"),
+            ("依建築物無障礙設施設計規範辦理", "建築物無障礙設施設計規範"),
+        ],
+    )
+    def test_named_documents_survive(self, rule, text, expected):
+        assert expected in [c.raw_text for c in rule.extract(text)]
