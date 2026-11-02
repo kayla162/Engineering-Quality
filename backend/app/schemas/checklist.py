@@ -137,8 +137,10 @@ class ChecklistOut(BaseModel):
     contract_note: str
     #: 規範書解析品質不佳時的警告，依據可能殘缺。正常時是 null。
     spec_warning: str | None
-    #: 專案有沒有掛契約圖。沒掛時不判斷「標單有，契約圖沒有」
+    #: 專案有沒有掛讀得到圖號的契約圖。沒有時不判斷「標單有，契約圖沒有」
     has_drawings: bool
+    #: 掛了契約圖卻讀不到任何一張（多半是掃描檔）時的說明。正常時是 null。
+    drawing_warning: str | None
     #: 契約圖有、標單沒有：圖名對不到任何工項的圖（階段 2，專案層級，不逐工項列）
     drawings_without_items: list[DrawingOut]
     items: list[ChecklistItemOut]
@@ -159,6 +161,7 @@ class ChecklistOut(BaseModel):
             contract_note=CONTRACT_NOTE,
             spec_warning=checklist.spec_warning,
             has_drawings=checklist.has_drawings,
+            drawing_warning=checklist.drawing_warning,
             drawings_without_items=[
                 DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page)
                 for d in checklist.drawings_without_items

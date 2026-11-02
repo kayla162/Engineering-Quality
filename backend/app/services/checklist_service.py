@@ -64,11 +64,18 @@ class Checklist:
     rows: list[ChecklistRow]
     #: 規範書解析品質不佳時的警告。依據可能殘缺，使用者必須知道。
     spec_warning: str | None = None
-    #: 專案有沒有掛契約圖（有掛才判斷「標單有，契約圖沒有」）
+    #: 專案有沒有掛**讀得到圖號的**契約圖（有才判斷「標單有，契約圖沒有」）
     has_drawings: bool = False
+    #: 掛了契約圖卻一張圖都讀不到（多半是掃描檔）時的說明
+    drawing_warning: str | None = None
     #: 契約圖有、標單沒有：圖名對不到任何工項的圖（階段 2，專案層級）
     drawings_without_items: list[DrawingSheet] = field(default_factory=list)
 
+
+DRAWING_UNREADABLE = (
+    "契約圖讀不到任何圖號與圖名（多半是掃描檔），本次不判斷「標單有，契約圖沒有」。"
+    "請改附 CAD 匯出的 PDF，或含圖說目錄（一行一張圖號與圖名）的 PDF。"
+)
 
 #: 原 spec 第 6 節的優先序：工項來源不一致 > 工法未定 > 依據不全
 _PRIORITY = (
@@ -350,6 +357,11 @@ class ChecklistService:
         methods: dict[uuid.UUID, WorkItemMethod] | None = None,
     ) -> Checklist:
         methods = methods or {}
+        drawing_warning = None
+        if sheets == []:
+            # 掃描的契約圖讀不到標題欄。當成沒有契約圖，否則每個工項都會變成「標單有，契約圖沒有」
+            sheets = None
+            drawing_warning = DRAWING_UNREADABLE
         rows = []
         matched_sheets: set[str] = set()
         for item in work_items:
@@ -389,6 +401,7 @@ class ChecklistService:
             rows=rows,
             spec_warning=warning,
             has_drawings=sheets is not None,
+            drawing_warning=drawing_warning,
             # 依圖號排：建表時 sheets 是頁碼順序、讀回時是圖號順序，兩條路要給同一張表
             drawings_without_items=sorted(
                 (s for s in sheets or [] if s.sheet_no not in matched_sheets),

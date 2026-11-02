@@ -161,3 +161,38 @@ class TestWithoutDrawings:
         by_no = {item["item_no"]: item for item in body["items"]}
         assert by_no["壹.一.1.2.2"]["result"] == CheckResult.METHOD_UNDECIDED
         assert by_no["壹.一.1.2.2"]["drawings"] == []
+
+
+def scanned_pdf() -> bytes:
+    """只有一張點陣圖的 PDF：掃描的契約圖，標題欄讀不到。"""
+    import pymupdf
+
+    image = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 200, 140), False)
+    image.clear_with(200)
+    doc = pymupdf.open()
+    doc.new_page(width=1191, height=842).insert_image(pymupdf.Rect(0, 0, 1191, 842), pixmap=image)
+    return doc.tobytes()
+
+
+class TestUnreadableDrawings:
+    """掃描的契約圖讀到零張圖時，不能把每個工項都判成「標單有，契約圖沒有」。"""
+
+    async def test_no_sheets_read_means_no_stage_two_judgement_and_a_warning(self, api_client):
+        roles = {k: v for k, v in ALL_ROLES.items() if v != "drawing"}
+        project_id = await demo_project(api_client, roles)
+        files = {"file": ("掃描契約圖.pdf", scanned_pdf(), "application/pdf")}
+        document_id = (await api_client.post("/api/documents/upload", files=files)).json()["document_id"]
+        await api_client.post(
+            f"/api/projects/{project_id}/documents", json={"document_id": document_id, "role": "drawing"}
+        )
+
+        built = (await api_client.post(f"/api/projects/{project_id}/checklist")).json()
+        read_back = (await api_client.get(f"/api/projects/{project_id}/checklist")).json()
+
+        for body in (built, read_back):
+            assert body["has_drawings"] is False
+            assert body["summary"]["boq_not_in_drawings"] == 0
+            assert "讀不到" in body["drawing_warning"]
+
+    async def test_readable_drawings_have_no_warning(self, checklist):
+        assert checklist["drawing_warning"] is None

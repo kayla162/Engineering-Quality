@@ -92,6 +92,7 @@ const CHECKLIST: Checklist = {
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
   has_drawings: false,
+  drawing_warning: null,
   drawings_without_items: [],
   items: [
     CHECKLIST_ITEM_OK,
@@ -112,6 +113,7 @@ const EMPTY_CHECKLIST: Checklist = {
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
   has_drawings: false,
+  drawing_warning: null,
   drawings_without_items: [],
   items: [],
 };
@@ -267,6 +269,18 @@ describe("ProjectWorkItemsPage", () => {
     fireEvent.click(await screen.findByText("秀山分隊興建工程"));
 
     expect(await screen.findByText(/解析品質不佳/)).toBeInTheDocument();
+  });
+
+  it("契約圖讀不到的說明要顯示出來", async () => {
+    stubChecklistApi(() => ({
+      status: 200,
+      body: { ...CHECKLIST, drawing_warning: "契約圖讀不到任何圖號與圖名（多半是掃描檔），本次不判斷「標單有，契約圖沒有」。" },
+    }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByText(/契約圖讀不到任何圖號與圖名/)).toBeInTheDocument();
   });
 
   it("沒有警告的時候不出現警告", async () => {

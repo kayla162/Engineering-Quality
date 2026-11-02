@@ -279,8 +279,10 @@ export interface Checklist {
   };
   contract_note: string;
   spec_warning: string | null;
-  /** 有掛契約圖才判斷「標單有，契約圖沒有」 */
+  /** 有讀得到圖號的契約圖才判斷「標單有，契約圖沒有」 */
   has_drawings: boolean;
+  /** 掛了契約圖卻一張都讀不到（多半是掃描檔）時的說明 */
+  drawing_warning: string | null;
   /** 契約圖有、標單沒有（專案層級） */
   drawings_without_items: DrawingSheet[];
   items: ChecklistItem[];

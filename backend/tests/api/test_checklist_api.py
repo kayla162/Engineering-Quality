@@ -277,7 +277,7 @@ class TestGetChecklist:
 
         assert set(body) == {
             "total", "summary", "contract_note", "spec_warning",
-            "has_drawings", "drawings_without_items", "items",
+            "has_drawings", "drawing_warning", "drawings_without_items", "items",
         }
         assert set(body["items"][0]) == {
             "work_item_id", "item_no", "name", "result", "chapter_code", "chapter", "bases",
