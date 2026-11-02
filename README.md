@@ -211,6 +211,19 @@ OCR 不能用（沒有語言資料、或 `ENABLE_OCR=false`）時：整份沒有
 （8 現行有效、2 已修正、1 已廢止）與 2 筆官方法規。範本與假資料都由
 `scripts/generate_enterprise_template.py`（`--demo`）產生。
 
+**名稱真實、編號假的清單**：`data/samples/enterprise_documents_xiushan.xlsx` 是從秀山分隊的
+「整體品質計畫」抽出的 211 份承攬廠商自有文件（品質管理標準、施工要領、自主檢查表、紀錄表），
+其中 138 份計畫書註明「於分項施工計畫內訂定」。計畫書沒有文件編號、版次與生效日，這三欄是假資料
+（`XS-QS-01` 這類編號），狀態一律「現行」。重新產生：
+
+```bash
+.venv/Scripts/python scripts/generate_enterprise_template.py --from-quality-plan 工程文書/整體品質計畫.docx
+```
+
+拿真實計畫書分析（`REGULATION_SOURCES` 含 `enterprise`）：匯入前 533 筆引用只有 14 筆判為現行；
+匯入後抽到 747 筆、327 筆現行。剩下的「查無」幾乎都是表頭字詞（「檢查標準」「抽查標準」），
+是抽取的雜訊，不是清單漏列。
+
 ### 產生範例文件
 
 ```bash

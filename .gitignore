@@ -22,3 +22,6 @@ frontend/tsconfig.tsbuildinfo
 
 # subagent-driven-development 的工作區（ledger、brief、review package）
 .superpowers/
+
+# 真實工程文件（契約、標單、圖說等，數百 MB）；腳本用參數讀取，不進版控
+工程文書/

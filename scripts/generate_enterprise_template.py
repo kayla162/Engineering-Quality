@@ -2,9 +2,11 @@
 
     python scripts/generate_enterprise_template.py          # 範本
     python scripts/generate_enterprise_template.py --demo   # 示範清單（假資料）
+    python scripts/generate_enterprise_template.py --from-quality-plan <整體品質計畫.docx>
 
 範本輸出到 data/templates/企業內部文件清單範本.xlsx；示範清單輸出到
-data/samples/enterprise_documents_demo.xlsx，可以直接匯入系統試用：
+data/samples/enterprise_documents_demo.xlsx；從整體品質計畫產生的清單輸出到
+data/samples/enterprise_documents_xiushan.xlsx。都可以直接匯入系統試用：
 
     python scripts/import_enterprise_documents.py data/samples/enterprise_documents_demo.xlsx --tenant <租戶名稱>
 
@@ -13,7 +15,9 @@ data/samples/enterprise_documents_demo.xlsx，可以直接匯入系統試用：
 """
 
 import argparse
+import re
 import sys
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -34,6 +38,7 @@ from app.services.enterprise_document_service import (  # noqa: E402
 
 TEMPLATE_PATH = ROOT / "data" / "templates" / "企業內部文件清單範本.xlsx"
 DEMO_PATH = ROOT / "data" / "samples" / "enterprise_documents_demo.xlsx"
+XIUSHAN_PATH = ROOT / "data" / "samples" / "enterprise_documents_xiushan.xlsx"
 
 #: Arial 沒有繁體中文字形，改用微軟正黑體
 FONT = "Microsoft JhengHei"
@@ -78,30 +83,137 @@ DEMO_ROWS = [
 ]
 
 
+#: 整體品質計畫裡，承攬廠商自有文件都以編號標題列出：「表 四-3 假設工程品質管理標準表」
+#: 「3.7鋼筋組立工程施工要領」。內文句子（「…將提出之品質管理標準」）沒有編號，不會被當成文件。
+_PLAN_TITLE = re.compile(r"^(?:表\s*(?P<table>[一二三四五六七八九十]+-\d+)|\d+\.\d+)\s*(?P<name>\S.*?)\s*$")
+#: 一覽表的備註指向單一一張表（「詳表 四-6」）時，那一列是該表的另一個叫法；「詳表 四-10~11」不算
+_PLAN_SEE_TABLE = re.compile(r"^詳表\s*(?P<table>[一二三四五六七八九十]+-\d+)$")
+_TOC_PAGE = re.compile(r"\t+\s*\d+\s*$")
+#: (名稱結尾, 範本類型, 編號前綴)。排在前面的先比對
+_PLAN_KINDS = [
+    (re.compile(r"品質管理標準表?$"), "檢驗標準", "QS"),
+    (re.compile(r"(檢測|抽驗)標準表$"), "檢驗標準", "QT"),
+    (re.compile(r"施工要領$"), "作業標準（SOP）", "CM"),
+    (re.compile(r"自主檢查表$"), "表單", "CK"),
+    (re.compile(r"紀錄表$"), "表單", "RF"),
+]
+#: 只是類別名稱、不是哪一份文件（「表 七-2自主檢查表」是空白格式）
+_PLAN_GENERIC = {"品質管理標準", "品質管理標準表", "施工要領", "自主檢查表", "紀錄表"}
+#: 從計畫書取不到、只好用假資料的欄位
+PLAN_REVISION = "第1版"
+PLAN_EFFECTIVE = date(2026, 1, 5)
+PLAN_NOTE = "名稱取自整體品質計畫；編號、版次、生效日為假資料"
+
+
+@dataclass
+class ContractorDocument:
+    name: str
+    doc_type: str
+    prefix: str
+    aliases: list[str] = field(default_factory=list)
+    remark: str | None = None
+
+
+def contractor_documents(plan: Path) -> list[ContractorDocument]:
+    """整體品質計畫裡列出的承攬廠商自有文件（品質管理標準、施工要領、自主檢查表、紀錄表），依出現順序。
+
+    先收編號標題（「表 四-3 …」「3.7 …」），再收一覽表（表頭「項次｜作業名稱｜備註」）——
+    一覽表才列得出全部分項，多數寫著「於分項施工計畫內訂定」，只在那裡出現。
+    """
+    import docx
+
+    document = docx.Document(plan)
+    found: dict[str, ContractorDocument] = {}
+    by_table: dict[str, ContractorDocument] = {}
+    for paragraph in document.paragraphs:
+        match = _PLAN_TITLE.match(_TOC_PAGE.sub("", paragraph.text).strip())
+        if not match or not (doc := _contractor_document(match["name"])):
+            continue
+        doc = found.setdefault(doc.name, doc)
+        if match["table"]:
+            by_table.setdefault(match["table"], doc)
+
+    known = {term for d in found.values() for term in (d.name, *d.aliases)}
+    for table in document.tables:
+        rows = [[cell.text.strip() for cell in row.cells] for row in table.rows]
+        if not rows or len(rows[0]) < 3 or rows[0][0] != "項次":
+            continue
+        for _, name, remark, *_ in rows[1:]:
+            if name in known or not (doc := _contractor_document(name)):
+                continue
+            see = _PLAN_SEE_TABLE.match(remark)
+            if see and see["table"] in by_table:
+                by_table[see["table"]].aliases.append(name)
+            else:
+                doc.remark = None if remark.startswith(("詳表", "詳圖")) else remark or None
+                found[name] = doc
+            known.add(name)
+    return list(found.values())
+
+
+def _contractor_document(name: str) -> ContractorDocument | None:
+    if name in _PLAN_GENERIC or "一覽表" in name:
+        return None
+    kind = next(((t, p) for pattern, t, p in _PLAN_KINDS if pattern.search(name)), None)
+    if kind is None:
+        return None
+    # 標準「表」是格式，引用時常省略：「假設工程品質管理標準」
+    aliases = [name[:-1]] if kind[0] == "檢驗標準" and name.endswith("表") else []
+    return ContractorDocument(name, kind[0], kind[1], aliases)
+
+
+def plan_rows(documents: list[ContractorDocument]) -> list[tuple]:
+    counters: dict[str, int] = {}
+    rows = []
+    for d in documents:
+        counters[d.prefix] = counters.get(d.prefix, 0) + 1
+        number = f"XS-{d.prefix}-{counters[d.prefix]:02d}"
+        note = f"{PLAN_NOTE}；計畫書註明：{d.remark}" if d.remark else PLAN_NOTE
+        rows.append((number, d.name, d.doc_type, PLAN_REVISION, PLAN_EFFECTIVE, None, "現行", None, None,
+                     "、".join(d.aliases) or None, note))
+    return rows
+
+
 def font(**kw):
     return Font(name=FONT, size=kw.pop("size", 11), **kw)
 
 
 def build(path: Path, demo: bool = False) -> None:
+    title = "企業內部文件清單（示範・假資料）" if demo else "企業內部文件清單（範本）"
+    notice = "這是虛構的「示範營造股份有限公司」的假資料，只用來試用系統，不可作為查核依據。" if demo else None
+    _save(path, title, notice, DEMO_ROWS if demo else None)
+
+
+def build_from_quality_plan(plan: Path, path: Path) -> int:
+    """從整體品質計畫產生清單。名稱是真的，編號、版次、生效日是假的。回傳文件數。"""
+    rows = plan_rows(contractor_documents(plan))
+    notice = (f"文件名稱取自「{plan.name}」列出的承攬廠商自有文件；計畫書沒有寫文件編號、版次與生效日，"
+              "這三欄是假資料，狀態一律填「現行」。只用來試用系統，不可作為查核依據。")
+    _save(path, "企業內部文件清單（名稱取自整體品質計畫・編號版次為假資料）", notice, rows)
+    return len(rows)
+
+
+def _save(path: Path, title: str, notice: str | None, rows: list[tuple] | None) -> None:
     wb = Workbook()
-    _guide(wb.active, demo)
+    _guide(wb.active, title, notice)
     ws = wb.create_sheet(SHEET_NAME)
     _options(wb.create_sheet("選項"))
-    _document_sheet(ws, demo)
+    _document_sheet(ws, rows)
     wb.active = 0
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
 
 
-def _guide(guide, demo: bool) -> None:
+def _guide(guide, title: str, notice: str | None) -> None:
     guide.title = "說明"
     guide.sheet_view.showGridLines = False
     guide.column_dimensions["A"].width = 16
     guide.column_dimensions["B"].width = 90
 
-    rows = [("企業內部文件清單（示範・假資料）" if demo else "企業內部文件清單（範本）", None)]
+    demo = notice is not None
+    rows = [(title, None)]
     if demo:
-        rows.append(("注意", "這是虛構的「示範營造股份有限公司」的假資料，只用來試用系統，不可作為查核依據。"))
+        rows.append(("注意", notice))
     else:
         rows.append((None, None))
     rows += [
@@ -166,7 +278,8 @@ def _options(opts) -> None:
     opts.column_dimensions["B"].width = 10
 
 
-def _document_sheet(ws, demo: bool) -> None:
+def _document_sheet(ws, rows: list[tuple] | None) -> None:
+    demo = rows is not None
     ws.freeze_panes = "A2"
     for col, (title, required, width, desc, _) in enumerate(COLUMNS, start=1):
         head = ws.cell(1, col, title + (" *" if required else ""))
@@ -178,7 +291,7 @@ def _document_sheet(ws, demo: bool) -> None:
         ws.column_dimensions[head.column_letter].width = width
     ws.row_dimensions[1].height = 30
 
-    data = DEMO_ROWS if demo else [tuple(example for *_, example in COLUMNS)]
+    data = rows if demo else [tuple(example for *_, example in COLUMNS)]
     for r, values in enumerate(data, start=2):
         for col, value in enumerate(values, start=1):
             cell = ws.cell(r, col, value if value != "" else None)
@@ -220,7 +333,13 @@ def _document_sheet(ws, demo: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="產生企業內部文件清單範本或示範清單")
     parser.add_argument("--demo", action="store_true", help="產生填好假資料的示範清單")
+    parser.add_argument("--from-quality-plan", type=Path, metavar="DOCX",
+                        help="從整體品質計畫抽出承攬廠商自有文件，產生清單（編號、版次為假資料）")
     args = parser.parse_args()
+    if args.from_quality_plan:
+        count = build_from_quality_plan(args.from_quality_plan, XIUSHAN_PATH)
+        print(f"已產生：{XIUSHAN_PATH}（{count} 份文件）")
+        return 0
     path = DEMO_PATH if args.demo else TEMPLATE_PATH
     build(path, demo=args.demo)
     print(f"已產生：{path}")
