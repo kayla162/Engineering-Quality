@@ -118,3 +118,12 @@ def read_boq(path: Path) -> list[BoqRow]:
             )
         )
     return items
+
+
+def direct_cost_prefix(rows: list[BoqRow]) -> str | None:
+    """「直接工程費」群組列的項次加一個點（「壹.一.」）；標單沒有這一列回傳 None。
+
+    工項清單只存有單位的實際工項，群組列不進資料庫，所以要從標單本身讀。
+    """
+    heading = next((row for row in rows if not row.is_leaf and row.name.strip() == "直接工程費"), None)
+    return f"{heading.item_no}." if heading else None

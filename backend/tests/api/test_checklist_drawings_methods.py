@@ -196,3 +196,56 @@ class TestUnreadableDrawings:
 
     async def test_readable_drawings_have_no_warning(self, checklist):
         assert checklist["drawing_warning"] is None
+
+
+def boq_with_indirect_costs() -> bytes:
+    """真實標單的結構：「壹.一 直接工程費」之外還有環保、職安、品管、保險、利潤、稅捐。"""
+    import io
+
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "契約詳細表"
+    for row in [
+        ["示範市政府（假資料）", "", "", "", "", "", ""],
+        ["詳細價目表[契約]", "", "", "", "", "", ""],
+        ["項 次", "項  目  及  說  明", "單 位", "數 量", "單 價", "複 價", "編碼(備註)"],
+        ["壹", "發包工程費", "", "", "", "", ""],
+        ["壹.一", "直接工程費", "", "", "", "", ""],
+        ["壹.一.1.1", "預拌混凝土，210kgf/cm2", "M3", 420, 2600, 1092000, "0331000004"],
+        ["壹.二", "環保清潔費(壹.一*0.2%)", "式", 1, 2184, 2184, ""],
+        ["壹.三", "職業安全衛生管理及設施費", "", "", "", "", ""],
+        ["壹.三.1", "職業安全衛生管理費(含行政管理費)", "式", 1, 50000, 50000, ""],
+        ["壹.七", "稅捐((壹.一 ~ 壹.六)*5%)", "式", 1, 60000, 60000, ""],
+    ]:
+        sheet.append(row)
+    buffer = io.BytesIO()
+    book.save(buffer)
+    return buffer.getvalue()
+
+
+class TestIndirectCosts:
+    """間接工程費（環保、職安、稅捐…）本來就不畫在圖上，只有直接工程費的工項要比對契約圖。"""
+
+    async def test_only_direct_cost_items_are_expected_on_drawings(self, api_client):
+        project_id = (await api_client.post("/api/projects", json={"name": "示範工程"})).json()["project_id"]
+        uploads = {
+            ("標單.xlsx", boq_with_indirect_costs(), MIME[".xlsx"]): "boq",
+            ("契約圖_示範.pdf", (DEMO / "契約圖_示範.pdf").read_bytes(), MIME[".pdf"]): "drawing",
+        }
+        for (name, content, mime), role in uploads.items():
+            document_id = (
+                await api_client.post("/api/documents/upload", files={"file": (name, content, mime)})
+            ).json()["document_id"]
+            await api_client.post(
+                f"/api/projects/{project_id}/documents", json={"document_id": document_id, "role": role}
+            )
+        await api_client.post(f"/api/projects/{project_id}/work-items")
+
+        body = (await api_client.post(f"/api/projects/{project_id}/checklist")).json()
+        flagged = {
+            item["item_no"] for item in body["items"] if CheckResult.BOQ_NOT_IN_DRAWINGS in item["issues"]
+        }
+
+        assert flagged == {"壹.一.1.1"}

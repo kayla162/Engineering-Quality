@@ -31,14 +31,25 @@ class TestRealSpecWording:
             "單台選擇性集合式控制", "二台連動選擇性集合式控制", "群管理系統控制", "單機按鈕控制",
         ]
 
-    def test_bracket_alternatives_joined_by_or(self):
-        text = "吊掛一支以上導線管時，應使用較大直徑之吊桿，吊桿可採用[全牙式][電鍍螺桿]或[熱浸鍍鋅螺桿]。"
-        assert method_options(text) == ["全牙式", "電鍍螺桿", "熱浸鍍鋅螺桿"]
+    def test_bracket_alternatives_joined_by_or_in_a_sentence_about_method(self):
+        text = "開挖施工方式得採[人工開挖][機械開挖]或[人工配合機械開挖]，並應保護既有管線。"
+        assert method_options(text) == ["人工開挖", "機械開挖", "人工配合機械開挖"]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # 「3. 施工」節裡的材料選擇：句子沒在講做法，不算工法（真實規範 16132、16010）
+            "F.膨脹水泥螺栓應為[鋼質]或[鐵質]。",
+            "導管、電纜架、匯流排、盤箱及設備需使用[“U”型槽鐵]或[錨碇螺 栓]固定。",
+            "吊掛一支以上導線管時，應使用較大直徑之吊桿，吊桿可採用[全牙式][電鍍螺桿]或[熱浸鍍鋅螺桿]。",
+        ],
+    )
+    def test_bracket_alternatives_of_material_are_not_methods(self, text):
+        assert method_options(text) == []
 
     def test_line_break_spaces_inside_an_option_are_removed(self):
-        text = "需使用[“U”型槽鐵]或[錨碇螺 栓]，電動機須為[分相型(Split-phase)]或[隱 極型(Shaded Pole Type)]。"
-        assert method_options(text) == ["“U”型槽鐵", "錨碇螺栓"]
-        assert method_options("須為[分相型]或[隱 極型(Shaded Pole Type)]") == ["分相型", "隱極型(Shaded Pole Type)"]
+        assert method_options("固定方式採[“U”型槽鐵]或[錨碇螺 栓]。") == ["“U”型槽鐵", "錨碇螺栓"]
+        assert method_options("啟動方式為[分相型]或[隱 極型(Shaded Pole Type)]") == ["分相型", "隱極型(Shaded Pole Type)"]
 
     def test_numbered_sections_after_according_to_the_following(self):
         assert method_options(REBAR_SPLICE) == ["搭接", "銲接", "機械式續接"]
@@ -63,3 +74,28 @@ class TestRealSpecWording:
         assert method_options("3.2 承包商得採用下列工法之一：(1) 鋼模 (2) 木模 (3) 系統模板。3.3 拆模") == [
             "鋼模", "木模", "系統模板",
         ]
+
+
+class TestOnlyTheConstructionPart:
+    """工法是施工方法，只從「3. 施工」節讀。
+
+    真實規範 86 章有 72 章分成「1. 通則／2. 產品／3. 施工／4. 計量與計價」。「2. 產品」的方括號是
+    材料或設備的選擇（火警照景盤用[燈泡]或[LED]），讀進來會讓整章的工項都顯示「請檢討使用何種工法」。
+    """
+
+    PRODUCT_CHOICE = "1. 通則 1.1 本章概要 2. 產品 2.1 材料 D.照景盤應具[燈泡]或[LED]指示。 "
+
+    def test_a_product_choice_is_not_a_method(self):
+        chapter = self.PRODUCT_CHOICE + "3. 施工 3.1 安裝 依設計圖說辦理。 4. 計量與計價 4.1 計量"
+        assert method_options(chapter) == []
+
+    def test_a_construction_choice_is_read(self):
+        chapter = self.PRODUCT_CHOICE + "3. 施工 " + REBAR_SPLICE + " 4. 計量與計價 4.1 計量"
+        assert method_options(chapter) == ["搭接", "銲接", "機械式續接"]
+
+    def test_a_choice_after_the_measurement_part_is_ignored(self):
+        chapter = "3. 施工 3.1 依設計圖說辦理。 4. 計量與計價 4.1 施工方式採[人工]或[機械]者分別計價。"
+        assert method_options(chapter) == []
+
+    def test_a_chapter_without_parts_is_read_whole(self):
+        assert method_options("3.2 承包商得採用下列工法之一：(1) 鋼模 (2) 木模。3.3 拆模") == ["鋼模", "木模"]

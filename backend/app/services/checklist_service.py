@@ -37,6 +37,7 @@ from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
 from app.specs.method_reader import choose_method, method_options
+from app.workitems.boq_reader import direct_cost_prefix, read_boq
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,8 @@ class ChecklistService:
                 bases=sum(len(found) for found in bases.values()),
             ),
         )
-        return self._assemble(work_items, chapters, catalogued, bases, spec, sheets, methods)
+        direct_prefix = await self._direct_cost_prefix(project_id)
+        return self._assemble(work_items, chapters, catalogued, bases, spec, sheets, methods, direct_prefix)
 
     async def checklist(self, project_id: uuid.UUID) -> Checklist:
         """只讀已經建好的依據，不重建。
@@ -170,7 +172,8 @@ class ChecklistService:
             else None
         )
         methods = await self.checklist_repo.methods_by_project(project_id)
-        return self._assemble(work_items, chapters, catalogued, bases, spec, sheets, methods)
+        direct_prefix = await self._direct_cost_prefix(project_id)
+        return self._assemble(work_items, chapters, catalogued, bases, spec, sheets, methods, direct_prefix)
 
     # --- 內部 ---
 
@@ -355,6 +358,7 @@ class ChecklistService:
         spec: Document | None,
         sheets: list[DrawingSheet] | None = None,
         methods: dict[uuid.UUID, WorkItemMethod] | None = None,
+        direct_prefix: str | None = None,
     ) -> Checklist:
         methods = methods or {}
         drawing_warning = None
@@ -372,7 +376,7 @@ class ChecklistService:
             method = methods.get(item.id)
 
             issues = []
-            if sheets is not None and self._should_be_drawn(item) and not drawings:
+            if sheets is not None and self._should_be_drawn(item, direct_prefix) and not drawings:
                 issues.append(CheckResult.BOQ_NOT_IN_DRAWINGS)
             if method is not None and method.selected is None:
                 issues.append(CheckResult.METHOD_UNDECIDED)
@@ -410,14 +414,28 @@ class ChecklistService:
         )
 
     @classmethod
-    def _should_be_drawn(cls, item: WorkItem) -> bool:
+    def _should_be_drawn(cls, item: WorkItem, direct_prefix: str | None = None) -> bool:
         """這個工項應該在契約圖上找得到嗎？
 
         只看實際工項（有單位的），並排除第 01 類章碼：01xxx 是一般要求（施工測量、
         安全衛生、品質管理），本來就不會畫在圖上，標成「契約圖沒有」只是雜訊。
+        標單有「直接工程費」時，只看它底下的工項：環保清潔費、職安費、品管費、保險、
+        利潤、稅捐這些間接工程費不會畫在圖上（秀山標單有 35 項）。
         """
+        if direct_prefix is not None and not item.item_no.startswith(direct_prefix):
+            return False
         code = cls._chapter_code(item)
         return item.is_leaf and not (code or "").startswith("01")
+
+    async def _direct_cost_prefix(self, project_id: uuid.UUID) -> str | None:
+        """標單「直接工程費」的項次前綴。讀不到標單就不限制（回 None），維持舊行為。"""
+        boq = await self._role_document(project_id, DocumentRole.BOQ)
+        if boq is None:
+            return None
+        try:
+            return direct_cost_prefix(read_boq(Path(boq.storage_path)))
+        except AppError:
+            return None
 
     @staticmethod
     def _by_code(chapters: list[SpecChapter]) -> dict[str, SpecChapter]:

@@ -13,10 +13,12 @@ spec 第 7 節拆成兩個判斷：
 舊版整本讀到 0 筆。它沿用工程會綱要規範的慣例，用方括號列出設計單位該挑的選項，所以另外認三種寫法：
 
 - 「選擇下列控制方式之一：[單台…][群管理…]」——「下列…之一」接方括號清單
-- 「吊桿可採用[全牙式][電鍍螺桿]或[熱浸鍍鋅螺桿]」——同一句裡用「或」連接的方括號
+- 「開挖施工方式得採[人工開挖]或[機械開挖]」——講做法的句子裡用「或」連接的方括號
 - 「鋼筋之續接，應依下列規定辦理。(1) 搭接 … (2) 銲接 … (3) 機械式續接」——每節一種做法
 
-方括號裡是標準編號（[CNS 1364]）或數值（[20%]）的不算：那是依據與規格，不是做法。
+只讀「3. 施工」節（construction_part）。方括號裡是標準編號（[CNS 1364]）或數值（[20%]）的不算，
+沒講做法的「[鋼質]或[鐵質]」也不算：那是依據、規格與材料，不是工法。秀山規範整本讀到的
+選項只有鋼筋續接一組。
 """
 
 import re
@@ -35,6 +37,8 @@ _BRACKET_TEXT = re.compile(r"\[([^\[\]]{1,25})\]")
 _ONE_OF_BRACKETS = re.compile(rf"下列[^。：:\[]{{0,8}}之一種?\s*[:：]?\s*(?P<list>(?:{_BRACKET}\s*){{2,}})")
 #: 「可採用[A][B]或[C]」
 _BRACKETS_OR = re.compile(rf"(?P<list>(?:{_BRACKET}\s*){{1,6}}或\s*{_BRACKET})")
+#: 「[A]或[B]」前面要有這些字，才是在講做法
+_METHOD_WORDS = re.compile(r"工法|施工方法|方式|做法|作法")
 #: 方括號裡是標準編號或數值：依據與規格，不是做法
 _NOT_A_METHOD = re.compile(r"CNS|ASTM|ISO|JIS|IEC|AWS|ACI|\d")
 #: 「鋼筋之續接，應依下列規定辦理。(1) 搭接 … (2) 銲接 …」，讀到下一個小節（「3.2.4」）為止
@@ -43,6 +47,9 @@ _SECTIONS_END = re.compile(r"\s\d+\.\d+\.\d+\s")
 _SECTION_HEADING = re.compile(r"[（(]\s*\d+\s*[)）]\s*(?P<heading>[^\s(（]{2,12})")
 _HEADING_TAIL = re.compile(r"(?:施工要求|規定|作業)$")
 _CJK_GAP = re.compile(r"(?<=[一-鿿])\s+|\s+(?=[一-鿿])")
+#: 綱要規範的節標題：「3. 施工」「4. 計量與計價」
+_PART_CONSTRUCTION = re.compile(r"(?:^|\s)3\.\s*施\s*工(?:\s|$)")
+_PART_MEASUREMENT = re.compile(r"(?:^|\s)4\.\s*計\s*量")
 
 
 @dataclass(frozen=True)
@@ -56,12 +63,25 @@ class MethodChoice:
 
 def method_options(chapter_text: str) -> list[str]:
     """這一章列出的工法選項。不到兩種就不算「要選」，回傳空清單。四種寫法依序找，先找到的算。"""
-    text = chapter_text or ""
+    text = construction_part(chapter_text or "")
     for reader in (_numbered_after_intro, _one_of_brackets, _sections, _brackets_or):
         options = list(dict.fromkeys(reader(text)))
         if len(options) >= 2:
             return options
     return []
+
+
+def construction_part(chapter_text: str) -> str:
+    """章裡「3. 施工」到「4. 計量與計價」之間；章沒有分節標題時回傳整章。
+
+    工法是施工方法。「2. 產品」的方括號是材料、設備的選擇（[燈泡]或[LED]），不是工法——
+    秀山規範 86 章裡有 72 章分節，原本讀到的 7 章選項有 6 章出自「2. 產品」。
+    """
+    start = _PART_CONSTRUCTION.search(chapter_text)
+    if start is None:
+        return chapter_text
+    end = _PART_MEASUREMENT.search(chapter_text, start.end())
+    return chapter_text[start.end(): end.start() if end else None]
 
 
 def _numbered_after_intro(text: str) -> list[str]:
@@ -87,7 +107,11 @@ def _one_of_brackets(text: str) -> list[str]:
 
 
 def _brackets_or(text: str) -> list[str]:
+    """「[A]或[B]」只有在講做法的句子裡才算：「施工」節裡也有材料選擇（螺栓[鋼質]或[鐵質]）。"""
     for match in _BRACKETS_OR.finditer(text):
+        sentence_start = max(text.rfind(mark, 0, match.start()) for mark in "。；;\n") + 1
+        if not _METHOD_WORDS.search(text[sentence_start: match.start()]):
+            continue
         if options := _bracket_options(match["list"]):
             return options
     return []
