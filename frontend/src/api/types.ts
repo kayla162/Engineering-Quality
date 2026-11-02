@@ -123,6 +123,8 @@ export interface MatchedRegulation {
   last_amended_date: string | null;
   official_url: string | null;
   source: string;
+  /** 示範目錄寫明的資料出處（哪些欄位是假資料） */
+  source_note: string | null;
 }
 
 export interface QueryHistoryItem {

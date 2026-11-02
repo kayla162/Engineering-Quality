@@ -5,7 +5,7 @@ import type { Dashboard, RegulationStatus } from "../api/types";
 import { EnterpriseDocumentsPanel } from "../components/EnterpriseDocumentsPanel";
 import { RegulationChangesPanel } from "../components/RegulationChangesPanel";
 import { StatusBadge } from "../components/StatusBadge";
-import { REVIEW_LABELS, SOURCE_LABELS, STATUS_LABELS } from "../labels";
+import { DEMO_SOURCES, REVIEW_LABELS, SOURCE_LABELS, STATUS_LABELS } from "../labels";
 
 const STATUS_ORDER: RegulationStatus[] = [
   "ACTIVE",
@@ -50,8 +50,7 @@ export function DashboardPage({
   if (error) return <section className="card"><p className="error">{error}</p></section>;
   if (!data) return <section className="card"><p className="hint">載入中…</p></section>;
 
-  // 兩個來源都是假資料：mock 與示範標準目錄
-  const mockCount = (data.references.by_source.mock ?? 0) + (data.references.by_source.standards_demo ?? 0);
+  const mockCount = DEMO_SOURCES.reduce((sum, source) => sum + (data.references.by_source[source] ?? 0), 0);
 
   return (
     <div className="dashboard">
