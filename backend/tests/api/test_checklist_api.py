@@ -281,7 +281,7 @@ class TestGetChecklist:
         }
         assert set(body["items"][0]) == {
             "work_item_id", "item_no", "name", "result", "chapter_code", "chapter", "bases",
-            "issues", "drawings", "method",
+            "issues", "drawings", "method", "contract_refs",
         }
 
     async def test_a_spec_not_included_row_names_the_chapter_it_is_missing(
@@ -316,14 +316,14 @@ class TestGetChecklist:
         assert all(row["chapter_code"] == row["chapter"]["code"] for row in matched)
 
     async def test_the_contract_note_travels_with_the_checklist(self, api_client, project_id):
-        """契約依據是專案層級的、不逐工項列（階段 3 spec 3.1 節）。這句話要跟著檢核表
-        走，否則沒有人知道契約欄去哪了。POST 與 GET 都要有。"""
+        """契約文件的優先順序是專案層級的；逐工項的「契約」欄只是「契約提到的地方」。
+        這句話要跟著檢核表走，否則契約欄會被當成條文規定。POST 與 GET 都要有。"""
         built = (await api_client.post(url(project_id))).json()
         read_back = (await api_client.get(url(project_id))).json()
 
         for body in (built, read_back):
             assert "標價清單" in body["contract_note"]
-            assert "專案層級" in body["contract_note"]
+            assert "不代表契約對該工項另有規定" in body["contract_note"]
 
     async def test_get_does_not_build(self, api_client, project_id):
         """GET 只讀已經建好的。規範書掛了、工項也有，但從沒 POST 過：依據與章節索引

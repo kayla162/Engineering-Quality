@@ -19,10 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.factory import get_llm_provider
 from app.core.config import settings
 from app.core.enums import CheckResult, DocumentRole, ParseQuality, RegulationType
-from app.core.errors import AppError, ProjectNotFoundError
+from app.core.errors import AppError, NotFoundError, ProjectNotFoundError
 from app.core.logging import log_context
 from app.extractors import ExtractionPipeline
-from app.models.checklist import DrawingSheet, SpecChapter, WorkItemBasis, WorkItemMethod
+from app.models.checklist import (
+    DrawingSheet,
+    SpecChapter,
+    WorkItemBasis,
+    WorkItemContractRef,
+    WorkItemMethod,
+)
 from app.models.document import Document
 from app.models.project import Project, WorkItem
 from app.repositories.audit import AuditRepository
@@ -35,9 +41,11 @@ from app.sources.standards_demo_source import DemoStandardsSource, standard_key
 from app.sources.taiwan_law_source import TaiwanLawSource
 from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
+from app.specs.contract_reader import contract_passages, item_keywords, mentions
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
+from app.specs.quality_standard import QualityStandardDraft, draft_quality_standard
 from app.specs.method_reader import choose_method, method_options
-from app.workitems.boq_reader import direct_cost_prefix, read_boq
+from app.workitems.boq_reader import BoqLayout, boq_layout, read_boq
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +66,8 @@ class ChecklistRow:
     drawings: list[DrawingSheet] = field(default_factory=list)
     #: 工法欄（階段 4）。施工規範沒列出多種工法時是 None
     method: WorkItemMethod | None = None
+    #: 契約欄：契約書提到這個工項（或它所屬分項）的地方。只是指出處，不影響 result
+    contract_refs: list[WorkItemContractRef] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +82,11 @@ class Checklist:
     #: 契約圖有、標單沒有：圖名對不到任何工項的圖（階段 2，專案層級）
     drawings_without_items: list[DrawingSheet] = field(default_factory=list)
 
+
+DRAWING_PARTLY_UNREADABLE = (
+    "這幾冊契約圖讀不到任何圖號與圖名（多半是掃描檔）：{files}。"
+    "只用讀得到的幾冊判斷「標單有，契約圖沒有」，相關工項可能被誤判。"
+)
 
 DRAWING_UNREADABLE = (
     "契約圖讀不到任何圖號與圖名（多半是掃描檔），本次不判斷「標單有，契約圖沒有」。"
@@ -133,8 +148,10 @@ class ChecklistService:
             texts.setdefault(row.code, row.text)
 
         bases = await self._build_bases(work_items, chapters, texts)
-        sheets = await self._build_drawing_sheets(project_id)
+        sheets, unreadable = await self._build_drawing_sheets(project_id)
         methods = await self._build_methods(project_id, work_items, texts)
+        layout = await self._boq_layout(project_id)
+        contract_refs = await self._build_contract_refs(project_id, work_items, layout)
 
         await self.session.commit()
         logger.info(
@@ -146,8 +163,9 @@ class ChecklistService:
                 bases=sum(len(found) for found in bases.values()),
             ),
         )
-        direct_prefix = await self._direct_cost_prefix(project_id)
-        return self._assemble(work_items, chapters, catalogued, bases, spec, sheets, methods, direct_prefix)
+        return self._assemble(
+            work_items, chapters, catalogued, bases, spec, sheets, methods, layout, unreadable, contract_refs
+        )
 
     async def checklist(self, project_id: uuid.UUID) -> Checklist:
         """只讀已經建好的依據，不重建。
@@ -165,15 +183,30 @@ class ChecklistService:
         work_items = await self.projects.work_items(project_id)
         catalogued = await self._catalogued(work_items, chapters)
         bases = await self.checklist_repo.bases_by_project(project_id)
-        drawing = await self._role_document(project_id, DocumentRole.DRAWING)
-        sheets = (
-            await self.checklist_repo.drawing_sheets_by_document(drawing.id)
-            if drawing is not None
-            else None
-        )
+        sheets, unreadable = None, []
+        for drawing in await self._drawing_documents(project_id):
+            stored = await self.checklist_repo.drawing_sheets_by_document(drawing.id)
+            sheets = (sheets or []) + stored
+            if not stored:
+                unreadable.append(drawing.filename)
         methods = await self.checklist_repo.methods_by_project(project_id)
-        direct_prefix = await self._direct_cost_prefix(project_id)
-        return self._assemble(work_items, chapters, catalogued, bases, spec, sheets, methods, direct_prefix)
+        layout = await self._boq_layout(project_id)
+        contract_refs = await self.checklist_repo.contract_refs_by_project(project_id)
+        return self._assemble(
+            work_items, chapters, catalogued, bases, spec, sheets, methods, layout, unreadable, contract_refs
+        )
+
+    async def quality_standard_draft(self, project_id: uuid.UUID, chapter_code: str) -> QualityStandardDraft:
+        """品質管理標準表初稿（橘框表單）：從本案施工規範那一章擷取。章節正文不存資料庫，
+        每次重讀規範書（秀山 772 頁約數秒）；這是給人下載後修改的初稿，不需要快取。"""
+        await self._require_project(project_id)
+        spec = await self._spec_document(project_id)
+        if spec is None:
+            raise AppError("專案還沒有掛施工規範，無法產生品質管理標準表初稿")
+        chapter = next((c for c in read_spec_chapters(Path(spec.storage_path)) if c.code == chapter_code), None)
+        if chapter is None:
+            raise NotFoundError(f"本案施工規範沒有第{chapter_code}章")
+        return draft_quality_standard(chapter.code, chapter.title, chapter.text)
 
     # --- 內部 ---
 
@@ -204,17 +237,92 @@ class ChecklistService:
             return None
         return await self.documents.get(links[0].document_id, self.tenant_id)
 
-    async def _build_drawing_sheets(self, project_id: uuid.UUID) -> list[DrawingSheet] | None:
-        """讀契約圖的圖號索引。沒掛契約圖回傳 None（不判斷階段 2），讀到零張圖回傳空清單。"""
-        drawing = await self._role_document(project_id, DocumentRole.DRAWING)
-        if drawing is None:
-            return None
-        sheets = [
-            DrawingSheet(document_id=drawing.id, sheet_no=row.sheet_no, title=row.title, page=row.page)
-            for row in read_drawing_sheets(Path(drawing.storage_path))
-        ]
-        await self.checklist_repo.replace_drawing_sheets(drawing.id, sheets)
-        return sheets
+    async def _drawing_documents(self, project_id: uuid.UUID) -> list[Document]:
+        """掛成契約圖的每一份文件。契約圖常分成建築、結構、水電好幾冊。"""
+        documents = []
+        for link in await self.projects.documents_by_role(project_id, DocumentRole.DRAWING):
+            document = await self.documents.get(link.document_id, self.tenant_id)
+            if document is not None:
+                documents.append(document)
+        return documents
+
+    async def _build_drawing_sheets(
+        self, project_id: uuid.UUID
+    ) -> tuple[list[DrawingSheet] | None, list[str]]:
+        """讀每一冊契約圖的圖號索引。沒掛契約圖回傳 (None, [])（不判斷階段 2）；
+        第二個值是一張圖都讀不到的那幾冊檔名。"""
+        documents = await self._drawing_documents(project_id)
+        if not documents:
+            return None, []
+        sheets: list[DrawingSheet] = []
+        unreadable: list[str] = []
+        for drawing in documents:
+            stored = await self.checklist_repo.drawing_sheets_by_document(drawing.id)
+            if stored and all(sheet.is_ocr for sheet in stored):
+                # 掃描冊 OCR 一頁約 2 秒（秀山三冊 286 頁約 10 分鐘），讀過就不重讀
+                sheets.extend(stored)
+                continue
+            found = [
+                DrawingSheet(
+                    document_id=drawing.id,
+                    sheet_no=row.sheet_no,
+                    title=row.title,
+                    page=row.page,
+                    is_ocr=row.is_ocr,
+                )
+                for row in read_drawing_sheets(Path(drawing.storage_path))
+            ]
+            await self.checklist_repo.replace_drawing_sheets(drawing.id, found)
+            sheets.extend(found)
+            if not found:
+                unreadable.append(drawing.filename)
+        return sheets, unreadable
+
+    async def _build_contract_refs(
+        self, project_id: uuid.UUID, work_items: list[WorkItem], layout: BoqLayout
+    ) -> dict[uuid.UUID, list[WorkItemContractRef]]:
+        """契約欄：每個計價工項在契約書裡被提到的地方（工項主體，找不到再找所屬分項）。
+
+        契約條號是 Word 自動編號、文字層沒有，出處寫頁碼與前面最近的小標題（contract_reader）。
+        同一個詞會被很多工項用到，依詞快取。
+        """
+        passages = []
+        for link in await self.projects.documents_by_role(project_id, DocumentRole.CONTRACT):
+            document = await self.documents.get(link.document_id, self.tenant_id)
+            if document is None:
+                continue
+            try:
+                passages += contract_passages(parse_document(Path(document.storage_path)).sections)
+            except AppError as exc:
+                logger.warning(
+                    "契約書讀取失敗，契約欄略過",
+                    extra=log_context(document_id=str(document.id), error=exc.message),
+                )
+        found: dict[uuid.UUID, list[WorkItemContractRef]] = {}
+        if passages:
+            cache: dict[str, list] = {}
+            for item in work_items:
+                if not item.is_leaf:
+                    continue
+                for keyword in item_keywords(item.name, layout.sections_of(item.item_no)):
+                    if keyword not in cache:
+                        cache[keyword] = mentions(keyword, passages)
+                    if cache[keyword]:
+                        found[item.id] = [
+                            WorkItemContractRef(
+                                work_item_id=item.id,
+                                page=m.page,
+                                heading=m.heading,
+                                excerpt=m.excerpt,
+                                keyword=keyword,
+                            )
+                            for m in cache[keyword]
+                        ]
+                        break
+        await self.checklist_repo.replace_contract_refs(
+            [item.id for item in work_items], [ref for refs in found.values() for ref in refs]
+        )
+        return found
 
     async def _contract_texts(self, project_id: uuid.UUID) -> list[tuple[str, str]]:
         """契約書與其他附件（需求書等）的全文，用來找指定了哪種工法。讀不了的檔案略過。"""
@@ -358,25 +466,31 @@ class ChecklistService:
         spec: Document | None,
         sheets: list[DrawingSheet] | None = None,
         methods: dict[uuid.UUID, WorkItemMethod] | None = None,
-        direct_prefix: str | None = None,
+        layout: BoqLayout | None = None,
+        unreadable: list[str] | None = None,
+        contract_refs: dict[uuid.UUID, list[WorkItemContractRef]] | None = None,
     ) -> Checklist:
         methods = methods or {}
+        contract_refs = contract_refs or {}
+        layout = layout or BoqLayout()
         drawing_warning = None
         if sheets == []:
-            # 掃描的契約圖讀不到標題欄。當成沒有契約圖，否則每個工項都會變成「標單有，契約圖沒有」
+            # 讀不到標題欄（掃描檔、OCR 不能用）。當成沒有契約圖，否則每個工項都會變成「標單有，契約圖沒有」
             sheets = None
             drawing_warning = DRAWING_UNREADABLE
+        elif unreadable:
+            drawing_warning = DRAWING_PARTLY_UNREADABLE.format(files="、".join(unreadable))
         rows = []
         matched_sheets: set[str] = set()
         for item in work_items:
             code = self._chapter_code(item)
             found = bases.get(item.id, [])
-            drawings = related_sheets(item.name, sheets) if sheets and item.is_leaf else []
+            drawings = self._related_drawings(item, layout, sheets) if sheets and item.is_leaf else []
             matched_sheets.update(sheet.sheet_no for sheet in drawings)
             method = methods.get(item.id)
 
             issues = []
-            if sheets is not None and self._should_be_drawn(item, direct_prefix) and not drawings:
+            if sheets is not None and self._should_be_drawn(item, layout.direct_prefix) and not drawings:
                 issues.append(CheckResult.BOQ_NOT_IN_DRAWINGS)
             if method is not None and method.selected is None:
                 issues.append(CheckResult.METHOD_UNDECIDED)
@@ -395,6 +509,7 @@ class ChecklistService:
                     issues=issues,
                     drawings=drawings,
                     method=method,
+                    contract_refs=contract_refs.get(item.id, []),
                 )
             )
 
@@ -427,15 +542,29 @@ class ChecklistService:
         code = cls._chapter_code(item)
         return item.is_leaf and not (code or "").startswith("01")
 
-    async def _direct_cost_prefix(self, project_id: uuid.UUID) -> str | None:
-        """標單「直接工程費」的項次前綴。讀不到標單就不限制（回 None），維持舊行為。"""
+    async def _boq_layout(self, project_id: uuid.UUID) -> BoqLayout:
+        """標單的群組結構（直接工程費、分項）。群組列不進資料庫，要從標單本身讀；
+        讀不到標單就用空的（不限直接工程費、不用分項比對），維持舊行為。"""
         boq = await self._role_document(project_id, DocumentRole.BOQ)
         if boq is None:
-            return None
+            return BoqLayout()
         try:
-            return direct_cost_prefix(read_boq(Path(boq.storage_path)))
+            return boq_layout(read_boq(Path(boq.storage_path)))
         except AppError:
-            return None
+            return BoqLayout()
+
+    @staticmethod
+    def _related_drawings(item: WorkItem, layout: BoqLayout, sheets: list[DrawingSheet]) -> list[DrawingSheet]:
+        """工項名稱或它所屬分項名稱對得上的圖。
+
+        真實標單的計價工項多半對不到圖名（「KW-MP PANEL」），契約圖畫的是分項（「開關箱單線圖」）。
+        秀山標單逐項比對時約 7 成對不到。
+        """
+        found: dict[str, DrawingSheet] = {}
+        for name in (item.name, *layout.sections_of(item.item_no)):
+            for sheet in related_sheets(name, sheets):
+                found.setdefault(f"{sheet.document_id}:{sheet.sheet_no}", sheet)
+        return sorted(found.values(), key=lambda s: s.sheet_no)
 
     @staticmethod
     def _by_code(chapters: list[SpecChapter]) -> dict[str, SpecChapter]:

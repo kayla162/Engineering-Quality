@@ -20,11 +20,14 @@ CAD 匯出的標題欄裡，標籤「圖號：」「DRG. NO.」和值「A2-08B�
 只看第二條的話，「鋼筋，含加工及組立」會因為「組立」兩字對到「模板組立詳圖」。
 """
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
+
+logger = logging.getLogger(__name__)
 
 #: 圖號：S-12、A2-08B、A10-10E、L1-01-2
 _SHEET_NO = r"[A-Z]{1,3}\d{0,2}-\d{1,3}[A-Z]?(?:-\d{1,2}[A-Z]?)?"
@@ -51,6 +54,11 @@ _LOOKS_LIKE_TITLE = re.compile(r"(?:圖|表)(?:[（(][一二三四五六七八�
 #: 真實圖的圖名欄最遠量到 168 pt
 MAX_LABEL_DISTANCE = 200
 
+#: 圖名常用字：含這些字的三字串不會被當成簽名拿掉
+_DRAWING_WORD = re.compile(r"圖|面|詳|配|層|系統|表|樓梯|門窗|地坪|版|柱|梁|牆|筋|索引|說明")
+#: 每頁文字少於這個字數，就當成掃描頁（只有頁碼或印章字樣）
+_SCANNED_TEXT_LIMIT = 50
+
 #: 圖種字尾：比對時去掉，只留下「畫的是什麼」。前面先去掉分張編號「(二)」
 _SHEET_PART = re.compile(r"[（(][一二三四五六七八九十\d]+[)）]$")
 _DRAWING_KIND = re.compile(r"(?:詳圖|大樣圖|平面圖|立面圖|剖面圖|配置圖|系統圖|示意圖|圖說|圖)$")
@@ -63,6 +71,8 @@ class DrawingSheetRow:
     sheet_no: str
     title: str
     page: int
+    #: 由 OCR 從掃描的標題欄讀出，可能有錯字（scanned_title_block）
+    is_ocr: bool = False
 
 
 def read_drawing_sheets(path: Path) -> list[DrawingSheetRow]:
@@ -82,6 +92,59 @@ def read_drawing_sheets(path: Path) -> list[DrawingSheetRow]:
     for page_no, text in pages:
         for match in _INDEX_LINE.finditer(text):
             sheets.setdefault(match.group("no"), DrawingSheetRow(match.group("no"), match.group("title"), page_no))
+    if sheets or not _is_scanned([text for _, text in pages]):
+        return list(sheets.values())
+    return _without_repeated_signature(_read_scanned(path))
+
+
+def _is_scanned(page_texts: list[str]) -> bool:
+    """八成以上的頁沒有文字層就是掃描冊。秀山水電圖 117 頁裡有 2 頁帶文字，仍是掃描冊。"""
+    if not page_texts:
+        return False
+    empty = sum(1 for text in page_texts if len(text.strip()) <= _SCANNED_TEXT_LIMIT)
+    return empty / len(page_texts) >= 0.8
+
+
+def _without_repeated_signature(rows: list[DrawingSheetRow]) -> list[DrawingSheetRow]:
+    """OCR 會把標題欄的簽名黏進圖名。同一冊每張都簽同一個名字，所以整冊四分之一以上的圖名都有、
+    又不含圖面用字（圖、面、詳、配、層…）的三字串，就當成簽名拿掉——不寫死任何人名。"""
+    if len(rows) < 4:
+        return rows
+    counts: dict[str, int] = {}
+    for row in rows:
+        for gram in {row.title[i:i + 3] for i in range(len(row.title) - 2)}:
+            counts[gram] = counts.get(gram, 0) + 1
+    noise = [
+        gram for gram, count in counts.items()
+        if count >= len(rows) / 4 and _CJK.fullmatch(gram[0]) and not _DRAWING_WORD.search(gram)
+    ]
+    cleaned = []
+    for row in rows:
+        title = row.title
+        for gram in sorted(noise, key=len, reverse=True):
+            title = title.replace(gram, "")
+        cleaned.append(DrawingSheetRow(row.sheet_no, title.strip("=|/、,，") or row.title, row.page, row.is_ocr))
+    return cleaned
+
+
+def _read_scanned(path: Path) -> list[DrawingSheetRow]:
+    """整份都沒有文字層（用印後掃描）：OCR 讀每一頁的標題欄。OCR 不能用時回空清單，
+    檢核表會說明這一冊讀不到。"""
+    from app.parsers import ocr
+    from app.specs.scanned_title_block import read_title_block
+
+    engine, reason = ocr.load_engine()
+    if engine is None:
+        logger.warning("掃描的契約圖需要 OCR，但 OCR 不能用：%s", reason)
+        return []
+    sheets: dict[str, DrawingSheetRow] = {}
+    with pymupdf.open(str(path)) as document:
+        for page_no, page in enumerate(document, start=1):
+            number, title = read_title_block(page, engine)
+            if not title:
+                continue
+            sheet_no = number or f"第{page_no}頁"
+            sheets.setdefault(sheet_no, DrawingSheetRow(sheet_no, title[:255], page_no, is_ocr=True))
     return list(sheets.values())
 
 

@@ -15,7 +15,7 @@
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.core.errors import UnprocessableDocumentError
@@ -120,6 +120,7 @@ def read_boq(path: Path) -> list[BoqRow]:
     return items
 
 
+
 def direct_cost_prefix(rows: list[BoqRow]) -> str | None:
     """「直接工程費」群組列的項次加一個點（「壹.一.」）；標單沒有這一列回傳 None。
 
@@ -127,3 +128,34 @@ def direct_cost_prefix(rows: list[BoqRow]) -> str | None:
     """
     heading = next((row for row in rows if not row.is_leaf and row.name.strip() == "直接工程費"), None)
     return f"{heading.item_no}." if heading else None
+
+
+@dataclass(frozen=True)
+class BoqLayout:
+    """標單的群組結構：直接工程費在哪、每個計價工項屬於哪些分項。"""
+
+    direct_prefix: str | None = None
+    #: 分項群組列：項次 -> 名稱（「壹.一.2.1」->「開關箱設備工程」）
+    sections: dict[str, str] = field(default_factory=dict)
+
+    def sections_of(self, item_no: str) -> list[str]:
+        """這個計價工項所屬的分項名稱，由近到遠。"""
+        parts = item_no.split(".")
+        prefixes = [".".join(parts[:n]) for n in range(len(parts) - 1, 0, -1)]
+        return [self.sections[p] for p in prefixes if p in self.sections]
+
+
+def boq_layout(rows: list[BoqRow]) -> BoqLayout:
+    """分項是「直接工程費」往下兩層以內更細的群組：壹.一（直接工程費）> 壹.一.2（水電工程，太粗不算）>
+    壹.一.2.1（開關箱設備工程）。標單沒有「直接工程費」時，第三層（含）以下的群組都算。
+
+    工種那一層太粗：「水電配置圖」不代表開關箱有畫，拿它對工項只會讓每一項都「有圖」。
+    """
+    prefix = direct_cost_prefix(rows)
+    min_depth = (prefix.count(".") + 2) if prefix else 3
+    sections = {
+        row.item_no: row.name.strip()
+        for row in rows
+        if not row.is_leaf and len(row.item_no.split(".")) >= min_depth and len(row.name.strip()) >= 2
+    }
+    return BoqLayout(direct_prefix=prefix, sections=sections)
