@@ -31,8 +31,8 @@ _NOT_QC = re.compile(r"計價|計量|單價|付款")
 _FREQUENCY = re.compile(r"每[^，,。；]{0,14}?(?:批|個|次|組|層|處|車)[^。；]{0,16}?(?:取樣|試驗|檢驗)\s*\d*\s*[個組次]?")
 _MEASURE = re.compile(r"mm|cm|±|許可差|誤差|間距|長度|厚度|位置|尺寸")
 _TEST = re.compile(r"試驗|抗拉|抗壓|強度|檢測|取樣")
-#: 小節「標題」其實是句子開頭
-_NOT_A_TITLE = re.compile(r"[，,、；]|應|如|在|之規定|者|得|於")
+#: 小節「標題」其實是句子開頭（含數字的也是：「新澆置後至少7」）
+_NOT_A_TITLE = re.compile(r"[，,、；]|\d|應|如|在|之規定|者|得|於")
 
 
 @dataclass(frozen=True)
@@ -128,7 +128,8 @@ def _subsection_at(subsections, position: int) -> tuple[str | None, str]:
     parts = number.split(".")
     for depth in range(len(parts), 1, -1):
         title = titles.get(".".join(parts[:depth]), "")
-        if title and not _NOT_A_TITLE.search(title):
+        # 一個字（「款」）是條文切出來的；滿 12 字（_SUBSECTION 的上限）是被截斷的句子開頭
+        if title and 2 <= len(title) < 12 and not _NOT_A_TITLE.search(title):
             return number, title
     return number, ""
 

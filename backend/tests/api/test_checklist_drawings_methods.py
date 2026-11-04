@@ -421,6 +421,123 @@ class TestQualityStandardDraft:
         assert any("初稿" in t and "品管人員" in t for t in texts)
         assert "管理標準" in texts
 
+    async def test_the_self_inspection_and_supervision_drafts(self, api_client, checklist):
+        """同一章的自主檢查表（承攬廠商）與抽查標準表（監造）初稿，都從品質管理標準表初稿衍生。"""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        base = f"/api/projects/{checklist['project_id']}/quality-standards/03210"
+        own = await api_client.get(f"{base}/self-inspection/export")
+        supervision = await api_client.get(f"{base}/supervision/export")
+
+        assert own.status_code == supervision.status_code == 200
+        own_texts = [str(c.value) for r in load_workbook(BytesIO(own.content)).active.iter_rows() for c in r if c.value]
+        assert "鋼筋工程施工自主檢查表（初稿）" in own_texts
+        assert load_workbook(BytesIO(supervision.content)).sheetnames == ["施工抽查標準表", "材料抽驗標準表"]
+
+    async def test_the_method_statement_draft_is_a_word_file(self, api_client, checklist):
+        """施工要領初稿：施工方法取自規範第3節，使用材料取自標單裡屬於這一章的工項。"""
+        from io import BytesIO
+
+        import docx
+
+        response = await api_client.get(
+            f"/api/projects/{checklist['project_id']}/quality-standards/03210/method-statement/export"
+        )
+        assert response.status_code == 200
+        paragraphs = docx.Document(BytesIO(response.content)).paragraphs
+        text = " ".join(p.text for p in paragraphs)
+        assert "鋼筋工程施工要領（初稿）" in text
+        assert "鋼筋，SD420W 含加工及組立" in text  # 示範標單裡計價代碼 03210 的工項
+
+    async def test_function_tests_are_only_for_equipment_chapters(self, api_client, checklist):
+        response = await api_client.get(
+            f"/api/projects/{checklist['project_id']}/quality-standards/03210/function-test/export"
+        )
+        assert response.status_code == 400
+        assert "不是機電設備章" in response.json()["error"]["message"]
+
     async def test_an_unknown_chapter_is_404(self, api_client, checklist):
         response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-standards/99999")
+        assert response.status_code == 404
+
+
+class TestQualityPlanReview:
+    """品質計畫審查（橘框對綠框）：掛成「品質計畫」的 docx，和本案施工規範比對。"""
+
+    async def test_the_review_lists_what_the_plan_left_out(self, api_client, checklist):
+        import io
+
+        import docx
+        from openpyxl import load_workbook
+
+        document = docx.Document()
+        document.add_paragraph("表 四-11 鋼筋工程品質管理標準表")
+        table = document.add_table(rows=2, cols=3)
+        for cell, value in zip(table.rows[0].cells, ["管理項目", "管理標準", "檢查方法"]):
+            cell.text = value
+        for cell, value in zip(table.rows[1].cells, ["鋼筋", "符合 CNS 560", "目視"]):
+            cell.text = value
+        buffer = io.BytesIO()
+        document.save(buffer)
+        files = {"file": ("整體品質計畫.docx", buffer.getvalue(),
+                          "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        document_id = (await api_client.post("/api/documents/upload", files=files)).json()["document_id"]
+        project_id = checklist["project_id"]
+        attached = await api_client.post(
+            f"/api/projects/{project_id}/documents", json={"document_id": document_id, "role": "quality_plan"}
+        )
+        assert attached.status_code < 300, attached.text
+
+        response = await api_client.get(f"/api/projects/{project_id}/quality-plan-review/export")
+
+        assert response.status_code == 200
+        book = load_workbook(io.BytesIO(response.content))
+        assert book.sheetnames == ["審查摘要", "計畫沒寫到的規範標準"]
+        summary = [[c.value for c in row] for row in book["審查摘要"].iter_rows(min_row=4)]
+        assert summary[0][:2] == ["鋼筋工程品質管理標準表", "第03210章 鋼筋"]
+
+    async def test_without_a_quality_plan_it_says_what_to_attach(self, api_client, checklist):
+        response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-plan-review/export")
+        assert response.status_code == 400
+        assert "品質計畫" in response.json()["error"]["message"]
+
+
+class TestCrossRuleReminders:
+    """法規雙重規範提醒：標單或契約圖觸發示範目錄裡的規則。"""
+
+    async def test_boq_items_and_drawings_trigger_reminders(self, api_client):
+        body = await project_with(api_client, [
+            ("標單.xlsx", boq_with_sections(), "boq"),
+            ("建築圖.pdf", drawing_pdf([("A2-04", "屋頂女兒牆詳圖"), ("A5-01", "電梯平面圖")]), "drawing"),
+        ])
+        project_id = (await api_client.get("/api/projects")).json()["items"][0]["project_id"]
+        reminders = (await api_client.get(f"/api/projects/{project_id}/cross-rule-reminders")).json()
+
+        assert body["total"] == 3
+        by_title = {r["title"]: r for r in reminders}
+        assert by_title["屋頂欄杆、女兒牆的高度"]["evidence"] == ["契約圖：A2-04 屋頂女兒牆詳圖"]
+        assert "使用者提供" in by_title["屋頂欄杆、女兒牆的高度"]["provenance"]
+        assert "電梯同時是無障礙昇降機" in by_title
+
+
+class TestPlanDrafts:
+    """整體品質計畫與監造計畫初稿：標單用到的每一章規範，各章橘框表單組成一份 Word。"""
+
+    async def test_both_plans_download_as_word(self, api_client, checklist):
+        from io import BytesIO
+
+        import docx
+
+        for kind, heading in (("quality-plan", "五、品質管理標準"), ("supervision-plan", "五、施工抽查程序及標準")):
+            response = await api_client.get(f"/api/projects/{checklist['project_id']}/plans/{kind}/export")
+            assert response.status_code == 200, response.text
+            headings = [p.text for p in docx.Document(BytesIO(response.content)).paragraphs if p.style.name.startswith("Heading")]
+            assert heading in headings
+            # 示範標單用到 03110、03210、03310 等章，每章都有
+            assert any("鋼筋" in h for h in headings)
+
+    async def test_an_unknown_plan_is_404(self, api_client, checklist):
+        response = await api_client.get(f"/api/projects/{checklist['project_id']}/plans/other/export")
         assert response.status_code == 404

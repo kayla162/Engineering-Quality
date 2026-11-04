@@ -4,6 +4,7 @@ import type {
   AuditLogList,
   ChangeCheckResult,
   Checklist,
+  CrossRuleReminder,
   Dashboard,
   DocumentList,
   DocumentRole,
@@ -20,8 +21,8 @@ import type {
   RegulationChange,
   ReviewStatus,
   SearchResult,
-  SourcesStatus,
   SessionUser,
+  SourcesStatus,
   WorkItemList,
 } from "./types";
 
@@ -225,6 +226,9 @@ export const api = {
 
   /** 只讀已經建好的依據，不重建。要更新依據請用 buildChecklist。 */
   getChecklist: (projectId: string) => request<Checklist>(`/projects/${projectId}/checklist`),
+  /** 法規雙重規範提醒（示範目錄）：標單工項與契約圖圖名觸發的規則 */
+  getCrossRuleReminders: (projectId: string) =>
+    request<CrossRuleReminder[]>(`/projects/${projectId}/cross-rule-reminders`),
 
   /** 匯出是檔案下載，直接開新分頁交給瀏覽器處理 */
   exportReportUrl: (documentId: string, format: "xlsx" | "csv" | "pdf") =>

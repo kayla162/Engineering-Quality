@@ -186,6 +186,19 @@ function DrawingMethodCell({ item }: { item: ChecklistItem }) {
   );
 }
 
+/** 每一章可下載的橘框表單初稿：（路徑, 連結文字） */
+const DRAFT_FORMS: [string, string][] = [
+  ["export", "標準表初稿"],
+  ["self-inspection/export", "自主檢查表初稿"],
+  ["supervision/export", "監造抽查標準表初稿"],
+  ["method-statement/export", "施工要領初稿"],
+];
+
+/** 機電章（11 設備、13 消防、14 輸送、15 機械、16 電機）才有設備功能運轉檢測 */
+function isEquipmentChapter(code: string): boolean {
+  return ["11", "13", "14", "15", "16"].includes(code.slice(0, 2));
+}
+
 /** 契約欄：契約書提到這個工項（或它所屬分項）的地方。條號讀不到，只給頁碼與前面最近的標題。 */
 function ContractCell({ item }: { item: ChecklistItem }) {
   const refs = item.contract_refs ?? [];
@@ -207,9 +220,18 @@ function ChapterCell({ item, projectId }: { item: ChecklistItem; projectId?: str
       <>
         <span className="chapter-code">{item.chapter.code}</span> {item.chapter.title}
         {projectId && (
-          <div>
-            {/* 橘框表單：從本案規範這一章擷取的初稿，要品管人員補正 */}
-            <a href={`/api/projects/${projectId}/quality-standards/${item.chapter.code}/export`}>標準表初稿</a>
+          <div className="draft-forms">
+            {/* 橘框表單：從本案規範這一章擷取的初稿，要品管／監造人員補正。三張表出自同一份初稿 */}
+            {DRAFT_FORMS.map(([path, label]) => (
+              <a key={label} href={`/api/projects/${projectId}/quality-standards/${item.chapter!.code}/${path}`}>
+                {label}
+              </a>
+            ))}
+            {isEquipmentChapter(item.chapter.code) && (
+              <a href={`/api/projects/${projectId}/quality-standards/${item.chapter.code}/function-test/export`}>
+                功能運轉檢測初稿
+              </a>
+            )}
           </div>
         )}
       </>

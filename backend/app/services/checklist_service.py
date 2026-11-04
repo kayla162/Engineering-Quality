@@ -42,7 +42,11 @@ from app.sources.taiwan_law_source import TaiwanLawSource
 from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
 from app.specs.contract_reader import contract_passages, item_keywords, mentions
+from app.specs.cross_rules import CrossRuleReminder, remind
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
+from app.specs.function_test import FunctionTestDraft, draft_function_test, is_equipment_chapter
+from app.specs.method_statement import MethodStatement, draft_method_statement
+from app.specs.plan_review import PlanReview, review_plan
 from app.specs.quality_standard import QualityStandardDraft, draft_quality_standard
 from app.specs.method_reader import choose_method, method_options
 from app.workitems.boq_reader import BoqLayout, boq_layout, read_boq
@@ -199,14 +203,80 @@ class ChecklistService:
     async def quality_standard_draft(self, project_id: uuid.UUID, chapter_code: str) -> QualityStandardDraft:
         """品質管理標準表初稿（橘框表單）：從本案施工規範那一章擷取。章節正文不存資料庫，
         每次重讀規範書（秀山 772 頁約數秒）；這是給人下載後修改的初稿，不需要快取。"""
+        chapter = await self._spec_chapter(project_id, chapter_code)
+        return draft_quality_standard(chapter.code, chapter.title, chapter.text)
+
+    async def method_statement_draft(self, project_id: uuid.UUID, chapter_code: str) -> MethodStatement:
+        """施工要領初稿：施工方法取自規範那一章的第3節，使用材料取自標單裡計價代碼屬於這一章的工項。"""
+        chapter = await self._spec_chapter(project_id, chapter_code)
+        materials = [
+            item.name
+            for item in await self.projects.work_items(project_id)
+            if item.is_leaf and self._chapter_code(item) == chapter_code
+        ]
+        return draft_method_statement(chapter.code, chapter.title, chapter.text, materials)
+
+    async def function_test_draft(self, project_id: uuid.UUID, chapter_code: str) -> FunctionTestDraft:
+        """設備功能運轉檢測標準表／測試抽驗標準表初稿。只有機電章（11／13／14／15／16 開頭）有。"""
+        if not is_equipment_chapter(chapter_code):
+            raise AppError(f"第{chapter_code}章不是機電設備章，沒有設備功能運轉檢測")
+        chapter = await self._spec_chapter(project_id, chapter_code)
+        return draft_function_test(chapter.code, chapter.title, chapter.text)
+
+    async def plan_review(self, project_id: uuid.UUID) -> PlanReview:
+        """品質計畫審查（橘框對綠框）：掛成「品質計畫」的 docx 裡的品質管理標準表，漏了哪些規範的可檢查標準。"""
+        await self._require_project(project_id)
+        plan = await self._role_document(project_id, DocumentRole.QUALITY_PLAN)
+        if plan is None:
+            raise AppError("專案還沒有掛品質計畫（承攬廠商的整體品質計畫）")
+        if not plan.filename.lower().endswith(".docx"):
+            raise AppError("品質計畫審查目前只讀 Word（.docx）：PDF 的表格欄位讀不準")
+        spec = await self._spec_document(project_id)
+        if spec is None:
+            raise AppError("專案還沒有掛施工規範，沒有綠框可以比對")
+        review = review_plan(Path(plan.storage_path), read_spec_chapters(Path(spec.storage_path)))
+        return PlanReview(plan.filename, review.tables)
+
+    async def cross_rule_reminders(self, project_id: uuid.UUID) -> list[CrossRuleReminder]:
+        """法規雙重規範提醒：標單工項與契約圖圖名裡出現目錄（data/cross_rules.json）的觸發詞。只讀已存的資料。"""
+        await self._require_project(project_id)
+        texts = [
+            ("標單", f"{item.item_no} {item.name}")
+            for item in await self.projects.work_items(project_id)
+            if item.is_leaf
+        ]
+        for drawing in await self._drawing_documents(project_id):
+            texts += [
+                ("契約圖", f"{sheet.sheet_no} {sheet.title}")
+                for sheet in await self.checklist_repo.drawing_sheets_by_document(drawing.id)
+            ]
+        return remind(texts)
+
+    async def plan_sources(self, project_id: uuid.UUID) -> tuple[str, list, dict[str, list[str]]]:
+        """組整份計畫用的材料：（工程名稱, 標單用到的規範章（依規範順序）, 每章的標單工項名稱）。"""
+        project = await self._require_project(project_id)
+        spec = await self._spec_document(project_id)
+        if spec is None:
+            raise AppError("專案還沒有掛施工規範，無法產生計畫初稿")
+        materials: dict[str, list[str]] = {}
+        for item in await self.projects.work_items(project_id):
+            code = self._chapter_code(item)
+            if item.is_leaf and code:
+                materials.setdefault(code, []).append(item.name)
+        chapters = [c for c in read_spec_chapters(Path(spec.storage_path)) if c.code in materials]
+        if not chapters:
+            raise AppError("標單的工項對不到本案施工規範的任何一章，先建立工項並確認規範書")
+        return project.name, list({c.code: c for c in chapters}.values()), materials
+
+    async def _spec_chapter(self, project_id: uuid.UUID, chapter_code: str):
         await self._require_project(project_id)
         spec = await self._spec_document(project_id)
         if spec is None:
-            raise AppError("專案還沒有掛施工規範，無法產生品質管理標準表初稿")
+            raise AppError("專案還沒有掛施工規範，無法產生橘框表單初稿")
         chapter = next((c for c in read_spec_chapters(Path(spec.storage_path)) if c.code == chapter_code), None)
         if chapter is None:
             raise NotFoundError(f"本案施工規範沒有第{chapter_code}章")
-        return draft_quality_standard(chapter.code, chapter.title, chapter.text)
+        return chapter
 
     # --- 內部 ---
 
