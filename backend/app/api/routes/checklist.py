@@ -15,7 +15,7 @@ from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AuditServiceDep, ChecklistServiceDep, CurrentUserDep
 from app.core.enums import AuditAction
-from app.schemas.checklist import ChecklistOut, QualityStandardOut
+from app.schemas.checklist import ChecklistOut, CrossRuleReminderOut, QualityStandardOut
 from app.specs.derived_forms import self_inspection, self_inspection_xlsx, supervision_standard, supervision_xlsx
 from app.specs.function_test import function_test_xlsx
 from app.specs.method_statement import method_statement_docx
@@ -108,6 +108,12 @@ async def export_plan_review(project_id: uuid.UUID, service: ChecklistServiceDep
     """品質計畫審查（橘框對綠框）：計畫的品質管理標準表漏了哪些本案施工規範的可檢查標準。"""
     review = await service.plan_review(project_id)
     return _xlsx(plan_review_xlsx(review), f"品質計畫審查_{review.plan_name.rsplit('.', 1)[0]}")
+
+
+@router.get("/{project_id}/cross-rule-reminders", response_model=list[CrossRuleReminderOut])
+async def get_cross_rule_reminders(project_id: uuid.UUID, service: ChecklistServiceDep):
+    """法規雙重規範提醒：本案標單工項與契約圖圖名觸發了哪些「要同時滿足兩部規定」的提醒（示範目錄）。"""
+    return [CrossRuleReminderOut(**vars(r)) for r in await service.cross_rule_reminders(project_id)]
 
 
 def _xlsx(content: bytes, title: str) -> Response:

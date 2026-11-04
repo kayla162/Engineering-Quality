@@ -502,3 +502,21 @@ class TestQualityPlanReview:
         response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-plan-review/export")
         assert response.status_code == 400
         assert "品質計畫" in response.json()["error"]["message"]
+
+
+class TestCrossRuleReminders:
+    """法規雙重規範提醒：標單或契約圖觸發示範目錄裡的規則。"""
+
+    async def test_boq_items_and_drawings_trigger_reminders(self, api_client):
+        body = await project_with(api_client, [
+            ("標單.xlsx", boq_with_sections(), "boq"),
+            ("建築圖.pdf", drawing_pdf([("A2-04", "屋頂女兒牆詳圖"), ("A5-01", "電梯平面圖")]), "drawing"),
+        ])
+        project_id = (await api_client.get("/api/projects")).json()["items"][0]["project_id"]
+        reminders = (await api_client.get(f"/api/projects/{project_id}/cross-rule-reminders")).json()
+
+        assert body["total"] == 3
+        by_title = {r["title"]: r for r in reminders}
+        assert by_title["屋頂欄杆、女兒牆的高度"]["evidence"] == ["契約圖：A2-04 屋頂女兒牆詳圖"]
+        assert "使用者提供" in by_title["屋頂欄杆、女兒牆的高度"]["provenance"]
+        assert "電梯同時是無障礙昇降機" in by_title

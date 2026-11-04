@@ -13,6 +13,7 @@ import {
   ChecklistTable,
   type ChecklistResultFilter,
 } from "../components/ChecklistTable";
+import { CrossRuleReminders } from "../components/CrossRuleReminders";
 import { ProjectPanel } from "../components/ProjectPanel";
 import { WorkItemSummary, WorkItemTable } from "../components/WorkItemTable";
 
@@ -293,6 +294,7 @@ export function ProjectWorkItemsPage() {
                       </p>
                     </>
                   )}
+                  <CrossRuleReminders projectId={selected.project_id} />
                   <ChecklistTable
                     items={checklist.items}
                     resultFilter={resultFilter}

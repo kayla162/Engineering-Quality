@@ -128,6 +128,18 @@ const OTHER_PROJECT = {
  * 檢核表的 GET 與 POST 是同一個網址、卻要回不同內容（GET 讀舊的、POST 回重建的），
  * stubApi 只認路徑分不出來，所以這幾個測試自己接 fetch。
  */
+const REMINDERS = [
+  {
+    rule_id: "CR-001",
+    title: "屋頂欄杆、女兒牆的高度",
+    regulations: ["建築技術規則建築設計施工編"],
+    note: "欄杆扶手高度有最低要求（1.1m），但屋頂上的欄杆、女兒牆超過 1.5m 會被納入樓高。",
+    provenance: "使用者提供（邏輯圖）",
+    evidence: ["標單：壹.一.1.4.20 露台.屋頂沿女兒牆及外牆側壓簷施工"],
+    matches: 3,
+  },
+];
+
 function stubChecklistApi(
   checklist: (
     method: string,
@@ -145,6 +157,7 @@ function stubChecklistApi(
 
       let reply: { status: number; body: unknown };
       if (url.endsWith("/checklist")) reply = await checklist(method, url);
+      else if (url.endsWith("/cross-rule-reminders")) reply = { status: 200, body: REMINDERS };
       else if (url.includes("/work-items")) reply = { status: 200, body: WORK_ITEMS };
       else if (url.startsWith("/api/projects"))
         reply = { status: 200, body: { total: 2, items: [PROJECT, OTHER_PROJECT] } };
@@ -302,6 +315,17 @@ describe("ProjectWorkItemsPage", () => {
     fireEvent.click(await screen.findByText("秀山分隊興建工程"));
 
     expect(await screen.findByRole("option", { name: /品質計畫/ })).toHaveValue("quality_plan");
+  });
+
+  it("檢核表上方顯示法規雙重規範提醒與它的出處", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByText("屋頂欄杆、女兒牆的高度")).toBeInTheDocument();
+    expect(screen.getByText(/出處：使用者提供（邏輯圖）/)).toBeInTheDocument();
+    expect(screen.getByText(/觸發 3 項/)).toBeInTheDocument();
   });
 
   it("沒有警告的時候不出現警告", async () => {

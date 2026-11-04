@@ -42,6 +42,7 @@ from app.sources.taiwan_law_source import TaiwanLawSource
 from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
 from app.specs.contract_reader import contract_passages, item_keywords, mentions
+from app.specs.cross_rules import CrossRuleReminder, remind
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
 from app.specs.function_test import FunctionTestDraft, draft_function_test, is_equipment_chapter
 from app.specs.method_statement import MethodStatement, draft_method_statement
@@ -235,6 +236,21 @@ class ChecklistService:
             raise AppError("專案還沒有掛施工規範，沒有綠框可以比對")
         review = review_plan(Path(plan.storage_path), read_spec_chapters(Path(spec.storage_path)))
         return PlanReview(plan.filename, review.tables)
+
+    async def cross_rule_reminders(self, project_id: uuid.UUID) -> list[CrossRuleReminder]:
+        """法規雙重規範提醒：標單工項與契約圖圖名裡出現目錄（data/cross_rules.json）的觸發詞。只讀已存的資料。"""
+        await self._require_project(project_id)
+        texts = [
+            ("標單", f"{item.item_no} {item.name}")
+            for item in await self.projects.work_items(project_id)
+            if item.is_leaf
+        ]
+        for drawing in await self._drawing_documents(project_id):
+            texts += [
+                ("契約圖", f"{sheet.sheet_no} {sheet.title}")
+                for sheet in await self.checklist_repo.drawing_sheets_by_document(drawing.id)
+            ]
+        return remind(texts)
 
     async def _spec_chapter(self, project_id: uuid.UUID, chapter_code: str):
         await self._require_project(project_id)

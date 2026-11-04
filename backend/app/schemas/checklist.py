@@ -228,3 +228,15 @@ class QualityStandardOut(BaseModel):
             columns=list(COLUMNS),
             rows=[QualityStandardRowOut(**asdict(row)) for row in draft.rows],
         )
+
+
+class CrossRuleReminderOut(BaseModel):
+    """法規雙重規範提醒（示範目錄）。不是檢核結果；provenance 說明這條提醒有沒有出處。"""
+
+    rule_id: str
+    title: str
+    regulations: list[str]
+    note: str
+    provenance: str
+    evidence: list[str]
+    matches: int
