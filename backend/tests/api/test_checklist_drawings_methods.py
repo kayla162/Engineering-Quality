@@ -520,3 +520,24 @@ class TestCrossRuleReminders:
         assert by_title["屋頂欄杆、女兒牆的高度"]["evidence"] == ["契約圖：A2-04 屋頂女兒牆詳圖"]
         assert "使用者提供" in by_title["屋頂欄杆、女兒牆的高度"]["provenance"]
         assert "電梯同時是無障礙昇降機" in by_title
+
+
+class TestPlanDrafts:
+    """整體品質計畫與監造計畫初稿：標單用到的每一章規範，各章橘框表單組成一份 Word。"""
+
+    async def test_both_plans_download_as_word(self, api_client, checklist):
+        from io import BytesIO
+
+        import docx
+
+        for kind, heading in (("quality-plan", "五、品質管理標準"), ("supervision-plan", "五、施工抽查程序及標準")):
+            response = await api_client.get(f"/api/projects/{checklist['project_id']}/plans/{kind}/export")
+            assert response.status_code == 200, response.text
+            headings = [p.text for p in docx.Document(BytesIO(response.content)).paragraphs if p.style.name.startswith("Heading")]
+            assert heading in headings
+            # 示範標單用到 03110、03210、03310 等章，每章都有
+            assert any("鋼筋" in h for h in headings)
+
+    async def test_an_unknown_plan_is_404(self, api_client, checklist):
+        response = await api_client.get(f"/api/projects/{checklist['project_id']}/plans/other/export")
+        assert response.status_code == 404

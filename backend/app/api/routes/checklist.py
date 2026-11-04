@@ -15,10 +15,12 @@ from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AuditServiceDep, ChecklistServiceDep, CurrentUserDep
 from app.core.enums import AuditAction
+from app.core.errors import NotFoundError
 from app.schemas.checklist import ChecklistOut, CrossRuleReminderOut, QualityStandardOut
 from app.specs.derived_forms import self_inspection, self_inspection_xlsx, supervision_standard, supervision_xlsx
 from app.specs.function_test import function_test_xlsx
 from app.specs.method_statement import method_statement_docx
+from app.specs.plan_assembly import quality_plan_docx, supervision_plan_docx
 from app.specs.plan_review import plan_review_xlsx
 from app.specs.quality_standard import to_xlsx
 
@@ -114,6 +116,22 @@ async def export_plan_review(project_id: uuid.UUID, service: ChecklistServiceDep
 async def get_cross_rule_reminders(project_id: uuid.UUID, service: ChecklistServiceDep):
     """法規雙重規範提醒：本案標單工項與契約圖圖名觸發了哪些「要同時滿足兩部規定」的提醒（示範目錄）。"""
     return [CrossRuleReminderOut(**vars(r)) for r in await service.cross_rule_reminders(project_id)]
+
+
+@router.get("/{project_id}/plans/{kind}/export")
+async def export_plan(project_id: uuid.UUID, kind: str, service: ChecklistServiceDep):
+    """整體品質計畫（quality-plan）或監造計畫（supervision-plan）初稿：各章橘框表單組成一份 Word。"""
+    builders = {"quality-plan": (quality_plan_docx, "整體品質計畫"), "supervision-plan": (supervision_plan_docx, "監造計畫")}
+    if kind not in builders:
+        raise NotFoundError("只有 quality-plan 與 supervision-plan")
+    build, name = builders[kind]
+    project_name, chapters, materials = await service.plan_sources(project_id)
+    filename = f"{project_name}{name}（初稿）.docx"
+    return Response(
+        content=build(project_name, chapters, materials),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 def _xlsx(content: bytes, title: str) -> Response:

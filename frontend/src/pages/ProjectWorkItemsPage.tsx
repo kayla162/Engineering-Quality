@@ -292,6 +292,12 @@ export function ProjectWorkItemsPage() {
                         </a>
                         ：先把承攬廠商的整體品質計畫掛成「品質計畫」，下載它的品質管理標準表漏了哪些本案規範的可檢查標準。
                       </p>
+                      <p className="hint">
+                        計畫初稿（Word，標單用到的每一章規範組成，組織與程序章節待填）：
+                        <a href={`/api/projects/${selected.project_id}/plans/quality-plan/export`}>整體品質計畫初稿</a>
+                        {"　"}
+                        <a href={`/api/projects/${selected.project_id}/plans/supervision-plan/export`}>監造計畫初稿</a>
+                      </p>
                     </>
                   )}
                   <CrossRuleReminders projectId={selected.project_id} />

@@ -252,6 +252,22 @@ class ChecklistService:
             ]
         return remind(texts)
 
+    async def plan_sources(self, project_id: uuid.UUID) -> tuple[str, list, dict[str, list[str]]]:
+        """組整份計畫用的材料：（工程名稱, 標單用到的規範章（依規範順序）, 每章的標單工項名稱）。"""
+        project = await self._require_project(project_id)
+        spec = await self._spec_document(project_id)
+        if spec is None:
+            raise AppError("專案還沒有掛施工規範，無法產生計畫初稿")
+        materials: dict[str, list[str]] = {}
+        for item in await self.projects.work_items(project_id):
+            code = self._chapter_code(item)
+            if item.is_leaf and code:
+                materials.setdefault(code, []).append(item.name)
+        chapters = [c for c in read_spec_chapters(Path(spec.storage_path)) if c.code in materials]
+        if not chapters:
+            raise AppError("標單的工項對不到本案施工規範的任何一章，先建立工項並確認規範書")
+        return project.name, list({c.code: c for c in chapters}.values()), materials
+
     async def _spec_chapter(self, project_id: uuid.UUID, chapter_code: str):
         await self._require_project(project_id)
         spec = await self._spec_document(project_id)

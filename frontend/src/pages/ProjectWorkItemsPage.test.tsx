@@ -308,6 +308,22 @@ describe("ProjectWorkItemsPage", () => {
     );
   });
 
+  it("檢核表旁邊可以下載整體品質計畫與監造計畫初稿", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByRole("link", { name: "整體品質計畫初稿" })).toHaveAttribute(
+      "href",
+      "/api/projects/p1/plans/quality-plan/export",
+    );
+    expect(screen.getByRole("link", { name: "監造計畫初稿" })).toHaveAttribute(
+      "href",
+      "/api/projects/p1/plans/supervision-plan/export",
+    );
+  });
+
   it("文件角色可以選品質計畫", async () => {
     stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
 
