@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<DocumentRole, string> = {
   contract: "契約書",
   drawing: "契約圖",
   specification: "施工規範",
+  quality_plan: "品質計畫（承攬廠商，.docx）",
   other: "其他",
 };
 
@@ -284,6 +285,12 @@ export function ProjectWorkItemsPage() {
                       {checklist.drawing_warning && <p className="error">{checklist.drawing_warning}</p>}
                       {/* 契約文件的優先順序是專案層級的；逐工項的契約出處在表格的「契約」欄 */}
                       <p className="hint">{checklist.contract_note}</p>
+                      <p className="hint">
+                        <a href={`/api/projects/${selected.project_id}/quality-plan-review/export`}>
+                          品質計畫審查（橘框對綠框）
+                        </a>
+                        ：先把承攬廠商的整體品質計畫掛成「品質計畫」，下載它的品質管理標準表漏了哪些本案規範的可檢查標準。
+                      </p>
                     </>
                   )}
                   <ChecklistTable

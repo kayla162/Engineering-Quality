@@ -19,6 +19,7 @@ from app.schemas.checklist import ChecklistOut, QualityStandardOut
 from app.specs.derived_forms import self_inspection, self_inspection_xlsx, supervision_standard, supervision_xlsx
 from app.specs.function_test import function_test_xlsx
 from app.specs.method_statement import method_statement_docx
+from app.specs.plan_review import plan_review_xlsx
 from app.specs.quality_standard import to_xlsx
 
 router = APIRouter(prefix="/api/projects", tags=["checklist"])
@@ -100,6 +101,13 @@ async def export_function_test(project_id: uuid.UUID, chapter_code: str, service
     """機電章的設備功能運轉檢測標準表（承攬廠商）與測試抽驗標準表（監造）初稿，同一份 Excel 兩張工作表。"""
     draft = await service.function_test_draft(project_id, chapter_code)
     return _xlsx(function_test_xlsx(draft), draft.title)
+
+
+@router.get("/{project_id}/quality-plan-review/export")
+async def export_plan_review(project_id: uuid.UUID, service: ChecklistServiceDep):
+    """品質計畫審查（橘框對綠框）：計畫的品質管理標準表漏了哪些本案施工規範的可檢查標準。"""
+    review = await service.plan_review(project_id)
+    return _xlsx(plan_review_xlsx(review), f"品質計畫審查_{review.plan_name.rsplit('.', 1)[0]}")
 
 
 def _xlsx(content: bytes, title: str) -> Response:

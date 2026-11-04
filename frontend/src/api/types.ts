@@ -180,7 +180,7 @@ export interface ReferenceFilters {
 // --- 專案與工項（backend/app/schemas/project.py）---
 
 /** 文件在專案裡扮演的角色。決定跑哪條管線：標單走工項抽取，其餘走法規抽取。 */
-export type DocumentRole = "boq" | "contract" | "drawing" | "specification" | "other";
+export type DocumentRole = "boq" | "contract" | "drawing" | "specification" | "quality_plan" | "other";
 
 export interface Project {
   project_id: string;

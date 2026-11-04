@@ -149,3 +149,24 @@ async def test_the_real_scanned_drawings(api_client, monkeypatch):
 
 #: 2026-11 實測（三冊真實掃描圖、分項比對）。示範圖逐項比對時是 750
 REAL_BOQ_NOT_IN_DRAWINGS = 595
+
+
+PLAN = DOCS / "整體品質計畫.docx"
+
+
+@pytest.mark.skipif(not PLAN.exists(), reason="沒有 工程文書/整體品質計畫.docx")
+def test_the_real_quality_plan_against_the_real_spec():
+    """秀山真實整體品質計畫 × 真實施工規範（2026-11 實測）：7 張品質管理標準表，4 張對得到規範章；
+    表四-2 總表、假設工程、基樁三張，本案規範沒有對應的章。"""
+    from app.specs.chapter_reader import read_spec_chapters
+    from app.specs.plan_review import review_plan
+
+    review = review_plan(PLAN, read_spec_chapters(SPEC))
+    mapped = {t.title: t.chapter_code for t in review.tables if t.chapter_code}
+    assert len(review.tables) == 7
+    assert mapped == {
+        "開挖及土方工程品質管理標準表": "02315",
+        "筏基鋼筋工程品質管理標準表": "03210",
+        "地上層鋼筋工程品質管理標準表": "03210",
+        "混凝土工程品質管理標準表": "03310",
+    }

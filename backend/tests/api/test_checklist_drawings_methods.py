@@ -461,3 +461,44 @@ class TestQualityStandardDraft:
     async def test_an_unknown_chapter_is_404(self, api_client, checklist):
         response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-standards/99999")
         assert response.status_code == 404
+
+
+class TestQualityPlanReview:
+    """品質計畫審查（橘框對綠框）：掛成「品質計畫」的 docx，和本案施工規範比對。"""
+
+    async def test_the_review_lists_what_the_plan_left_out(self, api_client, checklist):
+        import io
+
+        import docx
+        from openpyxl import load_workbook
+
+        document = docx.Document()
+        document.add_paragraph("表 四-11 鋼筋工程品質管理標準表")
+        table = document.add_table(rows=2, cols=3)
+        for cell, value in zip(table.rows[0].cells, ["管理項目", "管理標準", "檢查方法"]):
+            cell.text = value
+        for cell, value in zip(table.rows[1].cells, ["鋼筋", "符合 CNS 560", "目視"]):
+            cell.text = value
+        buffer = io.BytesIO()
+        document.save(buffer)
+        files = {"file": ("整體品質計畫.docx", buffer.getvalue(),
+                          "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        document_id = (await api_client.post("/api/documents/upload", files=files)).json()["document_id"]
+        project_id = checklist["project_id"]
+        attached = await api_client.post(
+            f"/api/projects/{project_id}/documents", json={"document_id": document_id, "role": "quality_plan"}
+        )
+        assert attached.status_code < 300, attached.text
+
+        response = await api_client.get(f"/api/projects/{project_id}/quality-plan-review/export")
+
+        assert response.status_code == 200
+        book = load_workbook(io.BytesIO(response.content))
+        assert book.sheetnames == ["審查摘要", "計畫沒寫到的規範標準"]
+        summary = [[c.value for c in row] for row in book["審查摘要"].iter_rows(min_row=4)]
+        assert summary[0][:2] == ["鋼筋工程品質管理標準表", "第03210章 鋼筋"]
+
+    async def test_without_a_quality_plan_it_says_what_to_attach(self, api_client, checklist):
+        response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-plan-review/export")
+        assert response.status_code == 400
+        assert "品質計畫" in response.json()["error"]["message"]

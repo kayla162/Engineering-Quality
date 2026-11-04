@@ -283,6 +283,27 @@ describe("ProjectWorkItemsPage", () => {
     expect(await screen.findByText(/契約圖讀不到任何圖號與圖名/)).toBeInTheDocument();
   });
 
+  it("檢核表旁邊可以下載品質計畫審查（橘框對綠框）", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByRole("link", { name: "品質計畫審查（橘框對綠框）" })).toHaveAttribute(
+      "href",
+      "/api/projects/p1/quality-plan-review/export",
+    );
+  });
+
+  it("文件角色可以選品質計畫", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByRole("option", { name: /品質計畫/ })).toHaveValue("quality_plan");
+  });
+
   it("沒有警告的時候不出現警告", async () => {
     stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
 

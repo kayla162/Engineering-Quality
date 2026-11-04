@@ -156,6 +156,8 @@ class DocumentRole(StrEnum):
     CONTRACT = "contract"            # 契約書
     DRAWING = "drawing"              # 契約圖
     SPECIFICATION = "specification"  # 施工規範（常是契約附件）
+    #: 承攬廠商的整體品質計畫（橘框）：拿來和施工規範（綠框）比對，看漏了哪些可檢查標準
+    QUALITY_PLAN = "quality_plan"
     OTHER = "other"
 
 

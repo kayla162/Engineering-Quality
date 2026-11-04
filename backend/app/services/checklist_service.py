@@ -45,6 +45,7 @@ from app.specs.contract_reader import contract_passages, item_keywords, mentions
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
 from app.specs.function_test import FunctionTestDraft, draft_function_test, is_equipment_chapter
 from app.specs.method_statement import MethodStatement, draft_method_statement
+from app.specs.plan_review import PlanReview, review_plan
 from app.specs.quality_standard import QualityStandardDraft, draft_quality_standard
 from app.specs.method_reader import choose_method, method_options
 from app.workitems.boq_reader import BoqLayout, boq_layout, read_boq
@@ -220,6 +221,20 @@ class ChecklistService:
             raise AppError(f"第{chapter_code}章不是機電設備章，沒有設備功能運轉檢測")
         chapter = await self._spec_chapter(project_id, chapter_code)
         return draft_function_test(chapter.code, chapter.title, chapter.text)
+
+    async def plan_review(self, project_id: uuid.UUID) -> PlanReview:
+        """品質計畫審查（橘框對綠框）：掛成「品質計畫」的 docx 裡的品質管理標準表，漏了哪些規範的可檢查標準。"""
+        await self._require_project(project_id)
+        plan = await self._role_document(project_id, DocumentRole.QUALITY_PLAN)
+        if plan is None:
+            raise AppError("專案還沒有掛品質計畫（承攬廠商的整體品質計畫）")
+        if not plan.filename.lower().endswith(".docx"):
+            raise AppError("品質計畫審查目前只讀 Word（.docx）：PDF 的表格欄位讀不準")
+        spec = await self._spec_document(project_id)
+        if spec is None:
+            raise AppError("專案還沒有掛施工規範，沒有綠框可以比對")
+        review = review_plan(Path(plan.storage_path), read_spec_chapters(Path(spec.storage_path)))
+        return PlanReview(plan.filename, review.tables)
 
     async def _spec_chapter(self, project_id: uuid.UUID, chapter_code: str):
         await self._require_project(project_id)
