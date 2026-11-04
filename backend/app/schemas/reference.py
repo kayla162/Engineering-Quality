@@ -81,6 +81,8 @@ class MatchedRegulation(BaseModel):
     last_amended_date: date | None
     official_url: str | None
     source: str
+    #: 示範目錄寫明的資料出處（哪些欄位是假資料）。其他來源為 None
+    source_note: str | None = None
 
 
 class QueryHistoryItem(BaseModel):

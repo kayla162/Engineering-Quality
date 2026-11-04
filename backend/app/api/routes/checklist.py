@@ -9,12 +9,14 @@ GET 只讀已經建好的。GET 不能順手重建——重建很貴，而且有
 """
 
 import uuid
+from urllib.parse import quote
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AuditServiceDep, ChecklistServiceDep, CurrentUserDep
 from app.core.enums import AuditAction
-from app.schemas.checklist import ChecklistOut
+from app.schemas.checklist import ChecklistOut, QualityStandardOut
+from app.specs.quality_standard import to_xlsx
 
 router = APIRouter(prefix="/api/projects", tags=["checklist"])
 
@@ -51,3 +53,20 @@ async def build_checklist(
 async def get_checklist(project_id: uuid.UUID, service: ChecklistServiceDep):
     """只讀已經建好的依據。要重建請用 POST。"""
     return ChecklistOut.from_checklist(await service.checklist(project_id))
+
+
+@router.get("/{project_id}/quality-standards/{chapter_code}", response_model=QualityStandardOut)
+async def get_quality_standard(project_id: uuid.UUID, chapter_code: str, service: ChecklistServiceDep):
+    """品質管理標準表初稿（橘框表單）：本案施工規範那一章擷取出的管理項目與管理標準。"""
+    return QualityStandardOut.from_draft(await service.quality_standard_draft(project_id, chapter_code))
+
+
+@router.get("/{project_id}/quality-standards/{chapter_code}/export")
+async def export_quality_standard(project_id: uuid.UUID, chapter_code: str, service: ChecklistServiceDep):
+    draft = await service.quality_standard_draft(project_id, chapter_code)
+    filename = f"{draft.title}.xlsx"
+    return Response(
+        content=to_xlsx(draft),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )

@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.config import settings
 from app.core.enums import ReviewStatus
-from app.core.errors import DocumentNotFoundError, ReferenceNotFoundError
+from app.core.errors import DocumentNotFoundError, ReferenceNotFoundError, SourceQueryError
 from app.models.base import utcnow
 from app.models.reference import RegulationReference
+from app.models.regulation import Regulation
 from app.repositories.audit import AuditRepository
 from app.repositories.documents import DocumentRepository
 from app.repositories.references import ReferenceRepository
@@ -30,6 +31,19 @@ def is_tentative(reference: RegulationReference) -> bool:
         reference.match_confidence is not None
         and 0 < reference.match_confidence < settings.MATCH_AUTO_THRESHOLD
     )
+
+
+async def _source_note(regulation: Regulation) -> str | None:
+    """示範目錄的單筆出處。法規主檔不存 note，所以看詳情時回目錄查一次（本地 JSON，很快）。"""
+    if regulation.source != "admin_rules":
+        return None
+    from app.sources.admin_rules_source import AdminRulesSource
+
+    try:
+        results = await AdminRulesSource().search(regulation.name)
+    except SourceQueryError:
+        return None
+    return results[0].note if results else None
 
 
 class ReferenceService:
@@ -93,6 +107,7 @@ class ReferenceService:
                 last_amended_date=regulation.last_amended_date,
                 official_url=regulation.official_url,
                 source=regulation.source,
+                source_note=await _source_note(regulation),
             )
 
         return ReferenceDetail(

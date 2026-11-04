@@ -69,6 +69,16 @@ describe("DashboardPage", () => {
     expect(await screen.findByText(/9 筆引用比對到假資料/)).toBeInTheDocument();
   });
 
+  it("行政規則示範目錄也算進假資料，並顯示來源名稱", async () => {
+    const dashboard = { ...DASHBOARD, references: { ...DASHBOARD.references, by_source: { mock: 9, admin_rules: 3 } } };
+    stubApi({ "/api/dashboard": dashboard, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
+
+    renderPage();
+
+    expect(await screen.findByText(/12 筆引用比對到假資料/)).toBeInTheDocument();
+    expect(screen.getByText(/行政規則與地方法規（示範目錄）：3 筆/)).toBeInTheDocument();
+  });
+
   it("解析品質不佳的文件數要看得到", async () => {
     stubApi({ "/api/dashboard": DASHBOARD, "/api/regulation-changes": { total: 0, items: [] }, ...NO_ENTERPRISE });
 

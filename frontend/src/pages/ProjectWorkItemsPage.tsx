@@ -281,7 +281,8 @@ export function ProjectWorkItemsPage() {
                       />
                       {/* 規範書解析品質不佳時依據可能殘缺，使用者必須在看到表之前就知道 */}
                       {checklist.spec_warning && <p className="error">{checklist.spec_warning}</p>}
-                      {/* 契約是專案層級的依據、不逐工項列：這句話不顯示，就沒有人知道契約欄去哪了 */}
+                      {checklist.drawing_warning && <p className="error">{checklist.drawing_warning}</p>}
+                      {/* 契約文件的優先順序是專案層級的；逐工項的契約出處在表格的「契約」欄 */}
                       <p className="hint">{checklist.contract_note}</p>
                     </>
                   )}
@@ -289,6 +290,7 @@ export function ProjectWorkItemsPage() {
                     items={checklist.items}
                     resultFilter={resultFilter}
                     onResultFilterChange={setResultFilter}
+                    projectId={selected.project_id}
                   />
                 </>
               )}

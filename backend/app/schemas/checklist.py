@@ -8,12 +8,13 @@ from pydantic import BaseModel
 from app.core.enums import CheckResult
 from app.services.checklist_service import Checklist, ChecklistRow
 
-#: 契約是專案層級的依據，不逐工項列——理由見階段 3 spec 第 3.1 節。
-#: 前半句出自 1.契約書.pdf 第 1 頁的契約文件優先順序（第八款）。
-#: 這句話要跟著檢核表走到畫面與匯出，否則沒有人知道契約欄去哪了。
+#: 前半句出自 1.契約書.pdf 第 1 頁的契約文件優先順序（第八款），是專案層級的依據。
+#: 2026-11 起逐工項的「契約」欄列出契約書提到該工項的頁碼；條號是 Word 自動編號、PDF 讀不到，
+#: 這句話要跟著檢核表走到畫面與匯出，讓人知道契約欄是「提到的地方」，不是條號。
 CONTRACT_NOTE = (
     "契約文件優先順序：招標文件內之標價清單，其品項名稱、規格、數量，"
-    "優於招標文件內其他文件之內容。契約依據為專案層級，不逐工項列出。"
+    "優於招標文件內其他文件之內容。「契約」欄列出契約書提到該工項（或所屬分項）的頁碼與標題，"
+    "不代表契約對該工項另有規定。"
 )
 
 
@@ -52,6 +53,8 @@ class DrawingOut(BaseModel):
     sheet_no: str
     title: str
     page: int
+    #: 圖號圖名由 OCR 從掃描的標題欄讀出，可能有錯字；圖號讀不到時是「第N頁」
+    is_ocr: bool = False
 
 
 class MethodOut(BaseModel):
@@ -62,6 +65,17 @@ class MethodOut(BaseModel):
     selected: str | None
     #: 指定的出處，或未指定的原因
     evidence: str | None
+
+
+class ContractRefOut(BaseModel):
+    """契約書提到這個工項的一處。契約條號是 Word 自動編號、PDF 文字層沒有，所以只給頁碼與
+    前面最近的小標題，不推算條號。只是「契約提到這裡」，不代表契約對這個工項有特別規定。"""
+
+    page: int | None
+    heading: str | None
+    excerpt: str
+    #: 用哪個詞找到的：工項主體（「模板」）或所屬分項（「開關箱」）
+    keyword: str
 
 
 class ChecklistItemOut(BaseModel):
@@ -81,6 +95,8 @@ class ChecklistItemOut(BaseModel):
     #: 圖名和工項相關的契約圖（階段 2、4）
     drawings: list[DrawingOut]
     method: MethodOut | None
+    #: 契約欄：契約書提到這個工項（或它所屬分項）的地方，最多三處。不影響 result
+    contract_refs: list[ContractRefOut]
 
     @classmethod
     def from_row(cls, row: ChecklistRow) -> "ChecklistItemOut":
@@ -107,7 +123,7 @@ class ChecklistItemOut(BaseModel):
             ],
             issues=row.issues,
             drawings=[
-                DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page) for d in row.drawings
+                DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page, is_ocr=d.is_ocr) for d in row.drawings
             ],
             method=(
                 MethodOut(
@@ -118,6 +134,10 @@ class ChecklistItemOut(BaseModel):
                 if row.method is not None
                 else None
             ),
+            contract_refs=[
+                ContractRefOut(page=r.page, heading=r.heading, excerpt=r.excerpt, keyword=r.keyword)
+                for r in row.contract_refs
+            ],
         )
 
 
@@ -137,8 +157,10 @@ class ChecklistOut(BaseModel):
     contract_note: str
     #: 規範書解析品質不佳時的警告，依據可能殘缺。正常時是 null。
     spec_warning: str | None
-    #: 專案有沒有掛契約圖。沒掛時不判斷「標單有，契約圖沒有」
+    #: 專案有沒有掛讀得到圖號的契約圖。沒有時不判斷「標單有，契約圖沒有」
     has_drawings: bool
+    #: 掛了契約圖卻讀不到任何一張（多半是掃描檔）時的說明。正常時是 null。
+    drawing_warning: str | None
     #: 契約圖有、標單沒有：圖名對不到任何工項的圖（階段 2，專案層級，不逐工項列）
     drawings_without_items: list[DrawingOut]
     items: list[ChecklistItemOut]
@@ -159,9 +181,50 @@ class ChecklistOut(BaseModel):
             contract_note=CONTRACT_NOTE,
             spec_warning=checklist.spec_warning,
             has_drawings=checklist.has_drawings,
+            drawing_warning=checklist.drawing_warning,
             drawings_without_items=[
-                DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page)
+                DrawingOut(sheet_no=d.sheet_no, title=d.title, page=d.page, is_ocr=d.is_ocr)
                 for d in checklist.drawings_without_items
             ],
             items=[ChecklistItemOut.from_row(row) for row in rows],
+        )
+
+
+class QualityStandardRowOut(BaseModel):
+    stage: str
+    item: str
+    standard: str
+    timing: str
+    method: str
+    frequency: str
+    handling: str
+    record: str
+    #: 出處：第03210章 3.4.1
+    note: str
+
+
+class QualityStandardOut(BaseModel):
+    """品質管理標準表初稿（橘框表單）。欄位照秀山整體品質計畫的品質管理標準表。"""
+
+    chapter_code: str
+    chapter_title: str
+    title: str
+    #: 一定要給人看到：這是初稿，要品管人員檢討補正
+    notice: str
+    columns: list[str]
+    rows: list[QualityStandardRowOut]
+
+    @classmethod
+    def from_draft(cls, draft) -> "QualityStandardOut":
+        from dataclasses import asdict
+
+        from app.specs.quality_standard import COLUMNS
+
+        return cls(
+            chapter_code=draft.chapter_code,
+            chapter_title=draft.chapter_title,
+            title=draft.title,
+            notice=draft.notice,
+            columns=list(COLUMNS),
+            rows=[QualityStandardRowOut(**asdict(row)) for row in draft.rows],
         )

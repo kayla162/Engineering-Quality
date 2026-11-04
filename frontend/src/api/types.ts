@@ -123,6 +123,8 @@ export interface MatchedRegulation {
   last_amended_date: string | null;
   official_url: string | null;
   source: string;
+  /** 示範目錄寫明的資料出處（哪些欄位是假資料） */
+  source_note: string | null;
 }
 
 export interface QueryHistoryItem {
@@ -233,6 +235,17 @@ export interface DrawingSheet {
   sheet_no: string;
   title: string;
   page: number;
+  /** 由 OCR 從掃描的標題欄讀出，可能有錯字；圖號讀不到時是「第N頁」 */
+  is_ocr?: boolean;
+}
+
+/** 契約書提到這個工項的一處。條號是 Word 自動編號、PDF 讀不到，所以只有頁碼與前面最近的標題。 */
+export interface ContractRef {
+  page: number | null;
+  heading: string | null;
+  excerpt: string;
+  /** 用哪個詞找到的（工項或所屬分項的主體） */
+  keyword: string;
 }
 
 /** 工法欄：施工規範列出多種工法時才有。selected 是 null 代表契約文件沒指定。 */
@@ -264,6 +277,8 @@ export interface ChecklistItem {
   /** 圖名和工項相關的契約圖 */
   drawings: DrawingSheet[];
   method: WorkItemMethod | null;
+  /** 契約書提到這個工項的地方（舊版後端沒有這個欄位） */
+  contract_refs?: ContractRef[];
 }
 
 export interface Checklist {
@@ -277,8 +292,10 @@ export interface Checklist {
   };
   contract_note: string;
   spec_warning: string | null;
-  /** 有掛契約圖才判斷「標單有，契約圖沒有」 */
+  /** 有讀得到圖號的契約圖才判斷「標單有，契約圖沒有」 */
   has_drawings: boolean;
+  /** 掛了契約圖卻一張都讀不到（多半是掃描檔）時的說明 */
+  drawing_warning: string | null;
   /** 契約圖有、標單沒有（專案層級） */
   drawings_without_items: DrawingSheet[];
   items: ChecklistItem[];

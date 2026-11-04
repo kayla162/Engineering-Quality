@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, JsonColumn, created_at_column, uuid_pk
@@ -85,6 +85,8 @@ class DrawingSheet(Base):
     sheet_no: Mapped[str] = mapped_column(String(16), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     page: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: 圖號圖名由 OCR 從掃描的標題欄讀出，可能有錯字。這一冊重建檢核表時不重讀（OCR 每頁約 1 秒）
+    is_ocr: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
     created_at: Mapped[datetime] = created_at_column()
 
     __table_args__ = (Index("ix_drawing_sheets_document", "document_id"),)
@@ -110,3 +112,27 @@ class WorkItemMethod(Base):
     created_at: Mapped[datetime] = created_at_column()
 
     __table_args__ = (Index("ix_work_item_methods_work_item", "work_item_id"),)
+
+
+class WorkItemContractRef(Base):
+    """檢核表的「契約」欄：契約書裡提到這個工項（或它所屬分項）的地方。
+
+    契約書的條號是 Word 自動編號，PDF 文字層裡沒有，所以出處寫頁碼與前面最近的小標題，
+    不寫推算出來的條號。只是「契約提到這裡」，不代表契約對這個工項有特別規定——要人去看。
+    """
+
+    __tablename__ = "work_item_contract_refs"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    work_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("work_items.id", ondelete="CASCADE"), nullable=False
+    )
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: 前面最近的小標題（「假設工程之組立及拆除」）；找不到時 None
+    heading: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    #: 用哪個詞找到的（工項或分項的主體：「模板」「開關箱」）
+    keyword: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = created_at_column()
+
+    __table_args__ = (Index("ix_work_item_contract_refs_work_item", "work_item_id"),)

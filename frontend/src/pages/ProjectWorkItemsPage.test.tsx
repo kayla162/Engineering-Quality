@@ -82,7 +82,7 @@ function extraItem(result: ChecklistItem["result"], id: string, itemNo: string):
   return { ...CHECKLIST_ITEM_MISSING, work_item_id: id, item_no: itemNo, result, bases, issues };
 }
 
-const CONTRACT_NOTE = "契約依據為專案層級，不逐工項列出。";
+const CONTRACT_NOTE = "「契約」欄列出契約書提到該工項（或所屬分項）的頁碼與標題，不代表契約對該工項另有規定。";
 
 // 三種結果的筆數刻意互不相同（2、3、4）。如果兩種結果一樣多，
 // 摘要的兩格互換、或頁面把欄位傳錯，測試都看不出來。
@@ -92,6 +92,7 @@ const CHECKLIST: Checklist = {
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
   has_drawings: false,
+  drawing_warning: null,
   drawings_without_items: [],
   items: [
     CHECKLIST_ITEM_OK,
@@ -112,6 +113,7 @@ const EMPTY_CHECKLIST: Checklist = {
   contract_note: CONTRACT_NOTE,
   spec_warning: null,
   has_drawings: false,
+  drawing_warning: null,
   drawings_without_items: [],
   items: [],
 };
@@ -267,6 +269,18 @@ describe("ProjectWorkItemsPage", () => {
     fireEvent.click(await screen.findByText("秀山分隊興建工程"));
 
     expect(await screen.findByText(/解析品質不佳/)).toBeInTheDocument();
+  });
+
+  it("契約圖讀不到的說明要顯示出來", async () => {
+    stubChecklistApi(() => ({
+      status: 200,
+      body: { ...CHECKLIST, drawing_warning: "契約圖讀不到任何圖號與圖名（多半是掃描檔），本次不判斷「標單有，契約圖沒有」。" },
+    }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByText(/契約圖讀不到任何圖號與圖名/)).toBeInTheDocument();
   });
 
   it("沒有警告的時候不出現警告", async () => {

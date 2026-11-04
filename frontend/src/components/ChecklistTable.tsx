@@ -167,6 +167,9 @@ function DrawingMethodCell({ item }: { item: ChecklistItem }) {
               {sheet.sheet_no}{" "}
             </span>
           ))}
+          {drawings.some((sheet) => sheet.is_ocr) && (
+            <span className="unverified" title="圖號圖名由 OCR 從掃描的標題欄讀出，可能有錯字">（OCR）</span>
+          )}
         </div>
       )}
       {item.method && (
@@ -183,11 +186,32 @@ function DrawingMethodCell({ item }: { item: ChecklistItem }) {
   );
 }
 
-function ChapterCell({ item }: { item: ChecklistItem }) {
+/** 契約欄：契約書提到這個工項（或它所屬分項）的地方。條號讀不到，只給頁碼與前面最近的標題。 */
+function ContractCell({ item }: { item: ChecklistItem }) {
+  const refs = item.contract_refs ?? [];
+  if (refs.length === 0) return <>—</>;
+  return (
+    <ul className="bases">
+      {refs.map((ref, index) => (
+        <li key={`${index}-${ref.page}`} title={`「${ref.excerpt}」（以「${ref.keyword}」找到）`}>
+          {ref.page !== null && <span className="chapter-code">p{ref.page}</span>} {ref.heading ?? ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ChapterCell({ item, projectId }: { item: ChecklistItem; projectId?: string }) {
   if (item.chapter) {
     return (
       <>
         <span className="chapter-code">{item.chapter.code}</span> {item.chapter.title}
+        {projectId && (
+          <div>
+            {/* 橘框表單：從本案規範這一章擷取的初稿，要品管人員補正 */}
+            <a href={`/api/projects/${projectId}/quality-standards/${item.chapter.code}/export`}>標準表初稿</a>
+          </div>
+        )}
       </>
     );
   }
@@ -204,10 +228,13 @@ export function ChecklistTable({
   items,
   resultFilter,
   onResultFilterChange,
+  projectId,
 }: {
   items: ChecklistItem[];
   resultFilter: ChecklistResultFilter;
   onResultFilterChange: (value: ChecklistResultFilter) => void;
+  /** 有給才顯示「標準表初稿」下載連結 */
+  projectId?: string;
 }) {
   if (items.length === 0) {
     return (
@@ -251,6 +278,7 @@ export function ChecklistTable({
               <th>工程項目</th>
               <th>檢核結果</th>
               <th>章節</th>
+              <th>契約</th>
               <th>契約圖／工法</th>
               <th className="col-bases">依據</th>
             </tr>
@@ -273,7 +301,10 @@ export function ChecklistTable({
                   ))}
                 </td>
                 <td>
-                  <ChapterCell item={item} />
+                  <ChapterCell item={item} projectId={projectId} />
+                </td>
+                <td>
+                  <ContractCell item={item} />
                 </td>
                 <td>
                   <DrawingMethodCell item={item} />

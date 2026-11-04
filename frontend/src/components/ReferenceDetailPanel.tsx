@@ -113,6 +113,9 @@ export function ReferenceDetailPanel({
             {detail.matched_regulation.source === "mock" && (
               <span className="hint"> 假資料，僅供 Demo，務必人工查證</span>
             )}
+            {detail.matched_regulation.source_note && (
+              <span className="hint"> {detail.matched_regulation.source_note}</span>
+            )}
           </dd>
           <dt>官方連結</dt>
           <dd>

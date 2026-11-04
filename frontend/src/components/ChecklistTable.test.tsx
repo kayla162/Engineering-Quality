@@ -471,3 +471,54 @@ describe("ChecklistTable 篩選選單", () => {
     expect(shown[0]).toHaveTextContent(itemNo);
   });
 });
+
+describe("ChecklistTable 契約欄", () => {
+  const WITH_CONTRACT: ChecklistItem = {
+    ...OK_ITEM,
+    contract_refs: [
+      { page: 17, heading: "假設工程之組立及拆除", excerpt: "模板支撐等假設工程之組立及拆除", keyword: "模板" },
+    ],
+  };
+
+  it("列出契約提到的頁碼與標題，不寫推算的條號", () => {
+    render(<ChecklistTable items={[WITH_CONTRACT]} resultFilter="ALL" onResultFilterChange={vi.fn()} />);
+
+    const cell = cellOf("壹.一.1.4.8", "契約");
+    expect(cell).toHaveTextContent("p17");
+    expect(cell).toHaveTextContent("假設工程之組立及拆除");
+    expect(cell).not.toHaveTextContent("第");
+  });
+
+  it("契約沒提到時留白，舊版後端沒有這個欄位也一樣", () => {
+    render(<ChecklistTable items={[MISSING_ITEM]} resultFilter="ALL" onResultFilterChange={vi.fn()} />);
+
+    expect(cellOf("壹.一.1.1.5", "契約")).toHaveTextContent("—");
+  });
+});
+
+describe("ChecklistTable 掃描契約圖", () => {
+  it("OCR 讀出來的圖號要標示", () => {
+    const item: ChecklistItem = {
+      ...OK_ITEM,
+      drawings: [{ sheet_no: "第61頁", title: "二層平面圖", page: 61, is_ocr: true }],
+    };
+    render(<ChecklistTable items={[item]} resultFilter="ALL" onResultFilterChange={vi.fn()} />);
+
+    expect(cellOf("壹.一.1.4.8", "契約圖／工法")).toHaveTextContent("OCR");
+  });
+});
+
+describe("ChecklistTable 品質管理標準表初稿", () => {
+  it("有對到章節的列可以下載那一章的標準表初稿", () => {
+    render(<ChecklistTable items={[OK_ITEM]} resultFilter="ALL" onResultFilterChange={vi.fn()} projectId="p1" />);
+
+    const link = within(cellOf("壹.一.1.4.8", "章節")).getByRole("link", { name: /標準表初稿/ });
+    expect(link).toHaveAttribute("href", "/api/projects/p1/quality-standards/09912/export");
+  });
+
+  it("規範沒收錄的章沒有初稿可下載", () => {
+    render(<ChecklistTable items={[MISSING_ITEM]} resultFilter="ALL" onResultFilterChange={vi.fn()} projectId="p1" />);
+
+    expect(within(cellOf("壹.一.1.1.5", "章節")).queryByRole("link")).toBeNull();
+  });
+});

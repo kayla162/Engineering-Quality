@@ -5,7 +5,13 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.checklist import DrawingSheet, SpecChapter, WorkItemBasis, WorkItemMethod
+from app.models.checklist import (
+    DrawingSheet,
+    SpecChapter,
+    WorkItemBasis,
+    WorkItemContractRef,
+    WorkItemMethod,
+)
 from app.models.project import WorkItem
 
 
@@ -108,3 +114,28 @@ class ChecklistRepository:
             .where(WorkItem.project_id == project_id)
         )
         return {method.work_item_id: method for method in result.scalars().all()}
+
+    async def replace_contract_refs(
+        self, work_item_ids: list[uuid.UUID], refs: list[WorkItemContractRef]
+    ) -> list[WorkItemContractRef]:
+        if work_item_ids:
+            await self.session.execute(
+                delete(WorkItemContractRef).where(WorkItemContractRef.work_item_id.in_(work_item_ids))
+            )
+        self.session.add_all(refs)
+        await self.session.flush()
+        return refs
+
+    async def contract_refs_by_project(
+        self, project_id: uuid.UUID
+    ) -> dict[uuid.UUID, list[WorkItemContractRef]]:
+        result = await self.session.execute(
+            select(WorkItemContractRef)
+            .join(WorkItem, WorkItem.id == WorkItemContractRef.work_item_id)
+            .where(WorkItem.project_id == project_id)
+            .order_by(WorkItemContractRef.page)
+        )
+        refs: dict[uuid.UUID, list[WorkItemContractRef]] = {}
+        for ref in result.scalars().all():
+            refs.setdefault(ref.work_item_id, []).append(ref)
+        return refs
