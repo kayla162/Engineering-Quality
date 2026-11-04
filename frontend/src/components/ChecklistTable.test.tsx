@@ -526,3 +526,24 @@ describe("ChecklistTable 品質管理標準表初稿", () => {
     expect(within(cellOf("壹.一.1.1.5", "章節")).queryByRole("link")).toBeNull();
   });
 });
+
+describe("ChecklistTable 設備功能運轉檢測", () => {
+  it("機電章才有設備功能運轉檢測初稿", () => {
+    const fireAlarm: ChecklistItem = {
+      ...OK_ITEM,
+      work_item_id: "9",
+      item_no: "壹.一.3.1.1",
+      chapter_code: "13851",
+      chapter: { code: "13851", title: "火警警報設備", version: "4.0" },
+    };
+    render(
+      <ChecklistTable items={[OK_ITEM, fireAlarm]} resultFilter="ALL" onResultFilterChange={vi.fn()} projectId="p1" />,
+    );
+
+    expect(within(cellOf("壹.一.3.1.1", "章節")).getByRole("link", { name: "功能運轉檢測初稿" })).toHaveAttribute(
+      "href",
+      "/api/projects/p1/quality-standards/13851/function-test/export",
+    );
+    expect(within(cellOf("壹.一.1.4.8", "章節")).queryByRole("link", { name: "功能運轉檢測初稿" })).toBeNull();
+  });
+});

@@ -451,6 +451,13 @@ class TestQualityStandardDraft:
         assert "鋼筋工程施工要領（初稿）" in text
         assert "鋼筋，SD420W 含加工及組立" in text  # 示範標單裡計價代碼 03210 的工項
 
+    async def test_function_tests_are_only_for_equipment_chapters(self, api_client, checklist):
+        response = await api_client.get(
+            f"/api/projects/{checklist['project_id']}/quality-standards/03210/function-test/export"
+        )
+        assert response.status_code == 400
+        assert "不是機電設備章" in response.json()["error"]["message"]
+
     async def test_an_unknown_chapter_is_404(self, api_client, checklist):
         response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-standards/99999")
         assert response.status_code == 404

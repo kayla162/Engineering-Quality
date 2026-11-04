@@ -194,6 +194,11 @@ const DRAFT_FORMS: [string, string][] = [
   ["method-statement/export", "施工要領初稿"],
 ];
 
+/** 機電章（11 設備、13 消防、14 輸送、15 機械、16 電機）才有設備功能運轉檢測 */
+function isEquipmentChapter(code: string): boolean {
+  return ["11", "13", "14", "15", "16"].includes(code.slice(0, 2));
+}
+
 /** 契約欄：契約書提到這個工項（或它所屬分項）的地方。條號讀不到，只給頁碼與前面最近的標題。 */
 function ContractCell({ item }: { item: ChecklistItem }) {
   const refs = item.contract_refs ?? [];
@@ -222,6 +227,11 @@ function ChapterCell({ item, projectId }: { item: ChecklistItem; projectId?: str
                 {label}
               </a>
             ))}
+            {isEquipmentChapter(item.chapter.code) && (
+              <a href={`/api/projects/${projectId}/quality-standards/${item.chapter.code}/function-test/export`}>
+                功能運轉檢測初稿
+              </a>
+            )}
           </div>
         )}
       </>

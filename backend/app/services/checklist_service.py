@@ -43,6 +43,7 @@ from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
 from app.specs.contract_reader import contract_passages, item_keywords, mentions
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
+from app.specs.function_test import FunctionTestDraft, draft_function_test, is_equipment_chapter
 from app.specs.method_statement import MethodStatement, draft_method_statement
 from app.specs.quality_standard import QualityStandardDraft, draft_quality_standard
 from app.specs.method_reader import choose_method, method_options
@@ -212,6 +213,13 @@ class ChecklistService:
             if item.is_leaf and self._chapter_code(item) == chapter_code
         ]
         return draft_method_statement(chapter.code, chapter.title, chapter.text, materials)
+
+    async def function_test_draft(self, project_id: uuid.UUID, chapter_code: str) -> FunctionTestDraft:
+        """設備功能運轉檢測標準表／測試抽驗標準表初稿。只有機電章（11／13／14／15／16 開頭）有。"""
+        if not is_equipment_chapter(chapter_code):
+            raise AppError(f"第{chapter_code}章不是機電設備章，沒有設備功能運轉檢測")
+        chapter = await self._spec_chapter(project_id, chapter_code)
+        return draft_function_test(chapter.code, chapter.title, chapter.text)
 
     async def _spec_chapter(self, project_id: uuid.UUID, chapter_code: str):
         await self._require_project(project_id)

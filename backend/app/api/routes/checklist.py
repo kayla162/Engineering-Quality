@@ -17,6 +17,7 @@ from app.api.deps import AuditServiceDep, ChecklistServiceDep, CurrentUserDep
 from app.core.enums import AuditAction
 from app.schemas.checklist import ChecklistOut, QualityStandardOut
 from app.specs.derived_forms import self_inspection, self_inspection_xlsx, supervision_standard, supervision_xlsx
+from app.specs.function_test import function_test_xlsx
 from app.specs.method_statement import method_statement_docx
 from app.specs.quality_standard import to_xlsx
 
@@ -92,6 +93,13 @@ async def export_method_statement(project_id: uuid.UUID, chapter_code: str, serv
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(statement.title + '.docx')}"},
     )
+
+
+@router.get("/{project_id}/quality-standards/{chapter_code}/function-test/export")
+async def export_function_test(project_id: uuid.UUID, chapter_code: str, service: ChecklistServiceDep):
+    """機電章的設備功能運轉檢測標準表（承攬廠商）與測試抽驗標準表（監造）初稿，同一份 Excel 兩張工作表。"""
+    draft = await service.function_test_draft(project_id, chapter_code)
+    return _xlsx(function_test_xlsx(draft), draft.title)
 
 
 def _xlsx(content: bytes, title: str) -> Response:
