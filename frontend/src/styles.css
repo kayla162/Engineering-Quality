@@ -661,3 +661,11 @@ ul.list li.selected {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* 檢核表章節欄的橘框表單初稿下載連結 */
+.draft-forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  font-size: 12px;
+}

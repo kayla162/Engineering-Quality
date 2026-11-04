@@ -512,8 +512,12 @@ describe("ChecklistTable 品質管理標準表初稿", () => {
   it("有對到章節的列可以下載那一章的標準表初稿", () => {
     render(<ChecklistTable items={[OK_ITEM]} resultFilter="ALL" onResultFilterChange={vi.fn()} projectId="p1" />);
 
-    const link = within(cellOf("壹.一.1.4.8", "章節")).getByRole("link", { name: /標準表初稿/ });
-    expect(link).toHaveAttribute("href", "/api/projects/p1/quality-standards/09912/export");
+    const cell = within(cellOf("壹.一.1.4.8", "章節"));
+    const base = "/api/projects/p1/quality-standards/09912";
+    expect(cell.getByRole("link", { name: "標準表初稿" })).toHaveAttribute("href", `${base}/export`);
+    expect(cell.getByRole("link", { name: "自主檢查表初稿" })).toHaveAttribute("href", `${base}/self-inspection/export`);
+    expect(cell.getByRole("link", { name: "監造抽查標準表初稿" })).toHaveAttribute("href", `${base}/supervision/export`);
+    expect(cell.getByRole("link", { name: "施工要領初稿" })).toHaveAttribute("href", `${base}/method-statement/export`);
   });
 
   it("規範沒收錄的章沒有初稿可下載", () => {

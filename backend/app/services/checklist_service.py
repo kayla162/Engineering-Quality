@@ -43,6 +43,7 @@ from app.parsers import parse_document
 from app.specs import basis_block, read_spec_chapters
 from app.specs.contract_reader import contract_passages, item_keywords, mentions
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
+from app.specs.method_statement import MethodStatement, draft_method_statement
 from app.specs.quality_standard import QualityStandardDraft, draft_quality_standard
 from app.specs.method_reader import choose_method, method_options
 from app.workitems.boq_reader import BoqLayout, boq_layout, read_boq
@@ -199,14 +200,28 @@ class ChecklistService:
     async def quality_standard_draft(self, project_id: uuid.UUID, chapter_code: str) -> QualityStandardDraft:
         """品質管理標準表初稿（橘框表單）：從本案施工規範那一章擷取。章節正文不存資料庫，
         每次重讀規範書（秀山 772 頁約數秒）；這是給人下載後修改的初稿，不需要快取。"""
+        chapter = await self._spec_chapter(project_id, chapter_code)
+        return draft_quality_standard(chapter.code, chapter.title, chapter.text)
+
+    async def method_statement_draft(self, project_id: uuid.UUID, chapter_code: str) -> MethodStatement:
+        """施工要領初稿：施工方法取自規範那一章的第3節，使用材料取自標單裡計價代碼屬於這一章的工項。"""
+        chapter = await self._spec_chapter(project_id, chapter_code)
+        materials = [
+            item.name
+            for item in await self.projects.work_items(project_id)
+            if item.is_leaf and self._chapter_code(item) == chapter_code
+        ]
+        return draft_method_statement(chapter.code, chapter.title, chapter.text, materials)
+
+    async def _spec_chapter(self, project_id: uuid.UUID, chapter_code: str):
         await self._require_project(project_id)
         spec = await self._spec_document(project_id)
         if spec is None:
-            raise AppError("專案還沒有掛施工規範，無法產生品質管理標準表初稿")
+            raise AppError("專案還沒有掛施工規範，無法產生橘框表單初稿")
         chapter = next((c for c in read_spec_chapters(Path(spec.storage_path)) if c.code == chapter_code), None)
         if chapter is None:
             raise NotFoundError(f"本案施工規範沒有第{chapter_code}章")
-        return draft_quality_standard(chapter.code, chapter.title, chapter.text)
+        return chapter
 
     # --- 內部 ---
 

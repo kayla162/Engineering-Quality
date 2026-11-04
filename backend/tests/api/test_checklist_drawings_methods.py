@@ -421,6 +421,36 @@ class TestQualityStandardDraft:
         assert any("初稿" in t and "品管人員" in t for t in texts)
         assert "管理標準" in texts
 
+    async def test_the_self_inspection_and_supervision_drafts(self, api_client, checklist):
+        """同一章的自主檢查表（承攬廠商）與抽查標準表（監造）初稿，都從品質管理標準表初稿衍生。"""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        base = f"/api/projects/{checklist['project_id']}/quality-standards/03210"
+        own = await api_client.get(f"{base}/self-inspection/export")
+        supervision = await api_client.get(f"{base}/supervision/export")
+
+        assert own.status_code == supervision.status_code == 200
+        own_texts = [str(c.value) for r in load_workbook(BytesIO(own.content)).active.iter_rows() for c in r if c.value]
+        assert "鋼筋工程施工自主檢查表（初稿）" in own_texts
+        assert load_workbook(BytesIO(supervision.content)).sheetnames == ["施工抽查標準表", "材料抽驗標準表"]
+
+    async def test_the_method_statement_draft_is_a_word_file(self, api_client, checklist):
+        """施工要領初稿：施工方法取自規範第3節，使用材料取自標單裡屬於這一章的工項。"""
+        from io import BytesIO
+
+        import docx
+
+        response = await api_client.get(
+            f"/api/projects/{checklist['project_id']}/quality-standards/03210/method-statement/export"
+        )
+        assert response.status_code == 200
+        paragraphs = docx.Document(BytesIO(response.content)).paragraphs
+        text = " ".join(p.text for p in paragraphs)
+        assert "鋼筋工程施工要領（初稿）" in text
+        assert "鋼筋，SD420W 含加工及組立" in text  # 示範標單裡計價代碼 03210 的工項
+
     async def test_an_unknown_chapter_is_404(self, api_client, checklist):
         response = await api_client.get(f"/api/projects/{checklist['project_id']}/quality-standards/99999")
         assert response.status_code == 404
