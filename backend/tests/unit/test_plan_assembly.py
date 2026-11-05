@@ -115,7 +115,7 @@ class TestContractorProcedures:
     def test_no_company_or_agency_names_are_copied(self):
         for build in (quality_plan_docx, supervision_plan_docx):
             text = "\n".join(self.sections(build).values())
-            assert "營造工程有限公司" not in text and "建築師事務所" not in text and "新建工程處" not in text
+            assert "營造工程有限公司" not in text and "建築師事務所" not in text and "工程處" not in text
 
     def test_demo_fills_only_what_the_template_leaves_blank(self):
         sections = self.sections(quality_plan_docx, demo=True)
