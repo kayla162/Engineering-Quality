@@ -247,3 +247,109 @@ def test_a_set_with_a_few_text_pages_is_still_scanned(tmp_path):
 
     assert _is_scanned(["", "", "", "", "", "", "", "", "", "有一頁帶著文字層，內容超過五十個字的說明頁" * 3])
     assert not _is_scanned(["圖號：S-01 圖名：結構平面圖，說明：依結構計算書辦理。" * 3] * 5)
+
+
+def cad_page_with_outlined_number(doc, sheet_no: str, title: str) -> None:
+    """另一冊真實 CAD 竣工圖（結構）：標籤與圖名是文字，圖號卻被轉成線條（文字層裡沒有）。用圖片模擬。"""
+    page = doc.new_page(width=1191, height=842)
+    page.insert_text((360, 760), "圖    名", fontname=FONT, fontsize=7)
+    page.insert_text((360, 770), "DRAWING TITLE", fontsize=5)
+    page.insert_text((700, 810), "圖號：", fontname=FONT, fontsize=7)
+    page.insert_text((700, 818), "DRG. NO.", fontsize=5)
+    page.insert_text((380, 780), title, fontname=FONT, fontsize=9)
+    number = pymupdf.open()
+    number_page = number.new_page(width=60, height=14)
+    number_page.insert_text((2, 11), sheet_no, fontsize=10)
+    page.insert_image(pymupdf.Rect(740, 801, 800, 815), pixmap=number_page.get_pixmap(dpi=300))
+
+
+def test_an_index_page_header_is_not_the_title_block(tmp_path):
+    """圖號索引表的表頭也有「圖號」「圖名」兩欄；標題欄的標籤有冒號（「圖號：」），以它為準。"""
+    doc = pymupdf.open()
+    page = cad_page(doc, "S0-01", "結構圖號索引表")
+    page.insert_text((60, 60), "圖號", fontname=FONT, fontsize=9)
+    page.insert_text((120, 60), "圖    名", fontname=FONT, fontsize=9)
+    page.insert_text((60, 80), "S0-00", fontsize=8)
+    page.insert_text((120, 80), "一層梁配筋圖(二)", fontname=FONT, fontsize=8)
+    (row,) = read_drawing_sheets(save(doc, tmp_path))
+    assert (row.sheet_no, row.title) == ("S0-01", "結構圖號索引表")
+
+
+def test_an_outlined_number_without_ocr_falls_back_to_the_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "ENABLE_OCR", False)
+    doc = pymupdf.open()
+    cad_page_with_outlined_number(doc, "S1-05", "基礎版端下層筋錨錠詳圖")
+    (row,) = read_drawing_sheets(save(doc, tmp_path))
+    assert (row.sheet_no, row.title, row.is_ocr) == ("第1頁", "基礎版端下層筋錨錠詳圖", False)
+
+
+@pytest.mark.skipif(not _ocr_available(), reason="這台機器沒有 Tesseract 繁中語言資料")
+def test_an_outlined_number_is_read_by_ocr(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "ENABLE_OCR", True)
+    doc = pymupdf.open()
+    cad_page_with_outlined_number(doc, "S1-05", "基礎版端下層筋錨錠詳圖")
+    (row,) = read_drawing_sheets(save(doc, tmp_path))
+    assert (row.sheet_no, row.title, row.is_ocr) == ("S1-05", "基礎版端下層筋錨錠詳圖", True)
+
+
+def _as_image(page, rect: pymupdf.Rect, text: str, fontsize: float, fontname: str | None = None) -> None:
+    """把一段字變成圖片貼上：文字層裡沒有它，跟真實圖被轉成線條的效果一樣。"""
+    picture = pymupdf.open()
+    picture_page = picture.new_page(width=rect.width, height=rect.height)
+    picture_page.insert_text((2, rect.height - 3), text, fontsize=fontsize, **({"fontname": fontname} if fontname else {}))
+    page.insert_image(rect, pixmap=picture_page.get_pixmap(dpi=300))
+
+
+@pytest.mark.skipif(not _ocr_available(), reason="這台機器沒有 Tesseract 繁中語言資料")
+def test_an_outlined_title_is_read_from_its_cell_not_from_a_drawing_note(tmp_path, monkeypatch):
+    """真實結構竣工圖的 S0、S1 頁：圖號、圖名都是線條，文字層裡離「圖名」表頭最近的中文是圖面上的詳圖名稱。"""
+    monkeypatch.setattr(settings, "ENABLE_OCR", True)
+    doc = pymupdf.open()
+    page = doc.new_page(width=1191, height=842)
+    page.insert_text((360, 760), "圖    名", fontname=FONT, fontsize=7)
+    page.insert_text((360, 770), "DRAWING TITLE", fontsize=5)
+    page.insert_text((200, 810), "圖號：", fontname=FONT, fontsize=7)
+    page.insert_text((200, 818), "DRG. NO.", fontsize=5)
+    page.insert_text((380, 720), "基礎版端下層筋錨錠詳圖", fontname=FONT, fontsize=9)
+    _as_image(page, pymupdf.Rect(230, 780, 400, 798), "鋼筋混凝土標準圖", 12, FONT)
+    _as_image(page, pymupdf.Rect(232, 801, 292, 815), "S0-08", 10)
+    (row,) = read_drawing_sheets(save(doc, tmp_path))
+    assert (row.sheet_no, row.title, row.is_ocr) == ("S0-08", "鋼筋混凝土標準圖", True)
+
+
+def test_ocr_sheet_numbers_are_normalised():
+    """實測讀法：「SO-08」（0 讀成 O）、「50-08」（S 讀成 5）；沒有字母開頭的不是圖號。"""
+    from app.specs.drawing_reader import _outlined_number
+
+    assert [_outlined_number(t) for t in ("SO-08", "Ea 50-08", "$2-1O", "A2-08B", "DRG. NO,", "1-2")] == [
+        "S0-08", "S0-08", "S2-10", "A2-08B", None, None,
+    ]
+
+
+def test_only_title_like_ocr_text_is_taken_as_a_title():
+    from app.specs.drawing_reader import _looks_like_ocr_title
+
+    assert _looks_like_ocr_title("鋼筋混凝土標準圖(一)")
+    assert _looks_like_ocr_title("鋼結構工程一般說明")
+    assert not _looks_like_ocr_title("BERTI,剖面圖")
+    assert not _looks_like_ocr_title("車道次全措話平,aie")
+
+
+def test_the_real_structural_as_built_set(monkeypatch):
+    """另案的真實結構竣工圖（工程文書/，不進版控）。54 頁；S0、S1 頁的圖號與圖名都是線條，要 OCR。
+    2026-11 實測讀到 44 張，其中 22 張靠 OCR；目錄頁與 OCR 也讀不出像圖名的頁不列。"""
+    from app.specs.drawing_reader import _OutlinedTitleBlock
+
+    path = settings.DATA_DIR.parent / "工程文書" / "結構竣工圖0826.pdf"
+    if not path.exists():
+        pytest.skip("沒有 工程文書/結構竣工圖0826.pdf")
+    monkeypatch.setattr(settings, "ENABLE_OCR", True)
+    rows = {row.sheet_no: row for row in read_drawing_sheets(path)}
+    # 配筋圖的圖號與圖名是文字，一定讀得到
+    assert rows["S2-01"].title == "基礎層地梁配筋圖(一)" and not rows["S2-01"].is_ocr
+    assert rows["S3-02"].page == 46
+    if _OutlinedTitleBlock()._ready():
+        assert len(rows) >= 40
+        assert rows["S0-10"].title == "鋼結構工程一般說明" and rows["S0-10"].is_ocr
+    # 圖面註解不能當成圖名
+    assert not any(row.title.startswith(("2.", "鋼筋中心")) for row in rows.values())
