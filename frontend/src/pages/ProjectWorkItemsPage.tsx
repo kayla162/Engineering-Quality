@@ -35,6 +35,8 @@ export function ProjectWorkItemsPage() {
   // 重建要花好幾秒，慢回來的舊專案回應也只能存進舊專案自己名下，不能蓋掉新專案的畫面。
   const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
   const [resultFilter, setResultFilter] = useState<ChecklistResultFilter>("ALL");
+  // 展示用：初稿的「（待填）」以示範內容補齊（標「（示範）」），所有初稿下載連結一起切換
+  const [demoFill, setDemoFill] = useState(false);
   const [buildingChecklist, setBuildingChecklist] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
   // 工項清單預設收合。篩選（onlyMissing）與資料都存在這一層，收合只是不畫，不會被重設。
@@ -294,10 +296,18 @@ export function ProjectWorkItemsPage() {
                       </p>
                       <p className="hint">
                         計畫初稿（Word，標單用到的每一章規範組成，組織與程序章節待填）：
-                        <a href={`/api/projects/${selected.project_id}/plans/quality-plan/export`}>整體品質計畫初稿</a>
+                        <a href={`/api/projects/${selected.project_id}/plans/quality-plan/export${demoFill ? "?demo=true" : ""}`}>
+                          整體品質計畫初稿
+                        </a>
                         {"　"}
-                        <a href={`/api/projects/${selected.project_id}/plans/supervision-plan/export`}>監造計畫初稿</a>
+                        <a href={`/api/projects/${selected.project_id}/plans/supervision-plan/export${demoFill ? "?demo=true" : ""}`}>
+                          監造計畫初稿
+                        </a>
                       </p>
+                      <label className="hint">
+                        <input type="checkbox" checked={demoFill} onChange={(event) => setDemoFill(event.target.checked)} />
+                        示範補正：下載的初稿把「（待填）」用示範內容補齊（標「（示範）」，展示用，不可提送）
+                      </label>
                     </>
                   )}
                   <CrossRuleReminders projectId={selected.project_id} />
@@ -306,6 +316,7 @@ export function ProjectWorkItemsPage() {
                     resultFilter={resultFilter}
                     onResultFilterChange={setResultFilter}
                     projectId={selected.project_id}
+                    demo={demoFill}
                   />
                 </>
               )}

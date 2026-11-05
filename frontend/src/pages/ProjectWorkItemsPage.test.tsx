@@ -324,6 +324,21 @@ describe("ProjectWorkItemsPage", () => {
     );
   });
 
+  it("勾選示範補正後，所有初稿下載連結都加上 demo", async () => {
+    stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+    const plan = await screen.findByRole("link", { name: "整體品質計畫初稿" });
+    expect(plan.getAttribute("href")).not.toContain("demo");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /示範補正/ }));
+
+    expect(plan).toHaveAttribute("href", "/api/projects/p1/plans/quality-plan/export?demo=true");
+    const drafts = screen.getAllByRole("link", { name: "標準表初稿" });
+    expect(drafts.every((link) => link.getAttribute("href")!.endsWith("/export?demo=true"))).toBe(true);
+  });
+
   it("文件角色可以選品質計畫", async () => {
     stubChecklistApi(() => ({ status: 200, body: CHECKLIST }));
 

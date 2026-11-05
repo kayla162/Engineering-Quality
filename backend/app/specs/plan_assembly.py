@@ -12,6 +12,7 @@
 
 import io
 
+from app.specs import demo_fill
 from app.specs.chapter_reader import SpecChapterRow
 from app.specs.derived_forms import self_inspection, supervision_standard
 from app.specs.function_test import draft_function_test, is_equipment_chapter
@@ -25,19 +26,22 @@ NOTICE = (
 )
 
 
-def quality_plan_docx(project_name: str, chapters: list[SpecChapterRow], materials: dict[str, list[str]]) -> bytes:
-    document = _new(f"{project_name} 整體品質計畫（初稿）")
+def quality_plan_docx(
+    project_name: str, chapters: list[SpecChapterRow], materials: dict[str, list[str]], demo: bool = False
+) -> bytes:
+    """demo=True：系統產生不了的欄位與章節用示範內容補齊（demo_fill，標「（示範）」「【示範】」）。"""
+    fill = _Fill(demo, "quality")
+    document = _new(f"{project_name} 整體品質計畫（初稿{'・示範補正' if demo else ''}）", demo)
     _section(document, "一、計畫範圍", [
         f"工程名稱：{project_name}",
         f"本計畫涵蓋本案標單所列工項，對應本案施工規範 {len(chapters)} 章：" + "、".join(f"第{c.code}章{c.title}" for c in chapters) + "。",
-        "（待填：工程概要、主要施工項目及數量、適用對象、名詞定義）",
-    ])
-    _section(document, "二、管理權責及分工", ["（待填：承攬廠商、協力廠商、監造單位與主辦機關之權責分工表）"])
-    _section(document, "三、品管組織及工作職掌", ["（待填：品管組織架構圖、品管人員資格與工作職掌）"])
+    ] + fill.section("一、計畫範圍", "（待填：工程概要、主要施工項目及數量、適用對象、名詞定義）"))
+    _section(document, "二、管理權責及分工", fill.section("二、管理權責及分工", "（待填：承攬廠商、協力廠商、監造單位與主辦機關之權責分工表）"))
+    _section(document, "三、品管組織及工作職掌", fill.section("三、品管組織及工作職掌", "（待填：品管組織架構圖、品管人員資格與工作職掌）"))
 
     document.add_heading("四、施工要領", level=1)
     for chapter in chapters:
-        statement = draft_method_statement(chapter.code, chapter.title, chapter.text, materials.get(chapter.code, []))
+        statement = fill.method(draft_method_statement(chapter.code, chapter.title, chapter.text, materials.get(chapter.code, [])))
         document.add_heading(statement.title, level=2)
         document.add_paragraph("使用材料：" + ("、".join(statement.materials) or "（待填）"))
         document.add_paragraph(f"施工機具：{statement.tools}")
@@ -49,7 +53,7 @@ def quality_plan_docx(project_name: str, chapters: list[SpecChapterRow], materia
             document.add_paragraph("施工流程：" + " → ".join(statement.flow) + "（★為檢驗停留點）")
 
     document.add_heading("五、品質管理標準", level=1)
-    drafts = [draft_quality_standard(c.code, c.title, c.text) for c in chapters]
+    drafts = [fill.standard(draft_quality_standard(c.code, c.title, c.text)) for c in chapters]
     for draft in drafts:
         document.add_heading(draft.title, level=2)
         _table(document, STANDARD_COLUMNS, [
@@ -71,7 +75,7 @@ def quality_plan_docx(project_name: str, chapters: list[SpecChapterRow], materia
     if not equipment:
         document.add_paragraph("本案標單沒有機電設備章。")
     for chapter in equipment:
-        test = draft_function_test(chapter.code, chapter.title, chapter.text)
+        test = fill.function_test(draft_function_test(chapter.code, chapter.title, chapter.text))
         document.add_heading(test.title, level=2)
         _table(document, ("管理項目", "管理標準", "檢查方法", "檢查頻率", "出處"),
                [(r.item, r.standard, r.method, r.frequency, r.note) for r in test.rows])
@@ -83,24 +87,28 @@ def quality_plan_docx(project_name: str, chapters: list[SpecChapterRow], materia
         _table(document, ("施工階段", "檢查項目", "設計圖說、規範之檢查標準（定量／定性）", "實際檢查情形", "檢查結果"),
                [(s.stage, r.item, r.standard, "", "") for s in form.sections for r in s.rows])
 
-    _section(document, "九、不合格品之管制", ["（待填：不合格材料及施工之標示、隔離、處置與複查程序，依公司程序書）"])
+    _section(document, "九、不合格品之管制",
+             fill.section("九、不合格品之管制", "（待填：不合格材料及施工之標示、隔離、處置與複查程序，依公司程序書）"))
     _section(document, "十、矯正與預防措施、內部品質稽核及文件紀錄管理",
-             ["（待填：矯正預防處理流程、內部稽核頻率與查核表、文件紀錄分類與保存期限）"])
+             fill.section("十、矯正與預防措施、內部品質稽核及文件紀錄管理",
+                          "（待填：矯正預防處理流程、內部稽核頻率與查核表、文件紀錄分類與保存期限）"))
     return _save(document)
 
 
-def supervision_plan_docx(project_name: str, chapters: list[SpecChapterRow], materials: dict[str, list[str]]) -> bytes:
-    document = _new(f"{project_name} 監造計畫（初稿）")
+def supervision_plan_docx(
+    project_name: str, chapters: list[SpecChapterRow], materials: dict[str, list[str]], demo: bool = False
+) -> bytes:
+    fill = _Fill(demo, "supervision")
+    document = _new(f"{project_name} 監造計畫（初稿{'・示範補正' if demo else ''}）", demo)
     _section(document, "一、監造範圍", [
         f"工程名稱：{project_name}",
         "本計畫涵蓋本案施工規範：" + "、".join(f"第{c.code}章{c.title}" for c in chapters) + "。",
-        "（待填：工程概要與監造範圍）",
-    ])
-    _section(document, "二、監造組織及權責分工", ["（待填：監造組織架構、人員資格與權責）"])
+    ] + fill.section("一、監造範圍", "（待填：工程概要與監造範圍）"))
+    _section(document, "二、監造組織及權責分工", fill.section("二、監造組織及權責分工", "（待填：監造組織架構、人員資格與權責）"))
     _section(document, "三、品質計畫與施工計畫審查作業程序",
-             ["承攬廠商品質計畫可用系統的「品質計畫審查（橘框對綠框）」比對本案規範，列出計畫漏寫的可檢查標準。",
-              "（待填：審查流程與期限）"])
-    forms = [supervision_standard(draft_quality_standard(c.code, c.title, c.text)) for c in chapters]
+             ["承攬廠商品質計畫可用系統的「品質計畫審查（橘框對綠框）」比對本案規範，列出計畫漏寫的可檢查標準。"]
+             + fill.section("三、品質計畫與施工計畫審查作業程序", "（待填：審查流程與期限）"))
+    forms = [supervision_standard(fill.standard(draft_quality_standard(c.code, c.title, c.text))) for c in chapters]
     columns = ("管理項目", "抽查標準（定量／定性）", "抽查時機", "抽查方法", "抽查頻率", "依據")
 
     document.add_heading("四、材料設備抽驗程序及標準", level=1)
@@ -119,22 +127,43 @@ def supervision_plan_docx(project_name: str, chapters: list[SpecChapterRow], mat
     if not equipment:
         document.add_paragraph("本案標單沒有機電設備章。")
     for chapter in equipment:
-        test = draft_function_test(chapter.code, chapter.title, chapter.text)
+        test = fill.function_test(draft_function_test(chapter.code, chapter.title, chapter.text))
         document.add_heading(test.supervision_title, level=2)
         _table(document, ("抽驗項目", "抽驗標準", "抽驗方法", "抽驗頻率", "出處"),
                [(r.item, r.standard, r.method, r.frequency, r.note) for r in test.rows])
 
-    _section(document, "七、品質稽核及文件紀錄管理", ["（待填：監造日報、抽查紀錄、缺失追蹤與文件保存方式）"])
+    _section(document, "七、品質稽核及文件紀錄管理",
+             fill.section("七、品質稽核及文件紀錄管理", "（待填：監造日報、抽查紀錄、缺失追蹤與文件保存方式）"))
     return _save(document)
 
 
-def _new(title: str):
+class _Fill:
+    """demo=False 時原樣傳回；demo=True 時用 demo_fill 補齊。"""
+
+    def __init__(self, demo: bool, kind: str):
+        self.demo = demo
+        self.sections = demo_fill.plan_sections(kind) if demo else {}
+
+    def section(self, heading: str, blank: str) -> list[str]:
+        return self.sections.get(heading, [blank])
+
+    def standard(self, draft):
+        return demo_fill.fill_standard(draft) if self.demo else draft
+
+    def function_test(self, draft):
+        return demo_fill.fill_function_test(draft) if self.demo else draft
+
+    def method(self, statement):
+        return demo_fill.fill_method(statement) if self.demo else statement
+
+
+def _new(title: str, demo: bool = False):
     import docx
     from docx.shared import RGBColor
 
     document = docx.Document()
     document.add_heading(title, level=0)
-    run = document.add_paragraph().add_run(NOTICE)
+    run = document.add_paragraph().add_run((demo_fill.NOTICE if demo else "") + NOTICE)
     run.bold = True
     run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
     return document
