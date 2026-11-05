@@ -214,7 +214,8 @@ function ContractCell({ item }: { item: ChecklistItem }) {
   );
 }
 
-function ChapterCell({ item, projectId }: { item: ChecklistItem; projectId?: string }) {
+function ChapterCell({ item, projectId, demo }: { item: ChecklistItem; projectId?: string; demo?: boolean }) {
+  const query = demo ? "?demo=true" : "";
   if (item.chapter) {
     return (
       <>
@@ -223,12 +224,12 @@ function ChapterCell({ item, projectId }: { item: ChecklistItem; projectId?: str
           <div className="draft-forms">
             {/* 橘框表單：從本案規範這一章擷取的初稿，要品管／監造人員補正。三張表出自同一份初稿 */}
             {DRAFT_FORMS.map(([path, label]) => (
-              <a key={label} href={`/api/projects/${projectId}/quality-standards/${item.chapter!.code}/${path}`}>
+              <a key={label} href={`/api/projects/${projectId}/quality-standards/${item.chapter!.code}/${path}${query}`}>
                 {label}
               </a>
             ))}
             {isEquipmentChapter(item.chapter.code) && (
-              <a href={`/api/projects/${projectId}/quality-standards/${item.chapter.code}/function-test/export`}>
+              <a href={`/api/projects/${projectId}/quality-standards/${item.chapter.code}/function-test/export${query}`}>
                 功能運轉檢測初稿
               </a>
             )}
@@ -251,12 +252,15 @@ export function ChecklistTable({
   resultFilter,
   onResultFilterChange,
   projectId,
+  demo,
 }: {
   items: ChecklistItem[];
   resultFilter: ChecklistResultFilter;
   onResultFilterChange: (value: ChecklistResultFilter) => void;
   /** 有給才顯示「標準表初稿」下載連結 */
   projectId?: string;
+  /** 下載連結加上 ?demo=true：初稿的「（待填）」用示範內容補齊 */
+  demo?: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -323,7 +327,7 @@ export function ChecklistTable({
                   ))}
                 </td>
                 <td>
-                  <ChapterCell item={item} projectId={projectId} />
+                  <ChapterCell item={item} projectId={projectId} demo={demo} />
                 </td>
                 <td>
                   <ContractCell item={item} />

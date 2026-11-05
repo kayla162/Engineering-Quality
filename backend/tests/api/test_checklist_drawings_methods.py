@@ -541,3 +541,30 @@ class TestPlanDrafts:
     async def test_an_unknown_plan_is_404(self, api_client, checklist):
         response = await api_client.get(f"/api/projects/{checklist['project_id']}/plans/other/export")
         assert response.status_code == 404
+
+
+class TestDemoFill:
+    """?demo=true：初稿的「（待填）」補上示範內容（標「（示範）」），給展示用；不加參數時完全不變。"""
+
+    async def test_the_standard_frequency_is_filled_only_on_request(self, api_client, checklist):
+        base = f"/api/projects/{checklist['project_id']}/quality-standards/03210"
+        plain = (await api_client.get(base)).json()
+        demo = (await api_client.get(base, params={"demo": "true"})).json()
+
+        assert len(plain["rows"]) == len(demo["rows"])
+        assert all(not r["frequency"].endswith("（示範）") for r in plain["rows"])
+        assert all(r["frequency"] != "（待填）" for r in demo["rows"])
+        assert "示範補正" in demo["notice"]
+
+    async def test_the_demo_plan_has_no_blanks(self, api_client, checklist):
+        from io import BytesIO
+
+        import docx
+
+        response = await api_client.get(
+            f"/api/projects/{checklist['project_id']}/plans/quality-plan/export", params={"demo": "true"}
+        )
+        document = docx.Document(BytesIO(response.content))
+        text = " ".join(p.text for p in document.paragraphs)
+        text += "".join(c.text for t in document.tables for r in t.rows for c in r.cells)
+        assert "（待填" not in text and "【示範】" in text

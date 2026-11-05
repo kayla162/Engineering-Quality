@@ -68,3 +68,11 @@ class TestSupervisionPlan:
         assert "鋼筋工程施工抽查標準表（初稿）" in headings
         assert "抽查標準（定量／定性）" in body
         assert "接地功能運轉測試抽驗標準表（初稿）" in headings
+
+
+def test_the_demo_version_has_no_blanks_and_marks_what_it_filled():
+    for build in (quality_plan_docx, supervision_plan_docx):
+        headings, body = text_of(build("秀山分隊興建工程", [REBAR, GROUNDING], MATERIALS, demo=True))
+        assert "（待填" not in body
+        assert "【示範】" in body and "（示範）" in body
+        assert "（初稿・示範補正）" in body
