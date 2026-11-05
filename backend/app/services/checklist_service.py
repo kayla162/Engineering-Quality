@@ -382,7 +382,7 @@ class ChecklistService:
                             WorkItemContractRef(
                                 work_item_id=item.id,
                                 page=m.page,
-                                heading=m.heading,
+                                heading=(m.heading or "")[:64] or None,
                                 excerpt=m.excerpt,
                                 keyword=keyword,
                             )

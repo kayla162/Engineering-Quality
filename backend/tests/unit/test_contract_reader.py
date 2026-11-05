@@ -90,3 +90,46 @@ class TestRealBoqNames:
 def test_a_two_character_section_core_keeps_its_noun():
     """「衛生設備工程」只剩「衛生」會對到「職業安全衛生」；留「衛生設備」。"""
     assert item_keywords("KW-MP PANEL", ["衛生設備工程"]) == ["衛生設備"]
+
+
+class TestArticleNumbers:
+    """Word 檔的契約有「第11條　履約品管」這種條號（秀山的 PDF 契約沒有，自動編號在轉檔時掉了）。有就引條號。"""
+
+    WORD_CONTRACT = [
+        ParsedSection(content="第1條\u3000契約文件及效力", order_index=0),
+        ParsedSection(content="(一)契約包括下列文件：", order_index=1),
+        ParsedSection(content="第11條\u3000履約品管", order_index=2),
+        ParsedSection(content="(一)廠商應對鋼筋、模板施工品質負責。", order_index=3),
+        ParsedSection(content="品質計畫： 一、 廠商應於開工前提送品質計畫，鋼筋續接方式應載明。", order_index=4),
+        ParsedSection(content="第17條之1\u3000植栽保活", order_index=5),
+        ParsedSection(content="(一)植栽應保活一年，含喬木與灌木。", order_index=6),
+    ]
+
+    def test_mentions_cite_the_article(self):
+        found = mentions("鋼筋", contract_passages(self.WORD_CONTRACT))
+        assert [m.heading for m in found] == ["第11條 履約品管", "第11條 履約品管／品質計畫"]
+        assert all(m.page is None for m in found)
+
+    def test_sub_numbered_articles_are_articles_too(self):
+        (found,) = mentions("喬木", contract_passages(self.WORD_CONTRACT))
+        assert found.heading == "第17條之1 植栽保活"
+
+    def test_a_pdf_contract_without_article_numbers_is_unchanged(self):
+        found = mentions("模板", contract_passages(SECTIONS))
+        assert found[0].heading == "假設工程之組立及拆除"
+
+
+def test_the_real_word_contract_has_all_25_articles():
+    """另案的 Word 版工程會統包契約範本（工程文書/，不進版控）：25 條都抓得到，引用寫到條。"""
+    import pytest
+
+    from app.core.config import settings
+    from app.parsers import parse_document
+
+    path = settings.DATA_DIR.parent / "工程文書" / "1_+03工程採購契約.docx"
+    if not path.exists():
+        pytest.skip("沒有 工程文書/1_+03工程採購契約.docx")
+    passages = contract_passages(parse_document(path).sections)
+    articles = {p.heading.split("／")[0] for p in passages if p.heading and p.heading.startswith("第")}
+    assert len(articles) == 25
+    assert "第11條 履約品管／3.金屬材料" in [m.heading for m in mentions("鋼筋", passages)]
