@@ -80,6 +80,12 @@ async def attach_document(
     return ProjectDocumentOut.from_model(link)
 
 
+@router.get("/{project_id}/documents", response_model=list[ProjectDocumentOut])
+async def list_project_documents(project_id: uuid.UUID, service: ProjectServiceDep):
+    """專案掛了哪些文件、各扮演什麼角色。"""
+    return [ProjectDocumentOut.from_model(link, filename) for link, filename in await service.attached_documents(project_id)]
+
+
 @router.post(
     "/{project_id}/work-items",
     response_model=WorkItemListOut,

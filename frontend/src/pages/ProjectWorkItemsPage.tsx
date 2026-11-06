@@ -6,6 +6,7 @@ import type {
   DocumentRole,
   DocumentSummary,
   Project,
+  ProjectDocumentLink,
   WorkItemList,
 } from "../api/types";
 import {
@@ -41,6 +42,8 @@ export function ProjectWorkItemsPage() {
   const [onlyMissing, setOnlyMissing] = useState(false);
   // 工項清單預設收合。篩選（onlyMissing）與資料都存在這一層，收合只是不畫，不會被重設。
   const [workItemsOpen, setWorkItemsOpen] = useState(false);
+  // 專案掛了哪些文件（依專案分開存，理由同檢核表）
+  const [attached, setAttached] = useState<Record<string, ProjectDocumentLink[]>>({});
   const [documentId, setDocumentId] = useState("");
   const [role, setRole] = useState<DocumentRole>("boq");
   const [busy, setBusy] = useState(false);
@@ -80,12 +83,22 @@ export function ProjectWorkItemsPage() {
     api.listDocuments().then((list) => setDocuments(list.items), () => setDocuments([]));
   }, [loadProjects]);
 
+  const loadAttached = useCallback(async (projectId: string) => {
+    try {
+      const links = await api.listProjectDocuments(projectId);
+      setAttached((previous) => ({ ...previous, [projectId]: Array.isArray(links) ? links : [] }));
+    } catch {
+      // 列不出來不影響其他功能：掛文件、建檢核表照常
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedId) {
       void loadWorkItems(selectedId);
       void loadChecklist(selectedId);
+      void loadAttached(selectedId);
     }
-  }, [selectedId, loadWorkItems, loadChecklist]);
+  }, [selectedId, loadWorkItems, loadChecklist, loadAttached]);
 
   async function createProject(name: string) {
     setError(null);
@@ -105,6 +118,7 @@ export function ProjectWorkItemsPage() {
     try {
       await api.attachDocument(selectedId, documentId, role);
       setDocumentId("");
+      void loadAttached(selectedId);
     } catch (err) {
       report(err, "無法把文件掛到專案");
     } finally {
@@ -202,6 +216,21 @@ export function ProjectWorkItemsPage() {
                 </button>
               </div>
 
+              {(attached[selected.project_id] ?? []).length > 0 && (
+                <div className="attached-documents">
+                  <span className="hint">已掛的文件：</span>
+                  <ul>
+                    {(attached[selected.project_id] ?? []).map((link) => (
+                      <li key={link.document_id}>
+                        <strong>{ROLE_LABELS[link.role as DocumentRole] ?? link.role}</strong>
+                        {"　"}
+                        {link.filename ?? "（文件已刪除）"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="field">
                 <button type="button" disabled={busy} onClick={() => void build()}>
                   從標單建立工項
@@ -295,7 +324,7 @@ export function ProjectWorkItemsPage() {
                         ：先把承攬廠商的整體品質計畫掛成「品質計畫」，下載它的品質管理標準表漏了哪些本案規範的可檢查標準。
                       </p>
                       <p className="hint">
-                        計畫初稿（Word，標單用到的每一章規範組成，組織與程序章節待填）：
+                        計畫初稿（Word，標單用到的每一章規範組成；組織與程序章節先用承攬廠商範本，其餘待填）：
                         <a href={`/api/projects/${selected.project_id}/plans/quality-plan/export${demoFill ? "?demo=true" : ""}`}>
                           整體品質計畫初稿
                         </a>

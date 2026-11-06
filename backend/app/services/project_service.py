@@ -51,6 +51,15 @@ class ProjectService:
         await self.session.commit()
         return link
 
+    async def attached_documents(self, project_id: uuid.UUID) -> list[tuple[ProjectDocument, str | None]]:
+        """（掛上去的文件, 檔名）。文件被刪掉時檔名是 None。"""
+        await self._require_project(project_id)
+        attached = []
+        for link in await self.projects.documents(project_id):
+            document = await self.documents.get(link.document_id, self.tenant_id)
+            attached.append((link, document.filename if document else None))
+        return attached
+
     async def build_work_items(self, project_id: uuid.UUID) -> list[WorkItem]:
         """從專案的標單重建工項清單。
 

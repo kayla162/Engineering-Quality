@@ -220,7 +220,15 @@ class RuleEngine:
     method = ExtractionMethod.REGEX
 
     def extract(self, text: str) -> list[Candidate]:
-        return self._quoted(text) + self._standards(text) + self._chinese_names(text)
+        standards = self._standards(text)
+        # 「CNS 1232 混凝土圓柱試體抗壓強度檢驗法」：緊接在標準編號後面的是那部標準的名稱，
+        # 字尾「法」不代表它是一部法律，不另外當成法規引用
+        titles_of_standards = {
+            candidate.start for candidate in self._chinese_names(text)
+            if any(s.end <= candidate.start and not text[s.end:candidate.start].strip() for s in standards)
+        }
+        names = [c for c in self._chinese_names(text) if c.start not in titles_of_standards]
+        return self._quoted(text) + standards + names
 
     # --- 各條規則 ---
 

@@ -321,8 +321,8 @@ def test_ocr_sheet_numbers_are_normalised():
     """實測讀法：「SO-08」（0 讀成 O）、「50-08」（S 讀成 5）；沒有字母開頭的不是圖號。"""
     from app.specs.drawing_reader import _outlined_number
 
-    assert [_outlined_number(t) for t in ("SO-08", "Ea 50-08", "$2-1O", "A2-08B", "DRG. NO,", "1-2")] == [
-        "S0-08", "S0-08", "S2-10", "A2-08B", None, None,
+    assert [_outlined_number(t) for t in ("SO-08", "Ea 50-08", "$2-1O", "A2-08B", "DRG. NO,", "1-2", "$S1-05")] == [
+        "S0-08", "S0-08", "S2-10", "A2-08B", None, None, "S1-05",
     ]
 
 
@@ -422,3 +422,12 @@ def test_ocr_titles_are_corrected_from_the_sheet_index():
         ("S1-05", "二層結構平面圖", 20, True),
         ("S2-01", "基礎層地梁配筋圖(一)", 25, False),
     ]
+
+
+def test_a_small_set_does_not_lose_title_words_as_signatures():
+    """四張圖的冊子：四分之一門檻是 1 張，每個三字串都會被當成簽名拿掉（「電氣單線圖」只剩「線圖」）。至少要兩張。"""
+    from app.specs.drawing_reader import DrawingSheetRow, _without_repeated_signature
+
+    titles = ["電氣單線圖負載表(1)", "電力平面圖", "給水系統圖", "昇降機平面詳圖"]
+    rows = [DrawingSheetRow(f"E-{i}", title, i, True) for i, title in enumerate(titles, start=1)]
+    assert [row.title for row in _without_repeated_signature(rows)] == titles

@@ -17,6 +17,24 @@
       "port": 8000
     },
     {
+      "name": "backend-demo",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--app-dir",
+        "backend",
+        "--port",
+        "8000"
+      ],
+      "env": {
+        "DATABASE_URL": "sqlite+aiosqlite:///./data/demo_showcase.db",
+        "REGULATION_SOURCES": "taiwan_law,pcces,admin_rules,enterprise,standards_demo,mock"
+      },
+      "port": 8000
+    },
+    {
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

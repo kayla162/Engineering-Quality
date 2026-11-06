@@ -217,6 +217,26 @@ describe("ProjectWorkItemsPage", () => {
     expect(screen.getByText("壹.一.1.1.1")).toBeInTheDocument();
   });
 
+  it("選定專案後列出已掛的文件與角色", async () => {
+    stubApi({
+      "/api/projects/p1/work-items": WORK_ITEMS,
+      "/api/projects/p1/checklist": EMPTY_CHECKLIST,
+      "/api/projects/p1/documents": [
+        { document_id: "d1", role: "boq", added_at: "2026-11-06T00:00:00", filename: "標單_完整示範.xlsx" },
+        { document_id: "d2", role: "quality_plan", added_at: "2026-11-06T00:00:00", filename: "整體品質計畫_完整示範.docx" },
+      ],
+      "/api/projects": ONE_PROJECT,
+      "/api/documents": NO_DOCUMENTS,
+    });
+
+    render(<ProjectWorkItemsPage />);
+    fireEvent.click(await screen.findByText("秀山分隊興建工程"));
+
+    expect(await screen.findByText("標單_完整示範.xlsx")).toBeInTheDocument();
+    expect(screen.getByText("整體品質計畫_完整示範.docx")).toBeInTheDocument();
+    expect(screen.getByText("品質計畫（承攬廠商，.docx）", { selector: "strong" })).toBeInTheDocument();
+  });
+
   it("建立專案時打的是 POST /api/projects", async () => {
     const calls = stubApi({ "/api/projects": ONE_PROJECT, "/api/documents": NO_DOCUMENTS });
 

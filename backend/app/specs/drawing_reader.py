@@ -184,7 +184,7 @@ def _without_repeated_signature(rows: list[DrawingSheetRow]) -> list[DrawingShee
             counts[gram] = counts.get(gram, 0) + 1
     noise = [
         gram for gram, count in counts.items()
-        if count >= len(rows) / 4 and _CJK.fullmatch(gram[0]) and not _DRAWING_WORD.search(gram)
+        if count >= max(2, len(rows) / 4) and _CJK.fullmatch(gram[0]) and not _DRAWING_WORD.search(gram)
     ]
     signatures = _trailing_signatures(rows)
     cleaned = []
@@ -404,8 +404,10 @@ def _looks_like_ocr_title(title: str) -> bool:
 
 
 def _outlined_number(text: str) -> str | None:
-    """OCR 讀到的一行裡的圖號。字母後面的「O」是 0（「SO-08」->「S0-08」），開頭的 5 是 S。"""
+    """OCR 讀到的一行裡的圖號。字母後面的「O」是 0（「SO-08」->「S0-08」），開頭的 5 是 S；
+    「$S1-05」這種把 S 讀成兩個字的，換掉 $ 之後會變「SS」，只留一個。"""
     text = _S_AS_FIVE.sub("S", text.upper().replace("$", "S").replace("§", "S"))
+    text = re.sub(r"(?<![A-Z])SS(?=\d)", "S", text)
     match = _OCR_NUMBER.search(text)
     if not match:
         return None

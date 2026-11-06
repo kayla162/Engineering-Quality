@@ -4,6 +4,7 @@ __pycache__/
 .env
 storage/
 data/app.db
+data/demo_showcase.db
 node_modules/
 frontend/dist/
 .pytest_cache/
