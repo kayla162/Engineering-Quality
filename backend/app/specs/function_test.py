@@ -11,8 +11,10 @@
 """
 
 import io
+import json
 import re
 from dataclasses import dataclass, field
+from functools import cache
 
 from app.specs.quality_standard import (
     _FREQUENCY,
@@ -84,16 +86,21 @@ def draft_function_test(chapter_code: str, chapter_title: str, chapter_text: str
     body = _BRACKETED.sub(r"\1", _BLANK.sub(" ", text[start:end]))
     subsections = [(m.start(), m.group(1), m.group(2)) for m in _SUBSECTION.finditer(body)]
     # 只認真的標題：「在適當地方加裝接地測試裝」是句子開頭，含「測試」也不算測試小節
-    titles = {
-        number: title.rstrip("：:") for _, number, title in subsections
-        if 2 <= len(title.rstrip("：:")) < 12 and not _NOT_A_TITLE.search(title)
-    }
+    # 同一個編號只認第一次（「3.3m 以上之水壓」不是 3.3 節）；「現場試驗：系統完成後應做…」標題取冒號前
+    titles: dict[str, str] = {}
+    for _, number, raw in subsections:
+        title = re.split(r"[：:]", raw)[0].strip()
+        if 2 <= len(title) < 12 and not _NOT_A_TITLE.search(title) and not title.endswith("。"):
+            titles.setdefault(number, title)
 
     rows = []
     for sentence, position in _sentences(body):
         number, item = _subsection_at(subsections, position)
         if number is None or not _under_test_section(number, titles) or _is_table(sentence):
             continue
+        item = titles.get(number) or item
+        if _bare(sentence) == item:
+            continue  # 「綜合檢查 3.2.5。」只是標題，留給下面「只列項目」處理
         frequency = _FREQUENCY.search(sentence.replace("[", "").replace("]", ""))
         each = re.search(r"每[一個組台具間處座迴回路]{1,4}", sentence)
         rows.append(
@@ -109,19 +116,71 @@ def draft_function_test(chapter_code: str, chapter_title: str, chapter_text: str
                 note=f"第{chapter_code}章 {number}",
             )
         )
-    # 範本只列了測試項目（「3.2.1 絕緣試驗 3.2.2 動作試驗」）、沒寫內容：項目照列，判定值待填
+    # 句子切不出來的測試小節：範本只列了項目（「3.2.1 絕緣試驗」）就照列、判定值待填；
+    # 條文沒有句號（「3.4 檢驗 3.4.1 依據契約及…」）就整段當管理標準
     covered = {row.note for row in rows}
-    for _, number, _title in subsections:
-        title = titles.get(number)
+    seen: set[str] = set()
+    for index, (position, number, _raw) in enumerate(subsections):
         note = f"第{chapter_code}章 {number}"
-        if title and note not in covered and number.count(".") >= 2 and _under_test_section(number, titles):
-            rows.append(FunctionTestRow(
-                chapter_title, title, LISTED_ONLY, "測試時", _method(title), "（待填）",
-                "檢修調整或更換", "測試報告", note,
-            ))
-            covered.add(note)
-    rows.sort(key=lambda r: [int(n) for n in r.note.split()[-1].split(".")])
+        if number in seen or note in covered or not _under_test_section(number, titles):
+            continue
+        seen.add(number)
+        has_children = any(other.startswith(number + ".") for _, other, _ in subsections)
+        if has_children:
+            continue
+        following = subsections[index + 1][0] if index + 1 < len(subsections) else len(body)
+        segment = _clean(re.sub(r"^\s*" + re.escape(number), "", body[position:following]).strip())
+        title = titles.get(number)
+        if title and _bare(segment) in ("", title):
+            standard = LISTED_ONLY
+        elif len(segment) >= 6:
+            standard = segment[:150]
+            title = title or next((titles[n] for n in _ancestors(number) if n in titles), chapter_title)
+        else:
+            continue
+        rows.append(FunctionTestRow(
+            chapter_title, (title or chapter_title).rstrip("：:"), standard, "測試時", _method(segment or title),
+            "（待填）", "檢修調整或更換", "測試報告", note,
+        ))
+        covered.add(note)
+    if not rows:
+        rows = _template_rows(chapter_code, chapter_title)
+    rows.sort(key=lambda r: [int(n) for n in r.note.split()[-1].split(".")] if r.note != TEMPLATE_NOTE else [0])
     return FunctionTestDraft(chapter_code, chapter_title, rows)
+
+
+def _bare(text: str) -> str:
+    """去掉編號、空白、句號與括號：「綜合檢查 3.2.5。」->「綜合檢查」。"""
+    return re.sub(r"[\d.\s。:：\[\]]", "", text)
+
+
+def _ancestors(number: str) -> list[str]:
+    parts = number.split(".")
+    return [".".join(parts[:depth]) for depth in range(len(parts) - 1, 1, -1)]
+
+
+TEMPLATE_NOTE = "通用範本（本案規範沒有測試小節）"
+
+
+def _template_rows(chapter_code: str, chapter_title: str) -> list[FunctionTestRow]:
+    """規範這一章沒有任何測試小節：用 data/function_test_templates.json 依章碼（或前三碼的類別）列常見測試項目，
+    判定值待填、備註標「通用範本」——讓品管人員知道這是範本、不是本案規範寫的。"""
+    templates = _templates()
+    items = templates.get(chapter_code) or templates.get(chapter_code[:3], [])
+    return [
+        FunctionTestRow(chapter_title, item, LISTED_ONLY, "測試時", method, "（待填）", "檢修調整或更換", "測試報告",
+                        TEMPLATE_NOTE)
+        for item, method in items
+    ]
+
+
+@cache
+def _templates() -> dict[str, list[tuple[str, str]]]:
+    from app.core.config import settings
+
+    with open(settings.DATA_DIR / "function_test_templates.json", encoding="utf-8") as file:
+        data = json.load(file)
+    return {key: [tuple(item) for item in items] for key, items in data["templates"].items()}
 
 
 def _method(sentence: str) -> str:
