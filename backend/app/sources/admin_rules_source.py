@@ -102,7 +102,7 @@ class AdminRulesSource(RegulationSource):
             authority=record.get("authority"),
             effective_date=_date(record.get("issued_date")),
             last_amended_date=_date(record.get("last_amended_date")),
-            note=f"{record['level']}（示範目錄）：{record['provenance']}",
+            note=f"{record['level']}：{record['provenance']}",
             relevance=round(relevance, 4),
         )
 

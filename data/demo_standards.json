@@ -1,23 +1,102 @@
 {
-  "version": "demo-standards-2026-11-01",
-  "_warning": "這是 standards_demo 來源的假資料：版次、日期、廢止與取代關係都是虛構的，不是經濟部標準檢驗局或 ISO/ASTM 的資料，不可作為查核依據。用途是示範「標準有資料來源可查時」系統會怎麼判定版次與廢止。",
+  "version": "verified-2026-11-06",
+  "_warning": "標準目錄：11 筆，2026-11 依經濟部標準檢驗局 CNS 網路服務系統、ISO、ASTM、BSI 官方網站查證版次與廢止（每筆 provenance 有網址）。只收工程文件常見的這幾部，不在目錄裡的標準仍是「疑似對應」；標準會改版，正式查核以當時官方資料為準。",
   "_fields": {
     "number": "標準編號，比對只認編號（不比名稱）",
     "latest_edition": "最新版的年份。文件引用的年份比它舊，該筆引用判為「已修正」",
     "status": "ACTIVE = 現行；REPEALED = 已廢止",
-    "replaced_by": "廢止時取代它的標準編號"
+    "replaced_by": "廢止時取代它的標準編號",
+    "provenance": "查證日期與官方網址"
   },
   "standards": [
-    {"number": "CNS 3090", "title": "預拌混凝土", "latest_edition": "2022", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
-    {"number": "CNS 560", "title": "鋼筋混凝土用鋼筋", "latest_edition": "2018", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
-    {"number": "CNS 1240", "title": "混凝土粒料", "latest_edition": "2021", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
-    {"number": "CNS 61", "title": "卜特蘭水泥", "latest_edition": "2011", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
-    {"number": "CNS 4750", "title": "混凝土用鋼筋（舊版示範）", "latest_edition": "2009", "status": "REPEALED", "replaced_by": "CNS 560", "authority": "經濟部標準檢驗局（示範）"},
-    {"number": "CNS 1232", "title": "混凝土圓柱試體抗壓強度檢驗法", "latest_edition": "2020", "status": "ACTIVE", "authority": "經濟部標準檢驗局（示範）"},
-    {"number": "ASTM C39", "title": "Standard Test Method for Compressive Strength of Cylindrical Concrete Specimens", "latest_edition": "2023", "status": "ACTIVE", "authority": "ASTM International（示範）"},
-    {"number": "ISO 9001", "title": "品質管理系統－要求", "latest_edition": "2015", "status": "ACTIVE", "authority": "ISO（示範）"},
-    {"number": "ISO 14001", "title": "環境管理系統", "latest_edition": "2015", "status": "ACTIVE", "authority": "ISO（示範）"},
-    {"number": "ISO 45001", "title": "職業安全衛生管理系統", "latest_edition": "2018", "status": "ACTIVE", "authority": "ISO（示範）"},
-    {"number": "OHSAS 18001", "title": "職業安全衛生管理系統（舊）", "latest_edition": "2007", "status": "REPEALED", "replaced_by": "ISO 45001", "authority": "BSI（示範）"}
+    {
+      "number": "CNS 3090",
+      "title": "預拌混凝土",
+      "latest_edition": "2025",
+      "status": "ACTIVE",
+      "authority": "經濟部標準檢驗局",
+      "provenance": "2026-11 查證：2025-12-19 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=3090&locale=zh_TW"
+    },
+    {
+      "number": "CNS 560",
+      "title": "鋼筋混凝土用鋼筋",
+      "latest_edition": "2018",
+      "status": "ACTIVE",
+      "authority": "經濟部標準檢驗局",
+      "provenance": "2026-11 查證：2018-04-12 修訂、2024-01-03 確認；https://www.cnsonline.com.tw/?node=detail&generalno=560&locale=zh_TW"
+    },
+    {
+      "number": "CNS 1240",
+      "title": "混凝土粒料",
+      "latest_edition": "2014",
+      "status": "ACTIVE",
+      "authority": "經濟部標準檢驗局",
+      "provenance": "2026-11 查證：2014-02-25 修訂、2024-12-19 確認；https://www.cnsonline.com.tw/?node=detail&generalno=1240&locale=zh_TW"
+    },
+    {
+      "number": "CNS 61",
+      "title": "卜特蘭水泥",
+      "latest_edition": "2025",
+      "status": "ACTIVE",
+      "authority": "經濟部標準檢驗局",
+      "provenance": "2026-11 查證：2025-12-19 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=61&locale=zh_TW"
+    },
+    {
+      "number": "CNS 4750",
+      "title": "鋼管施工架",
+      "latest_edition": "2026",
+      "status": "ACTIVE",
+      "authority": "經濟部標準檢驗局",
+      "provenance": "2026-11 查證：2026-06-09 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=4750&locale=zh_TW。是施工架標準，不是鋼筋標準（鋼筋是 CNS 560）"
+    },
+    {
+      "number": "CNS 1232",
+      "title": "混凝土圓柱試體抗壓強度檢驗法",
+      "latest_edition": "2002",
+      "status": "ACTIVE",
+      "authority": "經濟部標準檢驗局",
+      "provenance": "2026-11 查證：2002-12-09 修訂、2024-12-19 確認；https://www.cnsonline.com.tw/?node=detail&generalno=1232&locale=zh_TW"
+    },
+    {
+      "number": "ASTM C39",
+      "title": "Standard Test Method for Compressive Strength of Cylindrical Concrete Specimens",
+      "latest_edition": "2024",
+      "status": "ACTIVE",
+      "authority": "ASTM International",
+      "provenance": "2026-11 查證：C39/C39M-24；https://store.astm.org/c0039_c0039m-24.html（官網擋自動讀取，依官方網域搜尋結果）"
+    },
+    {
+      "number": "ISO 9001",
+      "title": "品質管理系統－要求",
+      "latest_edition": "2026",
+      "status": "ACTIVE",
+      "authority": "ISO",
+      "provenance": "2026-11 查證：ISO 9001:2026（2026-09 發布，取代 2015 版）；https://www.iso.org/standard/9001（依官方網域搜尋結果）"
+    },
+    {
+      "number": "ISO 14001",
+      "title": "環境管理系統－要求及使用指引",
+      "latest_edition": "2026",
+      "status": "ACTIVE",
+      "authority": "ISO",
+      "provenance": "2026-11 查證：ISO 14001:2026（2026-04-15 發布）；https://www.iso.org/standard/14001（依官方網域搜尋結果）"
+    },
+    {
+      "number": "ISO 45001",
+      "title": "職業安全衛生管理系統－要求及使用指引",
+      "latest_edition": "2018",
+      "status": "ACTIVE",
+      "authority": "ISO",
+      "provenance": "2026-11 查證：ISO 45001:2018（另有 Amd 1:2024）；https://www.iso.org/standard/63787.html（依官方網域搜尋結果）"
+    },
+    {
+      "number": "OHSAS 18001",
+      "title": "職業安全衛生管理系統（已由 ISO 45001 取代）",
+      "latest_edition": "2007",
+      "status": "REPEALED",
+      "replaced_by": "ISO 45001",
+      "authority": "BSI",
+      "provenance": "2026-11 查證：BS OHSAS 18001:2007 已撤銷，由 ISO 45001 取代；https://page.bsigroup.com/ISO18001-overview（確切撤銷日期未查到）"
+    }
   ]
 }

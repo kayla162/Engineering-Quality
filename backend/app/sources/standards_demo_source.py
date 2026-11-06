@@ -81,7 +81,7 @@ class DemoStandardsSource(RegulationSource):
         return self._versions(record) if record else []
 
     def _to_result(self, record: dict) -> RegulationSearchResult:
-        note = f"最新版 {record['latest_edition']} 年（示範資料）"
+        note = f"最新版 {record['latest_edition']} 年（{record.get('provenance', '來源未註明')}）"
         if record.get("replaced_by"):
             note += f"；已由 {record['replaced_by']} 取代"
         return RegulationSearchResult(

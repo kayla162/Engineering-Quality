@@ -1,7 +1,7 @@
 """行政規則與地方法規目錄（admin_rules）：全國法規資料庫沒有的「要點」「自治條例」怎麼查。
 
-data/admin_rules.json 的名稱取自秀山分隊的契約書與整體品質計畫；日期與狀態只有兩部
-核對過原始 PDF，其餘是假資料，每筆都寫明出處。
+data/admin_rules.json 的名稱取自秀山分隊的契約書與整體品質計畫；狀態與日期 2026-11 依官方法規資料庫查證，
+每筆寫明官方網址與未查到的部分。
 """
 
 import pytest
@@ -40,8 +40,8 @@ class TestSearch:
         "query, expected",
         [
             # PDF 斷行留下的空白
-            ("栽培介質防範紅火蟻移動管理作 業要點", "栽培介質防範紅火蟻移動管理作業要點"),
-            ("營建混合物資源處理場 設置管理要點", "營建混合物資源處理場設置管理要點"),
+            ("栽培介質防範紅火蟻移動管理作 業要點", "花卉與種苗及栽培介質防範紅火蟻移動管理作業要點"),
+            ("營建混合物資源處理場 設置管理要點", "新北市營建工程剩餘土石方處理及營建混合物資源處理場設置管理要點"),
         ],
     )
     async def test_line_break_spaces_are_ignored(self, source, query, expected):
@@ -64,9 +64,16 @@ class TestProvenance:
         assert str(rule.last_amended_date) == "2019-01-04"
         assert "10.建築物無障礙設施設計規範.pdf" in rule.note
 
-    async def test_fake_dates_say_so(self, source):
+    async def test_verified_records_cite_the_official_page(self, source):
         (rule,) = await source.search("新北市樹木保護自治條例")
-        assert "假資料" in rule.note
+        assert "2026-11 查證" in rule.note and "web.law.ntpc.gov.tw" in rule.note
+        assert str(rule.effective_date) == "2013-06-19"
+
+    async def test_a_repealed_rule_is_repealed_and_a_renamed_one_is_found_by_its_old_name(self, source):
+        (repealed,) = await source.search("營建混合物資源處理場設置管理要點")
+        assert repealed.status == RegulationStatus.REPEALED
+        (renamed,) = await source.search("栽培介質防範紅火蟻移動管理作業要點")
+        assert renamed.name == "花卉與種苗及栽培介質防範紅火蟻移動管理作業要點"
 
     async def test_every_record_states_where_it_came_from(self, source):
         for record in source._load():
@@ -100,4 +107,4 @@ class TestAnalysis:
         reference_id = by_name["新北市樹木保護自治條例"]["reference_id"]
         detail = (await api_client.get(f"/api/regulation-references/{reference_id}")).json()
         assert detail["matched_regulation"]["source"] == "admin_rules"
-        assert "假資料" in detail["matched_regulation"]["source_note"]
+        assert "2026-11 查證" in detail["matched_regulation"]["source_note"]
