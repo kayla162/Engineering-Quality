@@ -255,10 +255,16 @@ OCR 不能用（沒有語言資料、或 `ENABLE_OCR=false`）時：整份沒有
   或用排程在同步官方資料後跑：
 
 ```bash
-python scripts/sync_taiwan_law.py && python scripts/check_regulation_changes.py
+python scripts/sync_taiwan_law.py && python scripts/sync_catalogs.py; python scripts/check_regulation_changes.py
 ```
 
-有新異動時腳本以結束碼 2 結束，排程可據此判斷是否有新異動。
+有新異動時腳本以結束碼 2 結束，排程可據此判斷是否有新異動（`sync_catalogs` 也一樣，所以它後面接分號）。
+
+`scripts/sync_catalogs.py` 同步**行政規則與地方法規目錄**（`data/admin_rules.json`）和**標準目錄**（`data/demo_standards.json`）：
+依每筆的官方網址（`source_url`）重讀工程會法規資料庫、勞動部法規資料庫、新北市法規查詢系統與標準檢驗局 CNS 網路服務系統，
+更新狀態（廢止）、公發布與修正日期、標準版次；更名的把舊名留成別名，每筆記下 `synced_at`。讀不出必要欄位就不改那一筆、
+列出原因；`--dry-run` 只列出會變什麼。ISO、ASTM、BSI 官網擋自動讀取，那幾筆和日期抄自 PDF 的一筆列為「需人工查證」。
+2026-11 實測：13 部行政規則同步 11 部、11 部標準同步 6 部，結果和人工查證一致。
 
 ### 示範功能（以假資料驗證）
 
@@ -585,7 +591,8 @@ npm test --prefix frontend
   2026-11 依工程會法規資料庫、新北市法規查詢系統等官方網站查證狀態與日期（每筆寫官方網址）。查證時發現：契約書寫的
   「營建混合物資源處理場設置管理要點」是新北市的要點、已於 2026-09-08 廢止；「栽培介質防範紅火蟻…要點」現行名稱多了
   「花卉與種苗及」；「加強公共工程職業安全衛生管理作業要點」只查到勞動部收錄的 2014 年版，是否現行未確認。
-  目錄外的要點仍要人工查證；還沒有自動同步這些網站。
+  目錄外的要點仍要人工查證；目錄內的由 `scripts/sync_catalogs.py` 自動同步（見「法規異動監控」）。
 - **標準目錄只有 11 部**：`standards_demo` 2026-11 依標準檢驗局 CNS 網路服務系統、ISO、ASTM、BSI 查證（ISO、ASTM 官網擋自動讀取，
   依官方網域的搜尋結果）。查證時發現舊的示範資料把 CNS 4750 寫成已廢止的鋼筋標準，實際是現行的「鋼管施工架」；
-  ISO 9001、ISO 14001 已有 2026 年版。目錄外的標準仍以 `mock` 的「疑似對應」為準。
+  ISO 9001、ISO 14001 已有 2026 年版。CNS 六部由 `scripts/sync_catalogs.py` 自動同步，ISO／ASTM／BSI 要人工查證。
+  目錄外的標準仍以 `mock` 的「疑似對應」為準。
