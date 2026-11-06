@@ -144,9 +144,11 @@ async def test_the_scanned_mep_set_is_read_by_ocr_and_switchboards_find_the_sing
     monkeypatch.setattr(settings, "ENABLE_OCR", True)
     demo = await build_demo(api_client)
     assert demo["drawing_warning"] is None
-    # 開關箱（KW-MP PANEL）畫在電氣單線圖上
+    # 開關箱（KW-MP PANEL）畫在電氣單線圖上。圖名兩行，只有 fast 模型時（CI）第一行「電氣單線圖」
+    # 可能讀不到、只剩「負載表(1)」——兩個都算開關箱的圖，所以照樣對得到
     panel = demo["by_no"]["壹.一.2.1.1"]
-    assert [(d["sheet_no"], d["title"]) for d in panel["drawings"]] == [("E-01", "電氣單線圖負載表(1)")]
+    assert [d["sheet_no"] for d in panel["drawings"]] == ["E-01"]
+    assert any(word in panel["drawings"][0]["title"] for word in ("單線圖", "負載表"))
     assert all(d["is_ocr"] for d in panel["drawings"])
     # 圖號 OCR 讀不到的寫「第N頁」，圖名照樣對得到
     lift = demo["by_no"]["壹.一.2.4.1"]
