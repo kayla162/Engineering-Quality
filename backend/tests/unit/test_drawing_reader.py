@@ -337,7 +337,7 @@ def test_only_title_like_ocr_text_is_taken_as_a_title():
 
 def test_the_real_structural_as_built_set(monkeypatch):
     """另案的真實結構竣工圖（工程文書/，不進版控）。54 頁；S0、S1 頁的圖號與圖名都是線條，要 OCR。
-    2026-11 實測讀到 44 張，其中 22 張靠 OCR；目錄頁與 OCR 也讀不出像圖名的頁不列。"""
+    2026-11 實測讀到 44 張（22 張靠 OCR）；OCR 圖名改用索引表校正、加上 best 模型補讀後 49 張。"""
     from app.specs.drawing_reader import _OutlinedTitleBlock
 
     path = settings.DATA_DIR.parent / "工程文書" / "結構竣工圖0826.pdf"
@@ -349,7 +349,76 @@ def test_the_real_structural_as_built_set(monkeypatch):
     assert rows["S2-01"].title == "基礎層地梁配筋圖(一)" and not rows["S2-01"].is_ocr
     assert rows["S3-02"].page == 46
     if _OutlinedTitleBlock()._ready():
-        assert len(rows) >= 40
+        assert len(rows) >= 44
         assert rows["S0-10"].title == "鋼結構工程一般說明" and rows["S0-10"].is_ocr
+        # OCR 讀的圖名改用索引表的寫法：不再是「鋼筋混疑土」
+        assert rows["S0-01"].title == "鋼筋混凝土標準圖(一)"
     # 圖面註解不能當成圖名
     assert not any(row.title.startswith(("2.", "鋼筋中心")) for row in rows.values())
+
+
+def test_signature_variants_are_learned_from_text_after_a_complete_title():
+    """同一個簽名 OCR 讀成兩三種（「王大明」「王太明」），四分之一門檻抓不到。完整圖名（…圖、…表）後面
+    多出來、彼此只差一個字的三字串就是簽名，連沒有完整圖名的那幾張也拿掉。「電視設備」這種結尾不受影響。"""
+    from app.specs.drawing_reader import DrawingSheetRow, _without_repeated_signature
+
+    titles = [
+        "燈具配置平面圖王大明", "廣播配置圖2王太明", "數量表王大明", "空壓系統王犬明",
+        "電信資訊網路及電視設備", "電信資訊網路及電視設備", "一層平面圖", "二層平面圖",
+        "三層平面圖", "四層平面圖", "給水配置圖", "排水配置圖", "避雷針詳圖", "空調系統圖",
+    ]
+    rows = [DrawingSheetRow(f"E-{i:02d}", title, i, True) for i, title in enumerate(titles, start=1)]
+    cleaned = [row.title for row in _without_repeated_signature(rows)]
+    assert cleaned[:5] == ["燈具配置平面圖", "廣播配置圖", "數量表", "空壓系統", "電信資訊網路及電視設備"]
+
+
+def test_the_best_model_rereads_only_pages_without_a_title_like_reading(tmp_path, monkeypatch):
+    """TESSDATA_BEST_PATH 設了：fast 模型讀不出像圖名的頁，再用 best 模型讀一次，取比較像圖名的。"""
+    import app.specs.drawing_reader as reader
+    from app.parsers import ocr
+
+    fast, best = object(), object()
+    readings = {
+        (1, fast): ("E-01", "電氣單線圖負載表(2)"),
+        (2, fast): (None, "動力ee"),
+        (2, best): ("E-02", "一層平面圖動力插座配置平面圖"),
+        (3, fast): ("E-03", "四層平面圖"),
+        (3, best): (None, "四"),
+    }
+    calls = []
+
+    def read(page, engine):
+        calls.append((page.number + 1, engine))
+        return readings.get((page.number + 1, engine), (None, ""))
+
+    monkeypatch.setattr(ocr, "load_engine", lambda: (fast, None))
+    monkeypatch.setattr(ocr, "load_best_engine", lambda: best)
+    monkeypatch.setattr("app.specs.scanned_title_block.read_title_block", read)
+    doc = pymupdf.open()
+    for _ in range(3):
+        doc.new_page()
+    rows = reader._read_scanned(save(doc, tmp_path))
+    assert [(r.sheet_no, r.title) for r in rows] == [
+        ("E-01", "電氣單線圖負載表(2)"), ("E-02", "一層平面圖動力插座配置平面圖"), ("E-03", "四層平面圖"),
+    ]
+    assert (1, best) not in calls and (2, best) in calls
+
+
+def test_ocr_titles_are_corrected_from_the_sheet_index():
+    """同一冊有圖號索引表（文字層）時：OCR 讀到圖號的頁用索引表的圖名；圖名讀不出來的頁照索引表列出；
+    圖號讀不到、圖名一字不差的補上圖號。文字層讀到的圖不動。"""
+    from app.specs.drawing_reader import DrawingSheetRow, _titles_from_index
+
+    index = {"S0-01": "鋼筋混凝土標準圖(一)", "S0-13": "焊接標準圖", "S1-05": "二層結構平面圖", "S2-01": "基礎層地梁配筋圖(一)"}
+    sheets = {
+        "S0-01": DrawingSheetRow("S0-01", "鋼筋混疑土標準圖(一)", 3, True),
+        "第15頁": DrawingSheetRow("第15頁", "焊接標準圖", 15, True),
+        "S2-01": DrawingSheetRow("S2-01", "基礎層地梁配筋圖(一)", 25, False),
+    }
+    rows = _titles_from_index(sheets, [("S1-05", 20), ("X9-99", 30)], index)
+    assert [(r.sheet_no, r.title, r.page, r.is_ocr) for r in rows] == [
+        ("S0-01", "鋼筋混凝土標準圖(一)", 3, True),
+        ("S0-13", "焊接標準圖", 15, True),
+        ("S1-05", "二層結構平面圖", 20, True),
+        ("S2-01", "基礎層地梁配筋圖(一)", 25, False),
+    ]

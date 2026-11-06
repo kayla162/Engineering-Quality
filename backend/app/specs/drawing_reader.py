@@ -82,11 +82,16 @@ def read_drawing_sheets(path: Path) -> list[DrawingSheetRow]:
     """讀出契約圖裡的每一張圖。標題欄優先；整份都沒有標題欄時改讀圖說目錄。"""
     sheets: dict[str, DrawingSheetRow] = {}
     pages: list[tuple[int, str]] = []
+    #: 圖號索引表（文字層）的「圖號 → 圖名」；OCR 讀到圖號的頁拿它校正圖名
+    index: dict[str, str] = {}
+    #: OCR 讀到圖號、圖名卻讀不出來的頁
+    untitled: list[tuple[str, int]] = []
     outlined = _OutlinedTitleBlock()
     with pymupdf.open(str(path)) as document:
         for page_no, page in enumerate(document, start=1):
             text = page.get_text()
             pages.append((page_no, text))
+            index.update((number, title) for number, title in _index_entries(page) if number not in index)
             inline = _title_block_inline(text)
             if inline:
                 number, title, is_ocr = *inline, False
@@ -102,12 +107,15 @@ def read_drawing_sheets(path: Path) -> list[DrawingSheetRow]:
                     ocr_title = outlined.title(page, block.no_label, block.name_label)
                     is_ocr = number is not None or ocr_title is not None
                     title = ocr_title or title
+                    if number and not title:
+                        untitled.append((number, page_no))
+                        continue
                 if not title:
                     continue
             sheet_no = number or f"第{page_no}頁"
             sheets.setdefault(sheet_no, DrawingSheetRow(sheet_no, title[:255], page_no, is_ocr))
-    if sheets:
-        return list(sheets.values())
+    if sheets or untitled:
+        return _titles_from_index(sheets, untitled, index)
 
     for page_no, text in pages:
         for match in _INDEX_LINE.finditer(text):
@@ -115,6 +123,46 @@ def read_drawing_sheets(path: Path) -> list[DrawingSheetRow]:
     if sheets or not _is_scanned([text for _, text in pages]):
         return list(sheets.values())
     return _without_repeated_signature(_read_scanned(path))
+
+
+def _index_entries(page: pymupdf.Page) -> list[tuple[str, str]]:
+    """圖號索引表的列：圖號右邊同一行緊貼的中文（「S1-02　地下二層結構平面圖」）。"""
+    lines = _lines(page)
+    entries = []
+    for rect, number in lines:
+        if not _NO_VALUE.match(number):
+            continue
+        middle = (rect.y0 + rect.y1) / 2
+        beside = [
+            (other.x0 - rect.x1, text) for other, text in lines
+            if _CJK.search(text) and abs((other.y0 + other.y1) / 2 - middle) < 4 and 0 <= other.x0 - rect.x1 < 80
+        ]
+        if beside:
+            entries.append((number, min(beside)[1]))
+    return entries
+
+
+def _titles_from_index(
+    sheets: dict[str, DrawingSheetRow], untitled: list[tuple[str, int]], index: dict[str, str]
+) -> list[DrawingSheetRow]:
+    """OCR 讀到圖號的頁，圖名改用同一冊圖號索引表（文字層，沒有錯字）的寫法；圖名 OCR 讀不出來的頁，
+    圖號在索引表裡就照索引表列出；圖號讀不到、圖名和索引表某一張一字不差的，補上那張的圖號。
+    圖號仍是 OCR 讀的，所以照樣標 OCR。"""
+    by_title: dict[str, list[str]] = {}
+    for number, title in index.items():
+        by_title.setdefault(title, []).append(number)
+    fixed: dict[str, DrawingSheetRow] = {}
+    for number, row in sheets.items():
+        if row.is_ocr and number in index:
+            row = DrawingSheetRow(number, index[number], row.page, True)
+        elif row.is_ocr and number.startswith("第") and len(by_title.get(row.title, [])) == 1:
+            # 圖號讀不到、圖名 OCR 讀得一字不差：索引表裡只有一張叫這個名字，就用它的圖號
+            row = DrawingSheetRow(by_title[row.title][0], row.title, row.page, True)
+        fixed.setdefault(row.sheet_no, row)
+    for number, page_no in untitled:
+        if number in index and number not in fixed:
+            fixed[number] = DrawingSheetRow(number, index[number], page_no, True)
+    return sorted(fixed.values(), key=lambda row: row.page)
 
 
 def _is_scanned(page_texts: list[str]) -> bool:
@@ -138,13 +186,46 @@ def _without_repeated_signature(rows: list[DrawingSheetRow]) -> list[DrawingShee
         gram for gram, count in counts.items()
         if count >= len(rows) / 4 and _CJK.fullmatch(gram[0]) and not _DRAWING_WORD.search(gram)
     ]
+    signatures = _trailing_signatures(rows)
     cleaned = []
     for row in rows:
         title = row.title
         for gram in sorted(noise, key=len, reverse=True):
             title = title.replace(gram, "")
+        title = _without_near(title, signatures)
+        title = re.sub(r"[^一-鿿)）]+$", "", title)
         cleaned.append(DrawingSheetRow(row.sheet_no, title.strip("=|/、,，") or row.title, row.page, row.is_ocr))
     return cleaned
+
+
+#: 圖名已經完整結束（「…配置圖」「…數量表」），後面又多出三個中文字：多半是簽名
+_AFTER_COMPLETE_TITLE = re.compile(r"(?:圖|表)[^一-鿿]{0,2}([一-鿿]{3})$")
+
+
+def _trailing_signatures(rows: list[DrawingSheetRow]) -> list[str]:
+    """簽名的讀法會變（同一個名字讀成兩三種），整冊四分之一的門檻抓不到。改看「完整圖名後面多出來的
+    三個字」：兩張以上圖出現同一組（三個字有兩個相同就算同一組）、又不含圖面用字，就是簽名。"""
+    tails = [m.group(1) for row in rows if (m := _AFTER_COMPLETE_TITLE.search(row.title))]
+    tails = [tail for tail in tails if not _DRAWING_WORD.search(tail)]
+    return sorted({tail for tail in tails if sum(_near(tail, other) for other in tails) >= 2})
+
+
+def _near(a: str, b: str) -> bool:
+    return len(a) == len(b) == 3 and sum(x == y for x, y in zip(a, b)) >= 2
+
+
+def _without_near(title: str, signatures: list[str]) -> str:
+    """拿掉圖名裡和簽名只差一個字的三字串（「王太明」之於「王大明」這類 OCR 變體）。"""
+    if not signatures:
+        return title
+    i = 0
+    while i <= len(title) - 3:
+        gram = title[i:i + 3]
+        if not _DRAWING_WORD.search(gram) and any(_near(gram, signature) for signature in signatures):
+            title = title[:i] + title[i + 3:]
+        else:
+            i += 1
+    return title
 
 
 def _read_scanned(path: Path) -> list[DrawingSheetRow]:
@@ -157,15 +238,35 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
     if engine is None:
         logger.warning("掃描的契約圖需要 OCR，但 OCR 不能用：%s", reason)
         return []
+    best = ocr.load_best_engine()
     sheets: dict[str, DrawingSheetRow] = {}
     with pymupdf.open(str(path)) as document:
         for page_no, page in enumerate(document, start=1):
             number, title = read_title_block(page, engine)
+            if best is not None and not _good_scanned_title(title):
+                # fast 模型讀不出像圖名的：best 模型補讀，取比較像圖名的那個（秀山水電圖實測各有勝負）
+                better_number, better_title = read_title_block(page, best)
+                if _scanned_title_score(better_title) > _scanned_title_score(title):
+                    title = better_title
+                number = number or better_number
             if not title:
                 continue
             sheet_no = number or f"第{page_no}頁"
             sheets.setdefault(sheet_no, DrawingSheetRow(sheet_no, title[:255], page_no, is_ocr=True))
     return list(sheets.values())
+
+
+#: 掃描圖名「像樣」的結尾：「…圖」「…圖(2)」「…表」「…說明」
+_SCANNED_TITLE_END = re.compile(r"(?:圖|表|說明)(?:[（(][一二三四五六七八九十\d]+[)）])?$")
+
+
+def _scanned_title_score(title: str) -> int:
+    """中文字數，結尾像圖名再加 10。用來在兩個模型的讀法之間挑一個。"""
+    return len(_CJK.findall(title)) + (10 if _SCANNED_TITLE_END.search(title) else 0)
+
+
+def _good_scanned_title(title: str) -> bool:
+    return len(_CJK.findall(title)) >= 4 and bool(_SCANNED_TITLE_END.search(title))
 
 
 def _title_block_inline(text: str) -> tuple[str, str] | None:
@@ -221,6 +322,8 @@ class _OutlinedTitleBlock:
 
     def __init__(self):
         self._engine = None
+        #: TESSDATA_BEST_PATH 設了才有：fast 模型每組參數都讀不出來時，再用 best 模型試一輪
+        self._best = None
         self._loaded = False
 
     def _ready(self) -> bool:
@@ -228,18 +331,23 @@ class _OutlinedTitleBlock:
             from app.parsers import ocr
 
             self._engine, _ = ocr.load_engine()
+            self._best = ocr.load_best_engine() if self._engine is not None else None
             self._loaded = True
         return self._engine is not None
+
+    def _engines(self):
+        return [engine for engine in (self._engine, self._best) if engine is not None]
 
     def number(self, page: pymupdf.Page, label: pymupdf.Rect) -> str | None:
         if not self._ready():
             return None
         cell = pymupdf.Rect(label.x0 - 14, label.y0 - 14, label.x1 + OUTLINE_CELL_WIDTH, label.y1 + 14) & page.rect
-        for width, dpi in OUTLINE_NUMBER_TRIES:
-            for _, text in self._ocr(page, cell, "eng", width, dpi):
-                number = _outlined_number(text)
-                if number:
-                    return number
+        for engine in self._engines():
+            for width, dpi in OUTLINE_NUMBER_TRIES:
+                for _, text in self._ocr(engine, page, cell, "eng", width, dpi):
+                    number = _outlined_number(text)
+                    if number:
+                        return number
         return None
 
     def title(self, page: pymupdf.Page, no_label: pymupdf.Rect, name_label: pymupdf.Rect) -> str | None:
@@ -251,23 +359,27 @@ class _OutlinedTitleBlock:
         if not self._ready() or name_label.y1 >= no_label.y0:
             return None
         center = (name_label.x0 + name_label.x1) / 2
-        for inset, width, dpi in OUTLINE_TITLE_TRIES:
-            left = no_label.x0 - 14 + inset
-            cell = pymupdf.Rect(left, name_label.y1 + 12 + inset, 2 * center - left, no_label.y0 - 2 - inset) & page.rect
-            if cell.is_empty:
-                continue
-            for _, text in self._ocr(page, cell, None, width, dpi):
-                title = "".join(text.split()).strip("|")
-                if _looks_like_ocr_title(title):
-                    return title
+        for engine in self._engines():
+            for inset, width, dpi in OUTLINE_TITLE_TRIES:
+                left = no_label.x0 - 14 + inset
+                cell = pymupdf.Rect(
+                    left, name_label.y1 + 12 + inset, 2 * center - left, no_label.y0 - 2 - inset
+                ) & page.rect
+                if cell.is_empty:
+                    continue
+                for _, text in self._ocr(engine, page, cell, None, width, dpi):
+                    title = "".join(text.split()).strip("|")
+                    if _looks_like_ocr_title(title):
+                        return title
         return None
 
-    def _ocr(self, page: pymupdf.Page, cell: pymupdf.Rect, language: str | None, width: float, dpi: int):
+    @staticmethod
+    def _ocr(engine, page: pymupdf.Page, cell: pymupdf.Rect, language: str | None, width: float, dpi: int):
         from app.specs.scanned_title_block import _ocr_lines
 
         pymupdf.TOOLS.set_graphics_min_line_width(width)
         try:
-            return _ocr_lines(page, cell, dpi, self._engine, language=language)
+            return _ocr_lines(page, cell, dpi, engine, language=language)
         finally:
             pymupdf.TOOLS.set_graphics_min_line_width(0)
 
