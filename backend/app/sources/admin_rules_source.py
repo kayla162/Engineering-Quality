@@ -102,7 +102,7 @@ class AdminRulesSource(RegulationSource):
             authority=record.get("authority"),
             effective_date=_date(record.get("issued_date")),
             last_amended_date=_date(record.get("last_amended_date")),
-            note=f"{record['level']}：{record['provenance']}",
+            note=f"{record['level']}：{record['provenance']}" + (f"；{record['synced_at']} 自動同步官方頁面" if record.get("synced_at") else ""),
             relevance=round(relevance, 4),
         )
 

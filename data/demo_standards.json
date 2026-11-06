@@ -6,7 +6,10 @@
     "latest_edition": "最新版的年份。文件引用的年份比它舊，該筆引用判為「已修正」",
     "status": "ACTIVE = 現行；REPEALED = 已廢止",
     "replaced_by": "廢止時取代它的標準編號",
-    "provenance": "查證日期與官方網址"
+    "provenance": "查證日期與官方網址",
+    "source_url": "官方頁面網址；scripts/sync_catalogs.py 依它自動同步，空的要人工查證",
+    "edition_date": "最近一次修訂（或公告）日期，自動同步時寫入",
+    "synced_at": "最近一次自動同步的日期"
   },
   "standards": [
     {
@@ -15,7 +18,10 @@
       "latest_edition": "2025",
       "status": "ACTIVE",
       "authority": "經濟部標準檢驗局",
-      "provenance": "2026-11 查證：2025-12-19 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=3090&locale=zh_TW"
+      "provenance": "2026-11 查證：2025-12-19 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=3090&locale=zh_TW",
+      "source_url": "https://www.cnsonline.com.tw/?node=detail&generalno=3090&locale=zh_TW",
+      "edition_date": "2025-12-19",
+      "synced_at": "2026-11-06"
     },
     {
       "number": "CNS 560",
@@ -23,7 +29,10 @@
       "latest_edition": "2018",
       "status": "ACTIVE",
       "authority": "經濟部標準檢驗局",
-      "provenance": "2026-11 查證：2018-04-12 修訂、2024-01-03 確認；https://www.cnsonline.com.tw/?node=detail&generalno=560&locale=zh_TW"
+      "provenance": "2026-11 查證：2018-04-12 修訂、2024-01-03 確認；https://www.cnsonline.com.tw/?node=detail&generalno=560&locale=zh_TW",
+      "source_url": "https://www.cnsonline.com.tw/?node=detail&generalno=560&locale=zh_TW",
+      "edition_date": "2018-04-12",
+      "synced_at": "2026-11-06"
     },
     {
       "number": "CNS 1240",
@@ -31,7 +40,10 @@
       "latest_edition": "2014",
       "status": "ACTIVE",
       "authority": "經濟部標準檢驗局",
-      "provenance": "2026-11 查證：2014-02-25 修訂、2024-12-19 確認；https://www.cnsonline.com.tw/?node=detail&generalno=1240&locale=zh_TW"
+      "provenance": "2026-11 查證：2014-02-25 修訂、2024-12-19 確認；https://www.cnsonline.com.tw/?node=detail&generalno=1240&locale=zh_TW",
+      "source_url": "https://www.cnsonline.com.tw/?node=detail&generalno=1240&locale=zh_TW",
+      "edition_date": "2014-02-25",
+      "synced_at": "2026-11-06"
     },
     {
       "number": "CNS 61",
@@ -39,7 +51,10 @@
       "latest_edition": "2025",
       "status": "ACTIVE",
       "authority": "經濟部標準檢驗局",
-      "provenance": "2026-11 查證：2025-12-19 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=61&locale=zh_TW"
+      "provenance": "2026-11 查證：2025-12-19 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=61&locale=zh_TW",
+      "source_url": "https://www.cnsonline.com.tw/?node=detail&generalno=61&locale=zh_TW",
+      "edition_date": "2025-12-19",
+      "synced_at": "2026-11-06"
     },
     {
       "number": "CNS 4750",
@@ -47,7 +62,10 @@
       "latest_edition": "2026",
       "status": "ACTIVE",
       "authority": "經濟部標準檢驗局",
-      "provenance": "2026-11 查證：2026-06-09 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=4750&locale=zh_TW。是施工架標準，不是鋼筋標準（鋼筋是 CNS 560）"
+      "provenance": "2026-11 查證：2026-06-09 修訂；https://www.cnsonline.com.tw/?node=detail&generalno=4750&locale=zh_TW。是施工架標準，不是鋼筋標準（鋼筋是 CNS 560）",
+      "source_url": "https://www.cnsonline.com.tw/?node=detail&generalno=4750&locale=zh_TW",
+      "edition_date": "2026-06-09",
+      "synced_at": "2026-11-06"
     },
     {
       "number": "CNS 1232",
@@ -55,7 +73,10 @@
       "latest_edition": "2002",
       "status": "ACTIVE",
       "authority": "經濟部標準檢驗局",
-      "provenance": "2026-11 查證：2002-12-09 修訂、2024-12-19 確認；https://www.cnsonline.com.tw/?node=detail&generalno=1232&locale=zh_TW"
+      "provenance": "2026-11 查證：2002-12-09 修訂、2024-12-19 確認；https://www.cnsonline.com.tw/?node=detail&generalno=1232&locale=zh_TW",
+      "source_url": "https://www.cnsonline.com.tw/?node=detail&generalno=1232&locale=zh_TW",
+      "edition_date": "2002-12-09",
+      "synced_at": "2026-11-06"
     },
     {
       "number": "ASTM C39",
@@ -63,7 +84,8 @@
       "latest_edition": "2024",
       "status": "ACTIVE",
       "authority": "ASTM International",
-      "provenance": "2026-11 查證：C39/C39M-24；https://store.astm.org/c0039_c0039m-24.html（官網擋自動讀取，依官方網域搜尋結果）"
+      "provenance": "2026-11 查證：C39/C39M-24；https://store.astm.org/c0039_c0039m-24.html（官網擋自動讀取，依官方網域搜尋結果）",
+      "source_url": ""
     },
     {
       "number": "ISO 9001",
@@ -71,7 +93,8 @@
       "latest_edition": "2026",
       "status": "ACTIVE",
       "authority": "ISO",
-      "provenance": "2026-11 查證：ISO 9001:2026（2026-09 發布，取代 2015 版）；https://www.iso.org/standard/9001（依官方網域搜尋結果）"
+      "provenance": "2026-11 查證：ISO 9001:2026（2026-09 發布，取代 2015 版）；https://www.iso.org/standard/9001（依官方網域搜尋結果）",
+      "source_url": ""
     },
     {
       "number": "ISO 14001",
@@ -79,7 +102,8 @@
       "latest_edition": "2026",
       "status": "ACTIVE",
       "authority": "ISO",
-      "provenance": "2026-11 查證：ISO 14001:2026（2026-04-15 發布）；https://www.iso.org/standard/14001（依官方網域搜尋結果）"
+      "provenance": "2026-11 查證：ISO 14001:2026（2026-04-15 發布）；https://www.iso.org/standard/14001（依官方網域搜尋結果）",
+      "source_url": ""
     },
     {
       "number": "ISO 45001",
@@ -87,7 +111,8 @@
       "latest_edition": "2018",
       "status": "ACTIVE",
       "authority": "ISO",
-      "provenance": "2026-11 查證：ISO 45001:2018（另有 Amd 1:2024）；https://www.iso.org/standard/63787.html（依官方網域搜尋結果）"
+      "provenance": "2026-11 查證：ISO 45001:2018（另有 Amd 1:2024）；https://www.iso.org/standard/63787.html（依官方網域搜尋結果）",
+      "source_url": ""
     },
     {
       "number": "OHSAS 18001",
@@ -96,7 +121,8 @@
       "status": "REPEALED",
       "replaced_by": "ISO 45001",
       "authority": "BSI",
-      "provenance": "2026-11 查證：BS OHSAS 18001:2007 已撤銷，由 ISO 45001 取代；https://page.bsigroup.com/ISO18001-overview（確切撤銷日期未查到）"
+      "provenance": "2026-11 查證：BS OHSAS 18001:2007 已撤銷，由 ISO 45001 取代；https://page.bsigroup.com/ISO18001-overview（確切撤銷日期未查到）",
+      "source_url": ""
     }
   ]
 }

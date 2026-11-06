@@ -1,6 +1,6 @@
 {
   "source": "admin_rules",
-  "description": "admin_rules 行政規則與地方法規目錄。全國法規資料庫只收法律與法規命令，這裡補上工程文件常引用、但官方索引查不到的要點、綱要、自治條例。名稱取自秀山分隊興建工程的契約書、整體品質計畫與隨附法規 PDF；2026-11 依工程會法規資料庫、新北市法規查詢系統、勞動部與農業部網站查證狀態與日期，provenance 寫明官方網址與未查到的部分。法規會修正，正式查核以當時現行條文為準。",
+  "description": "admin_rules 行政規則與地方法規目錄。全國法規資料庫只收法律與法規命令，這裡補上工程文件常引用、但官方索引查不到的要點、綱要、自治條例。名稱取自秀山分隊興建工程的契約書、整體品質計畫與隨附法規 PDF；2026-11 依工程會法規資料庫、新北市法規查詢系統、勞動部與農業部網站查證狀態與日期，provenance 寫明官方網址與未查到的部分。法規會修正，正式查核以當時現行條文為準。 source_url 有值的，scripts/sync_catalogs.py 會自動重讀官方頁面同步狀態與日期。",
   "rules": [
     {
       "id": "AR-001",
@@ -12,7 +12,9 @@
       "status": "ACTIVE",
       "issued_date": "1996-12-13",
       "last_amended_date": "2023-05-11",
-      "provenance": "2026-11 查證：工程會法規資料庫 https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL003734（2023-05-11 工程管字第1120300119號修正）"
+      "provenance": "2026-11 查證：工程會法規資料庫 https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL003734（2023-05-11 工程管字第1120300119號修正）",
+      "source_url": "https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL003734",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-002",
@@ -24,7 +26,9 @@
       "status": "ACTIVE",
       "issued_date": "2003-12-01",
       "last_amended_date": "2014-12-30",
-      "provenance": "2026-11 查證：只在勞動部法規資料庫查到（https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL027580），最近修正 2014-12-30；發布機關與是否仍現行未查到"
+      "provenance": "2026-11 查證：只在勞動部法規資料庫查到（https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL027580），最近修正 2014-12-30；發布機關與是否仍現行未查到",
+      "source_url": "https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL027580",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-003",
@@ -36,7 +40,9 @@
       "status": "ACTIVE",
       "issued_date": "2008-07-29",
       "last_amended_date": "2016-08-18",
-      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL046785（2016-08-18 修正）"
+      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL046785（2016-08-18 修正）",
+      "source_url": "https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL046785",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-004",
@@ -48,7 +54,9 @@
       "status": "ACTIVE",
       "issued_date": "2014-10-27",
       "last_amended_date": "2023-05-05",
-      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=GL000023（2023-05-05 修正）"
+      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=GL000023（2023-05-05 修正）",
+      "source_url": "https://lawweb.pcc.gov.tw/LawContent.aspx?id=GL000023",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-005",
@@ -62,7 +70,9 @@
       "status": "ACTIVE",
       "issued_date": "2002-11-22",
       "last_amended_date": null,
-      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL022977（2002-11-22 發布，未見修正）；正式名稱沒有「行政院頒」，別名保留文件裡的寫法"
+      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL022977（2002-11-22 發布，未見修正）；正式名稱沒有「行政院頒」，別名保留文件裡的寫法",
+      "source_url": "https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL022977",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-006",
@@ -74,7 +84,9 @@
       "status": "ACTIVE",
       "issued_date": "2003-04-18",
       "last_amended_date": "2020-04-27",
-      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL031657（2020-04-27 修正）；獨立的行政規則，公共工程施工品質管理作業要點第3點引用它"
+      "provenance": "2026-11 查證：https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL031657（2020-04-27 修正）；獨立的行政規則，公共工程施工品質管理作業要點第3點引用它",
+      "source_url": "https://lawweb.pcc.gov.tw/LawContent.aspx?id=FL031657",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-007",
@@ -88,7 +100,9 @@
       "status": "REPEALED",
       "issued_date": null,
       "last_amended_date": "2026-09-08",
-      "provenance": "2026-11 查證：中央沒有這個名稱的要點；文件引用的是新北市的這部，已於 2026-09-08 廢止（https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170056）。2026-09-09 另發布「新北市政府工務局辦理土石方資源處理場設置管理要點」，是否為接替未見官方說明"
+      "provenance": "2026-11 查證：中央沒有這個名稱的要點；文件引用的是新北市的這部，已於 2026-09-08 廢止（https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170056）。2026-09-09 另發布「新北市政府工務局辦理土石方資源處理場設置管理要點」，是否為接替未見官方說明",
+      "source_url": "https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170056",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-008",
@@ -102,7 +116,8 @@
       "status": "ACTIVE",
       "issued_date": null,
       "last_amended_date": "2026-01-14",
-      "provenance": "2026-11 查證：現行名稱比文件寫的多「花卉與種苗及」，2026-01-14 修正；https://www.aphia.gov.tw/ws.php?id=21802"
+      "provenance": "2026-11 查證：現行名稱比文件寫的多「花卉與種苗及」，2026-01-14 修正；https://www.aphia.gov.tw/ws.php?id=21802",
+      "source_url": ""
     },
     {
       "id": "AR-009",
@@ -116,7 +131,8 @@
       "status": "ACTIVE",
       "issued_date": "2008-04-10",
       "last_amended_date": "2019-01-04",
-      "provenance": "日期抄自 10.建築物無障礙設施設計規範.pdf 卷首（108 年 1 月 4 日修正，108 年 7 月 1 日施行）；之後是否再修正未查證"
+      "provenance": "日期抄自 10.建築物無障礙設施設計規範.pdf 卷首（108 年 1 月 4 日修正，108 年 7 月 1 日施行）；之後是否再修正未查證",
+      "source_url": ""
     },
     {
       "id": "AR-010",
@@ -128,7 +144,9 @@
       "status": "ACTIVE",
       "issued_date": "2013-06-19",
       "last_amended_date": null,
-      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0070034（2013-06-19 公布，未見修正）"
+      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0070034（2013-06-19 公布，未見修正）",
+      "source_url": "https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0070034",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-011",
@@ -140,7 +158,9 @@
       "status": "ACTIVE",
       "issued_date": "2017-05-12",
       "last_amended_date": null,
-      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170154（2017-05-12 發布，未見修正）"
+      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170154（2017-05-12 發布，未見修正）",
+      "source_url": "https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170154",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-012",
@@ -155,7 +175,9 @@
       "status": "ACTIVE",
       "issued_date": null,
       "last_amended_date": "2019-03-12",
-      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170044（2019-03-12）；「臺北縣政府建築工程施工中管制要點」2011-06-20 停止適用，兩者的承接關係官方頁面沒有沿革可證"
+      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170044（2019-03-12）；「臺北縣政府建築工程施工中管制要點」2011-06-20 停止適用，兩者的承接關係官方頁面沒有沿革可證",
+      "source_url": "https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170044",
+      "synced_at": "2026-11-06"
     },
     {
       "id": "AR-013",
@@ -167,7 +189,9 @@
       "status": "ACTIVE",
       "issued_date": null,
       "last_amended_date": "2018-08-08",
-      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170035（2018-08-08）；首次發布日期未查到"
+      "provenance": "2026-11 查證：https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170035（2018-08-08）；首次發布日期未查到",
+      "source_url": "https://web.law.ntpc.gov.tw/Scripts/FLAWDAT01.aspx?lncode=1C0170035",
+      "synced_at": "2026-11-06"
     }
   ]
 }

@@ -4,7 +4,9 @@
 
 建議放在同步官方資料之後跑——官方資料庫大約每週更新一次：
 
-    python scripts/sync_taiwan_law.py && python scripts/check_regulation_changes.py
+    python scripts/sync_taiwan_law.py && python scripts/sync_catalogs.py; python scripts/check_regulation_changes.py
+
+（sync_catalogs 同步行政規則與標準目錄，有變動時結束碼 2，所以後面用分號。）
 
 只檢查「有文件引用到」的法規。偵測到的異動會出現在畫面的「總覽」，
 引用的狀態不會被自動改掉，需要人看過後重新分析受影響的文件。
