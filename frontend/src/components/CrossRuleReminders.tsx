@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { CrossRuleReminder } from "../api/types";
 
-/** 法規雙重規範提醒：同一個構件要同時滿足兩部規定。目錄是示範，每條寫明出處；不影響檢核結果。 */
+/** 法規雙重規範提醒：同一個構件要同時滿足兩部規定。每條寫明條號與查證情形；不影響檢核結果。 */
 export function CrossRuleReminders({ projectId }: { projectId: string }) {
   const [reminders, setReminders] = useState<CrossRuleReminder[] | null>(null);
 
@@ -23,8 +23,8 @@ export function CrossRuleReminders({ projectId }: { projectId: string }) {
   if (!reminders || reminders.length === 0) return null;
   return (
     <section className="card">
-      <h3>法規雙重規範提醒（示範）</h3>
-      <p className="hint">同一個構件要同時滿足兩部以上規定時提醒。只是提醒，不是檢核結果；未寫出處的條號與數值未查證。</p>
+      <h3>法規雙重規範提醒</h3>
+      <p className="hint">同一個構件要同時滿足兩部以上規定時提醒。只是提醒，不是檢核結果；條號與數值依各條出處的查證日期，正式查核以現行條文為準。</p>
       <ul>
         {reminders.map((reminder) => (
           <li key={reminder.rule_id}>

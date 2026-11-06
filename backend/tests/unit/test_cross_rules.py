@@ -1,6 +1,6 @@
 """法規雙重規範提醒：同一個構件要同時滿足兩部以上規定（邏輯圖：頂樓 RC 欄杆要 1.1m，超過 1.5m 會被納入樓高）。
 
-目錄 data/cross_rules.json 是示範：只有使用者給的那一條有出處，其餘條號與數值未查證，每筆寫明。
+目錄 data/cross_rules.json：使用者給的那一條加上 2026-11 查證的條號與數值，未查證的部分每筆寫明。
 """
 
 from app.specs.cross_rules import load_cross_rules, remind
@@ -33,3 +33,14 @@ def test_drawing_titles_trigger_too_and_evidence_is_capped():
 
 def test_nothing_triggered_means_no_reminders():
     assert remind([("標單", "壹.一.1.3.1 鋼筋，SD420W")]) == []
+
+
+def test_every_rule_cites_articles_and_says_what_was_verified():
+    import json
+
+    from app.core.config import settings
+
+    rules = json.load(open(settings.DATA_DIR / "cross_rules.json", encoding="utf-8"))["rules"]
+    assert all("查證" in rule["provenance"] for rule in rules)
+    # 條號寫到條或節：「第38條」「406」
+    assert all(any(any(ch.isdigit() for ch in reg) for reg in rule["regulations"]) for rule in rules)

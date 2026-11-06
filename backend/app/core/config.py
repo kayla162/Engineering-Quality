@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     OCR_DPI: int = 300
     # 語言資料目錄（含 chi_tra.traineddata）。留空則用 TESSDATA_PREFIX 或系統安裝的位置
     TESSDATA_PATH: str = ""
+    # 準確度較高的 best 模型目錄（tessdata_best 的 chi_tra、chi_tra_vert、eng）。設了的話，掃描契約圖
+    # 標題欄用 fast 模型讀不出像圖名的頁，再用它補讀一次（慢約 2.3 倍，只補讀那幾頁）。留空就不補讀
+    TESSDATA_BEST_PATH: str = ""
 
     # --- 比對引擎門檻 ---
     # >= AUTO：直接採用比對到的法規狀態，視為高信心

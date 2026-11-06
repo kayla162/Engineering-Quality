@@ -56,6 +56,17 @@ def load_engine() -> tuple[OcrEngine | None, str | None]:
     return OcrEngine(tessdata=tessdata, languages="+".join(languages), dpi=settings.OCR_DPI), None
 
 
+def load_best_engine() -> OcrEngine | None:
+    """準確度較高的 best 模型（`TESSDATA_BEST_PATH`）；沒設、目錄不在或缺語言檔就回 None（不補讀）。"""
+    if not settings.ENABLE_OCR or not settings.TESSDATA_BEST_PATH:
+        return None
+    tessdata = Path(settings.TESSDATA_BEST_PATH)
+    languages = [lang for lang in settings.OCR_LANGUAGES.split("+") if lang]
+    if not all((tessdata / f"{lang}.traineddata").is_file() for lang in languages):
+        return None
+    return OcrEngine(tessdata=tessdata, languages="+".join(languages), dpi=settings.OCR_DPI)
+
+
 def _find_tessdata() -> Path | None:
     """`TESSDATA_PATH` 優先；否則交給 PyMuPDF 找（TESSDATA_PREFIX 環境變數或系統安裝）。"""
     if settings.TESSDATA_PATH:

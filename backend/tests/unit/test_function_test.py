@@ -99,3 +99,32 @@ def test_bracketed_choices_are_kept_without_brackets():
     spec = "3. 施工 3.2 現場測試 3.2.1 以直流[500V]高阻計測定絕緣電阻。 4. 計量"
     (row,) = draft_function_test("16010", "基本電氣規則", spec).rows
     assert "直流500V高阻計" in row.standard
+
+
+class TestSectionsTheOldReaderMissed:
+    """秀山規範 35 個機電章原本有 8 章產生不出列（2026-11 實測）。"""
+
+    def test_a_measurement_like_3_3m_does_not_replace_the_section_title(self):
+        spec = ("3. 施工 3.3 檢驗 3.3.1 污水管路系統應施以水壓試驗。 "
+                "分層試驗時，使管路任一點均能受到 3.3m 以上之水壓。 4. 計量")
+        rows = draft_function_test("15151", "污水管路系統", spec).rows
+        assert rows and {r.item for r in rows} == {"檢驗"}
+
+    def test_a_title_followed_by_a_colon_and_a_sentence_is_still_a_test_section(self):
+        spec = "3. 施工 3.1 安裝 3.1.1 現場配線依規則辦理。 3.2 現場試驗：系統完成後應做絕緣測試及紀錄。 4. 計量"
+        (row,) = draft_function_test("16120", "電線及電纜", spec).rows
+        assert row.item == "現場試驗" and "絕緣測試" in row.standard
+
+    def test_a_test_clause_without_a_full_stop_is_kept_whole(self):
+        spec = "3. 施工 3.3 竣工 3.3.1 提送竣工圖 3.4 檢驗 3.4.1 依據契約及主管機關技術規範之規定辦理檢驗 3.5 訓練 4. 計量"
+        (row,) = draft_function_test("16711", "建築物電信電纜", spec).rows
+        assert row.item == "檢驗" and row.standard.startswith("依據契約") and row.note == "第16711章 3.4.1"
+
+    def test_a_chapter_without_any_test_section_uses_the_generic_template(self):
+        spec = "3. 施工 3.1 安裝 3.1.1 依製造廠說明書安裝。 4. 計量"
+        rows = draft_function_test("16413", "漏電斷路器", spec).rows
+        assert [r.item for r in rows][0] == "漏電跳脫動作測試（測試按鈕）"
+        assert all(r.note.startswith("通用範本") and r.standard == "（規範只列項目，判定值待填）" for r in rows)
+
+    def test_an_unknown_chapter_without_tests_stays_empty(self):
+        assert draft_function_test("11999", "其他設備", "3. 施工 3.1 安裝。 4. 計量").rows == []

@@ -72,6 +72,7 @@ def quality_plan_docx(
                    [(r.item, r.standard, r.method, r.frequency, r.note) for r in materials_rows])
 
     document.add_heading("七、設備功能運轉檢測程序及標準", level=1)
+    fill.intro(document, "七、設備功能運轉檢測程序及標準")
     equipment = [c for c in chapters if is_equipment_chapter(c.code)]
     if not equipment:
         document.add_paragraph("本案標單沒有機電設備章。")
@@ -127,6 +128,7 @@ def supervision_plan_docx(
         _table(document, columns, [(r.item, r.standard, r.timing, r.method, r.frequency, r.basis) for r in form.inspection_rows])
 
     document.add_heading("六、設備功能運轉測試抽驗程序及標準", level=1)
+    fill.intro(document, "六、設備功能運轉測試抽驗程序及標準")
     equipment = [c for c in chapters if is_equipment_chapter(c.code)]
     if not equipment:
         document.add_paragraph("本案標單沒有機電設備章。")

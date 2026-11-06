@@ -1,6 +1,7 @@
-"""示範標準目錄（standards_demo）：標準有資料來源可查時，版次與廢止怎麼判定。
+"""標準目錄（standards_demo）：標準有資料來源可查時，版次與廢止怎麼判定。
 
-data/demo_standards.json 是假資料：CNS 3090 最新 2022 年版、CNS 4750 已廢止。
+data/demo_standards.json 2026-11 依官方網站查證：CNS 3090 最新 2025 年版、OHSAS 18001 已由 ISO 45001 取代。
+CNS 4750 是「鋼管施工架」（現行），不是鋼筋標準——舊的示範資料寫錯過。
 """
 
 import pytest
@@ -14,8 +15,9 @@ from tests.api.test_checklist_api import attach_spec, project_with_boq, url  # n
 TEXT = (
     "預拌混凝土應符合 CNS 3090 之規定。"
     "混凝土試驗依 CNS 3090:2015 辦理。"
-    "鋼筋依 CNS 4750 規定。"
-    "品質管理系統依 ISO 9001:2015 建立。"
+    "職業安全衛生管理系統依 OHSAS 18001 建立。"
+    "施工架依 CNS 4750 規定。"
+    "職業安全衛生管理系統依 ISO 45001:2018 建立。"
     "另參考 CNS 99999 辦理。"
 )
 
@@ -78,7 +80,7 @@ class TestMatching:
         detail = (await api_client.get(f"/api/regulation-references/{item['reference_id']}")).json()
 
         assert item["status"] == RegulationStatus.AMENDED
-        assert any("2015 年版" in r and "2022 年版" in r for r in detail["match_reasons"])
+        assert any("2015 年版" in r and "2025 年版" in r for r in detail["match_reasons"])
 
     async def test_two_editions_do_not_overwrite_each_other(self, api_client):
         """同一部標準以兩個版次被引用：各自判定，不是誰最後寫誰贏。"""
@@ -91,12 +93,13 @@ class TestMatching:
     async def test_a_withdrawn_standard_is_repealed(self, api_client):
         references = await analyze(api_client, TEXT)
 
-        assert references["CNS 4750"]["status"] == RegulationStatus.REPEALED
+        assert references["OHSAS 18001"]["status"] == RegulationStatus.REPEALED
+        assert references["CNS 4750"]["status"] == RegulationStatus.ACTIVE
 
     async def test_a_current_edition_stays_active(self, api_client):
         references = await analyze(api_client, TEXT)
 
-        assert references["ISO 9001:2015"]["status"] == RegulationStatus.ACTIVE
+        assert references["ISO 45001:2018"]["status"] == RegulationStatus.ACTIVE
 
     async def test_a_standard_outside_the_catalogue_is_not_found(self, api_client):
         references = await analyze(api_client, TEXT)

@@ -134,13 +134,13 @@ export const SOURCE_LABELS: Record<string, string> = {
   pcces: "施工綱要規範",
   enterprise: "企業內部文件",
   mock: "假資料（僅供 Demo）",
-  standards_demo: "示範標準目錄（假資料）",
-  admin_rules: "行政規則與地方法規（示範目錄）",
+  standards_demo: "標準目錄（2026-11 查證，11 部）",
+  admin_rules: "行政規則與地方法規（2026-11 查證）",
   manual: "人工建立",
 };
 
 /** 狀態或日期含假資料的來源。總覽要把比對到它們的筆數算進「假資料」警告 */
-export const DEMO_SOURCES = ["mock", "standards_demo", "admin_rules"] as const;
+export const DEMO_SOURCES = ["mock"] as const;
 
 export function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value * 100)}%`;

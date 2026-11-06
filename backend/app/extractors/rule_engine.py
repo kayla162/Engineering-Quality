@@ -130,7 +130,7 @@ _QUOTED_PATTERN = re.compile(r"[《〈「『]\s*(?P<name>[^》〉」』]{2,40})\
 # 標準編號的發行機構
 _STANDARD_ORGS = (
     "CNS", "ISO", "IEC", "ASTM", "JIS", "EN", "ANSI", "BS", "DIN",
-    "AASHTO", "ACI", "AWS", "API", "UL", "NFPA",
+    "AASHTO", "ACI", "AWS", "API", "UL", "NFPA", "OHSAS",
 )
 # 左邊界用「前面不是英數字」而不是 \b：Python 把中文也當成 word character，
 # 所以「依據CNS3090」的「據」與「C」之間**沒有** \b，整個編號會抓不到。

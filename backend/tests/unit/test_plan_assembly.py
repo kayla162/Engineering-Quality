@@ -97,7 +97,18 @@ class TestContractorProcedures:
         assert "【承攬廠商範本】" in text
         assert "10.建立文件紀錄管理系統" in text and "三級品管（主辦機關）" in text
         # 範本沒涵蓋的部分仍留給使用者
-        assert "（待填：本案協力廠商的權責分工）" in text
+        assert "（待填：本案各協力廠商的工作範圍與品管責任）" in text
+        # 協力廠商參加的會議來自建議書的職安協議組織
+        assert "每日工具箱會議" in text and "每月協議組織會議" in text
+
+    def test_organisation_corrective_action_and_handover_come_from_the_proposal(self):
+        sections = self.sections(quality_plan_docx)
+        assert "工地負責人簽署" in sections["三、品管組織及工作職掌"]
+        assert "（待填：本案品管組織架構圖" in sections["三、品管組織及工作職掌"]
+        assert "PDCA" in sections["十、矯正與預防措施、內部品質稽核及文件紀錄管理"]
+        assert "操作維護教育訓練" in sections["七、設備功能運轉檢測程序及標準"]
+        supervision = self.sections(supervision_plan_docx)["六、設備功能運轉測試抽驗程序及標準"]
+        assert "點交清冊" in supervision
 
     def test_procedures_introduce_the_inspection_and_self_check_chapters(self):
         sections = self.sections(quality_plan_docx)

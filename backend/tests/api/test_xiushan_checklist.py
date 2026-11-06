@@ -142,13 +142,15 @@ async def test_the_real_scanned_drawings(api_client, monkeypatch):
 
     assert body["has_drawings"] is True
     assert body["drawing_warning"] is None
+    print(f"\n標單有、契約圖沒有：{body['summary']['boq_not_in_drawings']}")
     assert body["summary"]["boq_not_in_drawings"] <= REAL_BOQ_NOT_IN_DRAWINGS
     titles = [d["title"] for item in body["items"] for d in item["drawings"]]
     assert titles and all(d["is_ocr"] for item in body["items"] for d in item["drawings"])
 
 
-#: 2026-11 實測（三冊真實掃描圖、分項比對）。示範圖逐項比對時是 750
-REAL_BOQ_NOT_IN_DRAWINGS = 595
+#: 2026-11 實測（三冊真實掃描圖、分項比對）。示範圖逐項比對時是 750；開關箱對單線圖、負載表之前是 595；
+#: 之後 fast 模型 312，設了 TESSDATA_BEST_PATH 補讀 297
+REAL_BOQ_NOT_IN_DRAWINGS = 297 if settings.TESSDATA_BEST_PATH else 312
 
 
 PLAN = DOCS / "整體品質計畫.docx"

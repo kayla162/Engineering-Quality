@@ -85,6 +85,21 @@ class TestReaders:
     def test_drawing_titles_match_conservatively(self, item, title, related):
         assert is_related(item, title) is related
 
+    @pytest.mark.parametrize(
+        "name,title,related",
+        [
+            # 秀山水電圖沒有一張叫開關箱：開關箱畫在單線圖與負載表上（OCR 讀成「信載表」也還有「單線圖」）
+            ("開關箱設備工程", "電氣單線圖,負載表(2)", True),
+            ("開關箱設備工程", "電氣單線圖.信載表(2)", True),
+            ("配電盤，低壓配電盤", "負載表(6)", True),
+            # 只有開關箱類才這樣對；其他工項照舊要名稱對得上
+            ("給水設備工程", "電氣單線圖,負載表(2)", False),
+            ("開關箱設備工程", "一層平面圖動力,插座配置平面圖", False),
+        ],
+    )
+    def test_switchboards_are_shown_on_single_line_diagrams(self, name, title, related):
+        assert is_related(name, title) is related
+
 
 class TestDemoProject:
     async def test_a_drawn_item_with_a_specified_method_is_ok(self, checklist):
