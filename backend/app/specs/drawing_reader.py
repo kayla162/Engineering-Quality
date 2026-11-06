@@ -328,7 +328,17 @@ def drawing_subject(title: str) -> str:
     return _DRAWING_KIND.sub("", title) or title
 
 
+#: 圖名裡不會出現、但固定畫在某幾種圖上的東西。秀山水電圖沒有一張叫「開關箱」：每個開關箱、配電盤
+#: 畫在電氣單線圖與負載表上（圖說索引的說明也這樣寫），所以名稱對不到也算相關。
+SHOWN_ON = {
+    ("開關箱", "配電盤", "分電盤", "電錶箱", "電表箱"): ("單線圖", "負載表"),
+}
+
+
 def is_related(item_name: str, sheet_title: str) -> bool:
+    for things, kinds in SHOWN_ON.items():
+        if any(thing in item_name for thing in things) and any(kind in sheet_title for kind in kinds):
+            return True
     subject = drawing_subject(sheet_title)
     if len(subject) < 2 or subject[:2] not in item_name:
         return False
