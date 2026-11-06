@@ -46,10 +46,12 @@ class ProjectDocumentOut(BaseModel):
     document_id: uuid.UUID
     role: str
     added_at: datetime
+    #: 列出專案文件時才有；掛上文件的回應不帶
+    filename: str | None = None
 
     @classmethod
-    def from_model(cls, link: ProjectDocument) -> "ProjectDocumentOut":
-        return cls(document_id=link.document_id, role=link.role, added_at=link.added_at)
+    def from_model(cls, link: ProjectDocument, filename: str | None = None) -> "ProjectDocumentOut":
+        return cls(document_id=link.document_id, role=link.role, added_at=link.added_at, filename=filename)
 
 
 class SpecChapterOut(BaseModel):

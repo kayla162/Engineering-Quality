@@ -220,6 +220,8 @@ export interface ProjectDocumentLink {
   document_id: string;
   role: string;
   added_at: string;
+  /** 列出專案文件時才有 */
+  filename?: string | null;
 }
 
 // --- 檢核表（backend/app/schemas/checklist.py）---

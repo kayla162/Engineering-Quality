@@ -52,6 +52,15 @@ class ProjectRepository:
         )
         return result.scalar_one_or_none()
 
+    async def documents(self, project_id: uuid.UUID) -> list[ProjectDocument]:
+        """專案掛的所有文件，依掛上去的先後。"""
+        result = await self.session.execute(
+            select(ProjectDocument)
+            .where(ProjectDocument.project_id == project_id)
+            .order_by(ProjectDocument.added_at, ProjectDocument.id)
+        )
+        return list(result.scalars().all())
+
     async def documents_by_role(
         self, project_id: uuid.UUID, role: str
     ) -> list[ProjectDocument]:

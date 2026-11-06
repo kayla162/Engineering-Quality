@@ -205,6 +205,10 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
 
+  /** 專案掛了哪些文件、各扮演什麼角色 */
+  listProjectDocuments: (projectId: string) =>
+    request<ProjectDocumentLink[]>(`/projects/${projectId}/documents`),
+
   /** 角色決定跑什麼管線：標單走工項抽取，契約與規範走法規抽取 */
   attachDocument: (projectId: string, documentId: string, role: DocumentRole) =>
     request<ProjectDocumentLink>(`/projects/${projectId}/documents`, {
