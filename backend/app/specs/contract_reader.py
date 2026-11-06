@@ -3,6 +3,7 @@
 秀山的契約書（工程會範本、Word 轉 PDF）條號是自動編號，PDF 文字層裡沒有「第一條」——
 實測 2335 段只抽得到兩處「第五條附件」。所以出處只寫**頁碼與前面最近的小標題**
 （每條開頭的「假設工程之組立及拆除：一、…」），不推算條號：數錯一條比不寫更糟。
+Word 檔的契約（另案的工程會統包契約範本）段落本身就寫著「第11條　履約品管」，這種才引條號。
 
 這是「契約提到這裡」，不是「契約對這個工項有特別規定」——列出來讓人去看，不影響檢核結果。
 """
@@ -14,6 +15,8 @@ from app.parsers.base import ParsedSection
 
 #: 一條的開頭：「工程品質： 一、」「施工計畫與報表：」（換段）「…：(一)」
 _HEADING = re.compile(r"(?:^|。|\s)([^\s：:，。；;、()（）「」]{2,20})[：:]\s*(?=一、|[（(]一[)）]|$)")
+#: Word 契約的條號：「第11條　履約品管」「第17條之1　植栽保活」
+_ARTICLE = re.compile(r"^(?P<number>第\s*\d+\s*條(?:之\s*\d+)?)[\s　]+(?P<title>[^\s，。：:]{2,20})$")
 #: 長得像標題、其實不是：句子（「本契約包括下列文件：」）與附件表格的欄名（「工程名稱：」「審查日期：」）
 _SENTENCE = re.compile(r"下列|如下|應|得|情形|之一|名稱|日期|文號|編號|簽名|戳章|備註|項目|結果|說明|人員")
 _CJK = re.compile(r"[一-鿿]")
@@ -46,18 +49,28 @@ class Mention:
 
 
 def contract_passages(sections: list[ParsedSection]) -> list[Passage]:
-    """每一段，連同它所在的頁碼與前面最近的一條標題。"""
+    """每一段，連同它所在的頁碼與前面最近的一條標題。
+
+    契約有「第11條　履約品管」這種條號時（Word 檔的工程會範本），標題寫「第11條 履約品管」，
+    條內的小標題接在後面（「第11條 履約品管／品質計畫」）。沒有條號時（秀山的 PDF 契約）只用小標題。
+    """
     passages = []
-    heading = None
+    article, heading = None, None
     for section in sections:
         text = section.content.strip()
-        for match in _HEADING.finditer(text):
-            title = match.group(1)
-            # 兩個字的只在段首才算：段落中間的「期間：」「設施：」多半是斷行切出來的半截
-            if not _SENTENCE.search(title) and (len(title) >= 3 or match.start() == 0):
-                heading = title
-                break
-        passages.append(Passage(section.page, heading, text))
+        numbered = _ARTICLE.match(text)
+        if numbered:
+            article = f"{numbered.group('number')} {numbered.group('title')}"
+            heading = None
+        else:
+            for match in _HEADING.finditer(text):
+                title = match.group(1)
+                # 兩個字的只在段首才算：段落中間的「期間：」「設施：」多半是斷行切出來的半截
+                if not _SENTENCE.search(title) and (len(title) >= 3 or match.start() == 0):
+                    heading = title
+                    break
+        label = "／".join(part for part in (article, heading) if part) or None
+        passages.append(Passage(section.page, label, text))
     return passages
 
 

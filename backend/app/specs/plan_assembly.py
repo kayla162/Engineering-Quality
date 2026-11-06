@@ -12,7 +12,7 @@
 
 import io
 
-from app.specs import demo_fill
+from app.specs import contractor_procedures, demo_fill
 from app.specs.chapter_reader import SpecChapterRow
 from app.specs.derived_forms import self_inspection, supervision_standard
 from app.specs.function_test import draft_function_test, is_equipment_chapter
@@ -62,6 +62,7 @@ def quality_plan_docx(
         ])
 
     document.add_heading("六、材料及施工檢驗程序", level=1)
+    fill.intro(document, "六、材料及施工檢驗程序")
     document.add_paragraph("材料進場與施工檢驗依第五章各表「檢查時機」辦理；材料檢驗項目如下（取自各章「2. 產品」）。")
     for draft in drafts:
         materials_rows = [r for r in draft.rows if r.stage == "材料"]
@@ -81,6 +82,7 @@ def quality_plan_docx(
                [(r.item, r.standard, r.method, r.frequency, r.note) for r in test.rows])
 
     document.add_heading("八、自主檢查表", level=1)
+    fill.intro(document, "八、自主檢查表")
     for draft in drafts:
         form = self_inspection(draft)
         document.add_heading(form.title, level=2)
@@ -112,12 +114,14 @@ def supervision_plan_docx(
     columns = ("管理項目", "抽查標準（定量／定性）", "抽查時機", "抽查方法", "抽查頻率", "依據")
 
     document.add_heading("四、材料設備抽驗程序及標準", level=1)
+    fill.intro(document, "四、材料設備抽驗程序及標準")
     for form in forms:
         if form.material_rows:
             document.add_heading(form.title.replace("施工抽查標準表", "材料抽驗標準表"), level=2)
             _table(document, columns, [(r.item, r.standard, r.timing, r.method, r.frequency, r.basis) for r in form.material_rows])
 
     document.add_heading("五、施工抽查程序及標準", level=1)
+    fill.intro(document, "五、施工抽查程序及標準")
     for form in forms:
         document.add_heading(form.title, level=2)
         _table(document, columns, [(r.item, r.standard, r.timing, r.method, r.frequency, r.basis) for r in form.inspection_rows])
@@ -138,14 +142,27 @@ def supervision_plan_docx(
 
 
 class _Fill:
-    """demo=False 時原樣傳回；demo=True 時用 demo_fill 補齊。"""
+    """組織與程序章節先用承攬廠商範本（contractor_procedures）；範本沒涵蓋的部分，demo=False 留「（待填）」，
+    demo=True 用 demo_fill 補齊。表單類的欄位 demo=False 時原樣傳回。"""
 
     def __init__(self, demo: bool, kind: str):
         self.demo = demo
         self.sections = demo_fill.plan_sections(kind) if demo else {}
+        self.procedures = contractor_procedures.sections(kind)
 
     def section(self, heading: str, blank: str) -> list[str]:
-        return self.sections.get(heading, [blank])
+        procedure = self.procedures.get(heading)
+        if procedure is None:
+            return self.sections.get(heading, [blank])
+        if procedure.still_blank is None:
+            return list(procedure.paragraphs)
+        return procedure.paragraphs + self.sections.get(heading, [procedure.still_blank])
+
+    def intro(self, document, heading: str) -> None:
+        """表單章（材料檢驗、自主檢查、抽驗、抽查）開頭的程序說明。"""
+        procedure = self.procedures.get(heading)
+        for text in procedure.paragraphs if procedure else []:
+            document.add_paragraph(text)
 
     def standard(self, draft):
         return demo_fill.fill_standard(draft) if self.demo else draft
@@ -166,6 +183,7 @@ def _new(title: str, demo: bool = False):
     run = document.add_paragraph().add_run((demo_fill.NOTICE if demo else "") + NOTICE)
     run.bold = True
     run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+    document.add_paragraph(contractor_procedures.provenance())
     return document
 
 
