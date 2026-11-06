@@ -268,9 +268,39 @@ python scripts/sync_taiwan_law.py && python scripts/check_regulation_changes.py
 | 功能 | 怎麼試 | 假在哪裡 |
 |---|---|---|
 | **AI 輔助**（沒有 API key 時） | `.env` 設 `ENABLE_LLM_FALLBACK=true`、`LLM_PROVIDER=demo` | 固定規則，不是模型；紀錄的模型名稱是「demo-rules（示範，非真實 AI）」 |
-| **標準版次與廢止** | `REGULATION_SOURCES` 加上 `standards_demo`（排在 `mock` 前面） | 標準目錄是虛構的；引用 `CNS 3090:2015` 會因「最新為 2022 年版」判為已修正 |
+| **標準版次與廢止** | `REGULATION_SOURCES` 加上 `standards_demo`（排在 `mock` 前面） | 目錄只有 11 部（2026-11 依官方網站查證）；引用 `CNS 3090:2015` 會因「最新為 2025 年版」判為已修正，目錄外的標準仍是疑似對應 |
 | **檢核表：契約圖與工法欄**（階段 2、4） | 把 `data/samples/project_demo/` 的四份文件掛到同一個專案（標單／施工規範／契約圖／其他），建立工項與檢核表 | 契約圖是文字示意的 PDF。另有秀山分隊的示範契約圖 `data/samples/xiushan_contract_drawings_demo.pdf`（33 張，`scripts/generate_xiushan_drawings_demo.py` 產生）：圖目錄是假的，但版面照真實 CAD 圖，讀取走真實圖的同一條路 |
 | **跨文件搜尋**（Phase 2 RAG 的替身） | 上方「搜尋」分頁 | 字詞相似度，不是語意模型；換個說法可能找不到 |
+
+### 完整示範專案（一個專案看完所有功能）
+
+`data/samples/full_demo/` 的七份文件（`scripts/generate_full_demo.py` 產生，全部是假資料，每份都印「示範（假資料）」）：
+標單、施工規範（13 章，含機電測試小節）、Word 契約書（條號寫在段落裡）、需求書、CAD 版面的建築結構圖（含圖號索引表）、
+**掃描版面的水電圖**（整頁圖片，要 OCR）、整體品質計畫（三張品質管理標準表，故意漏寫幾個規範值）。
+
+```bash
+python scripts/generate_full_demo.py
+python scripts/seed_full_demo.py --username <帳號> --password <密碼>   # 後端要先跑起來；也可用 DEMO_USERNAME / DEMO_PASSWORD
+```
+
+seed 會匯入示範企業內部文件清單、上傳七份文件並設定角色、逐份分析規範與契約的法規引用（SQLite 一次只能一個寫入者，
+所以不並行）、建立工項與檢核表。建議用獨立的示範資料庫跑，不要混進正式資料：`.claude/launch.json` 的 `backend-demo`
+把 `DATABASE_URL` 指到 `data/demo_showcase.db`（已 gitignore），並啟用 `standards_demo`。看得到的結果：
+
+| 功能 | 示範專案裡的例子 |
+|---|---|
+| 工法選定／未定 | 模板：需求書指定系統模板（OK）；鋼筋：規範列搭接／續接器／銲接、契約沒指定（請檢討使用何種工法） |
+| 標單有、契約圖沒有 | 預拌混凝土沒有任何圖名提到混凝土 |
+| 契約圖有、標單沒有 | A8-01 景觀植栽配置圖 |
+| 掃描契約圖 OCR | 水電圖四張讀出圖名（標「OCR」），兩張圖號讀不到寫「第N頁」；開關箱（KW-MP PANEL）對到 E-01 電氣單線圖 |
+| 契約欄引條號 | 鋼筋：「第11條 履約品管」「第11條 履約品管／品質計畫」 |
+| 法規雙重規範提醒 | 女兒牆、樓梯扶手、防火門、昇降機、透水鋪面、綠建材六條都觸發 |
+| 功能運轉檢測初稿 | 昇降機、給水、配電盤取自規範測試小節；無熔線斷路器規範沒寫測試，用通用範本 |
+| 品質計畫審查 | 鋼筋表漏 40D、±6mm；混凝土表漏 CNS 1232；假設工程表本案規範沒有對應的章 |
+| 依據查證 | CNS 560／3090／1232 由標準目錄查證、無障礙設施設計規範由行政規則目錄查證；「測量法」查無此法規（真實名稱是測繪法，示範文件故意寫錯） |
+| 專案文件 | 專案頁列出已掛的七份文件與角色 |
+
+`backend/tests/api/test_full_demo.py` 鎖住上面的結果（掃描水電圖那一項要 Tesseract 繁中語言資料才跑）。
 
 **檢核表示範專案的預期結果**（`scripts/generate_project_demo.py` 產生）：
 
