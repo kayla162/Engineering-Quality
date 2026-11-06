@@ -502,6 +502,11 @@ class ChecklistService:
         numbered = {b.reference for b in bases if standard_key(b.reference) is not None}
         candidates = {b.reference for b in bases} - numbered
         statuses = await verify_names(candidates, TaiwanLawSource())
+        # 全國法規索引不收的要點、規範（「建築物無障礙設施設計規範」）再查行政規則目錄，一樣只採完全同名
+        from app.sources.admin_rules_source import AdminRulesSource
+
+        if AdminRulesSource.source_name in settings.regulation_sources:
+            statuses |= await verify_names(candidates - statuses.keys(), AdminRulesSource())
         # 標準只有在啟用了有版次資料的標準目錄時才查（目前只有示範用的 standards_demo）
         if DemoStandardsSource.source_name in settings.regulation_sources:
             statuses |= await verify_standards(numbered, DemoStandardsSource())

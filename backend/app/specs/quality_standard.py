@@ -101,7 +101,9 @@ def _sentences(body: str):
     """（句子, 句子在 body 裡的位置）。句子以「。」結尾；小節編號留在句首時去掉。"""
     position = 0
     for piece in body.split("。"):
-        sentence = re.sub(r"^\s*(?:[23]\.\d+(?:\.\d+)*\s+\S{1,12}\s+)+", "", piece).strip()
+        # 章節分界（「3. 施工」）後的第一句會帶著部名：先拿掉，句子才落在它真正的小節
+        piece_body = re.sub(r"^\s*[1-4]\.\s*(?:通\s*則|產\s*品|施\s*工|計\s*量\S*)\s*", "", piece)
+        sentence = re.sub(r"^\s*(?:[23]\.\d+(?:\.\d+)*\s+\S{1,12}\s+)+", "", piece_body).strip()
         sentence = re.sub(r"^\s*[23]\.\d+(?:\.\d+)*\s*", "", sentence)
         sentence = re.sub(r"^\s*(?:[（(]\d+[)）]|[A-Za-z]\.)\s*", "", sentence)
         if len(sentence) >= 6 and not _is_table(sentence):

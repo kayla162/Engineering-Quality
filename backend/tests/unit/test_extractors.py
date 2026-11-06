@@ -451,3 +451,15 @@ class TestTableHeadersAndWordsContainingStandard:
     )
     def test_named_documents_survive(self, rule, text, expected):
         assert expected in [c.raw_text for c in rule.extract(text)]
+
+
+def test_the_title_right_after_a_standard_number_is_not_a_law():
+    """「CNS 1232 混凝土圓柱試體抗壓強度檢驗法」：字尾「法」是標準名稱，不是一部法律。"""
+    from app.extractors.rule_engine import RuleEngine
+
+    found = [(c.raw_text, c.regulation_type) for c in RuleEngine().extract("(2) CNS 1232 混凝土圓柱試體抗壓強度檢驗法 1.5 資料送審")]
+    assert found == [("CNS 1232", RegulationType.STANDARD)]
+    # 不緊接在標準編號後面的照樣是法律
+    assert ("建築法", RegulationType.LAW) in [
+        (c.raw_text, c.regulation_type) for c in RuleEngine().extract("依建築法及 CNS 560 辦理。")
+    ]
