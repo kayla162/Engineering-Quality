@@ -266,6 +266,20 @@ python scripts/sync_taiwan_law.py && python scripts/sync_catalogs.py; python scr
 列出原因；`--dry-run` 只列出會變什麼。ISO、ASTM、BSI 官網擋自動讀取，那幾筆和日期抄自 PDF 的一筆列為「需人工查證」。
 2026-11 實測：13 部行政規則同步 11 部、11 部標準同步 6 部，結果和人工查證一致。
 
+**每週自動排程（Windows）**：`scripts/scheduled_sync.ps1` 依序跑上面三步（全國法規同步失敗就不跑後兩步），
+紀錄寫在 `data/logs/`（已 gitignore）。`scripts/register_scheduled_sync.ps1` 把它註冊成工作排程器的工作
+「EngineeringQuality-RegulationSync」，預設每週一 09:00，以目前登入的使用者、只在登入時執行（不儲存密碼），
+錯過的排程開機後補跑：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scriptsegister_scheduled_sync.ps1                      # 註冊（每週一 09:00）
+powershell -NoProfile -ExecutionPolicy Bypass -File scriptsegister_scheduled_sync.ps1 -Day Friday -At 17:00 # 改時間
+powershell -NoProfile -ExecutionPolicy Bypass -File scriptsegister_scheduled_sync.ps1 -Remove              # 移除
+```
+
+目錄同步會改 repo 裡的 `data/admin_rules.json`、`data/demo_standards.json`（狀態、日期與 `synced_at`），有變動要記得提交。
+Linux／macOS 用 cron 跑同一串指令即可。
+
 ### 示範功能（以假資料驗證）
 
 下列功能需要真實資料或外部服務才能真正驗收；在那之前，都附了假資料讓整條流程跑得起來。

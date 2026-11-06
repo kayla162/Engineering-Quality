@@ -26,3 +26,6 @@ frontend/tsconfig.tsbuildinfo
 
 # 真實工程文件（契約、標單、圖說等，數百 MB）；腳本用參數讀取，不進版控
 工程文書/
+
+# scripts/scheduled_sync.ps1 的執行紀錄
+data/logs/

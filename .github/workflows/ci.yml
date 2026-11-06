@@ -18,7 +18,7 @@ jobs:
     name: 後端測試
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 和 docker/backend.Dockerfile 一樣的系統套件：PDF 匯出的中文字型、OCR 語言資料。
       # 有了語言資料，test_pdf_ocr.py 的真 Tesseract 測試就不會被略過。
@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fonts-arphic-uming tesseract-ocr-chi-tra tesseract-ocr-eng
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -53,9 +53,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
@@ -69,7 +69,7 @@ jobs:
     name: Docker 整套啟動
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 開發都在 SQLite 上跑；這裡是唯一會對 PostgreSQL 跑完所有 migration 的地方
       # （backend 容器的 entrypoint 會先 alembic upgrade head 再啟動）。
