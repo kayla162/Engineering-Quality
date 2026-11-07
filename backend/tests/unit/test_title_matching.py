@@ -81,3 +81,10 @@ def test_fire_equipment_is_shown_on_the_fire_drawings():
     assert is_related("滅火器及火警自動警報設備設備", "數量表,消防設備設置說明")
     assert is_related("避難方向指示燈,C級 標示面板 1:1", "一層平面圖消防設備平面圖")
     assert not is_related("滅火器及火警自動警報設備設備", "一層平面圖(排水配置)")
+
+
+def test_grounding_and_lightning_items_are_shown_on_the_lightning_drawings():
+    assert is_related("接地避雷設備工程", "二層平面圖(避雷針配置)")
+    assert is_related("產品，接地導線，硬裸銅絞電線，標稱截面積100mm2", "電避雷針詳圖")
+    assert is_related("雷擊計數器需含脈衝輸出-LED顯示功能(IP68)", "屋頂層平面圖(避雷針配置)")
+    assert not is_related("接地避雷設備工程", "一層平面圖(排水配置)")
