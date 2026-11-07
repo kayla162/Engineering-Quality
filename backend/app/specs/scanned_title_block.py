@@ -138,6 +138,11 @@ def _sheet_numbers(lines: list[tuple[pymupdf.Rect, str]]) -> list[str]:
 def sheet_numbers_in(text: str) -> list[str]:
     """一行 OCR 文字裡所有像圖號的字，換回原本的寫法：「$2-1O」->「S2-10」、「SI-23」->「S1-23」、
     「AL0-01」「AIO-O3」->「A10-01」「A10-03」、「50-08」->「S0-08」。"""
+    return [number for number, _ in sheet_numbers_with_spans(text)]
+
+
+def sheet_numbers_with_spans(text: str) -> list[tuple[str, tuple[float, float]]]:
+    """同 sheet_numbers_in，另外給每個圖號在這行裡的位置（佔整行長度的比例，起與迄）。"""
     text = _S_AS_FIVE.sub("S", text.upper().replace("$", "S").replace("§", "S"))
     text = re.sub(r"(?<![A-Z])SS(?=\d)", "S", text)
     numbers = []
@@ -150,7 +155,7 @@ def sheet_numbers_in(text: str) -> list[str]:
         digits, serial = digits.translate(_DIGIT), serial.translate(_DIGIT)
         if len(digits) > 2 or (not letters and len(digits) != 2):
             continue
-        numbers.append(f"{letters}{digits}-{serial}{suffix}")
+        numbers.append((f"{letters}{digits}-{serial}{suffix}", (match.start() / len(text), match.end() / len(text))))
     return numbers
 
 

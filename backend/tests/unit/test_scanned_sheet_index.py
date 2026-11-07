@@ -6,7 +6,16 @@
 import numpy as np
 import pymupdf
 
-from app.specs.scanned_sheet_index import _cell_entries, assign, clean_index, might_be_index
+from app.specs.scanned_sheet_index import (
+    _cell_entries,
+    _numbers_with_rects,
+    assign,
+    best_title,
+    clean_index,
+    clean_title,
+    looks_like_title,
+    might_be_index,
+)
 from app.specs.scanned_title_block import _long_runs, _without_lines, sheet_numbers_in
 
 INDEX = ["S1-01", "S1-11", "S1-12", "S2-01", "S2-02", "S2-11", "S2-12", "S2-13", "S5-02", "S7-01"]
@@ -88,9 +97,51 @@ def test_without_an_index_two_agreeing_readings_are_needed():
 
 
 def test_the_same_index_cell_read_twice_counts_once():
-    """兩種解析度、重疊分塊讀到同一格：位置相近的取票多的寫法。"""
-    readings = [(100, 50, "A5-08"), (101, 51, "AS5-08"), (100, 52, "A5-08"), (300, 50, "A5-09")]
-    assert _cell_entries(readings) == ["A5-08", "A5-09"]
+    """兩種解析度、重疊分塊讀到同一格：位置相近的取票多的寫法，留下它的框。"""
+    def at(x, y):
+        return pymupdf.Rect(x, y, x + 30, y + 8)
+
+    readings = [(at(100, 50), "A5-08"), (at(101, 51), "AS5-08"), (at(100, 52), "A5-08"), (at(300, 50), "A5-09")]
+    assert _cell_entries(readings) == {"A5-08": at(100, 50), "A5-09": at(300, 50)}
+
+
+def test_a_number_box_is_cut_out_of_a_line_that_runs_into_the_title():
+    """整行「S1-11 garbage」的框包到圖名；圖號的框按字元位置切出前面那段，圖名格從它右邊開始。"""
+    ((rect, number),) = _numbers_with_rects(pymupdf.Rect(100, 50, 220, 60), "S1-11 abcdefgh")
+    assert number == "S1-11" and rect.x0 == 100 and 140 < rect.x1 < 145
+
+
+def test_index_titles_are_cleaned_of_ocr_noise():
+    assert clean_title("|結構圖圖號索引表國還加") == "結構圖圖號索引表"
+    assert clean_title("、一層平面圖(避雷針配置)同") == "一層平面圖(避雷針配置)"
+    assert clean_title("電氣單線圖.負載表(2)|:加") == "電氣單線圖.負載表(2)"
+    assert clean_title("EE放放癸夫押有生|當km") == ""
+
+
+def test_title_readings_vote_character_by_character():
+    """錯字各讀各的：逐字投票，每個字至少兩票一致才採用。"""
+    assert best_title(["梁配筋圖二國六六|", "|梁配筋圖二", "|芭配筋圖二"], "") == "梁配筋圖二"
+    # 標題欄的讀法也算一票：索引表一次「梁」一次「又」，標題欄的「梁」讓它勝出
+    assert best_title(["又配筋圖三", "梁配筋圖三"], "梁配筋圖三") == "梁配筋圖三"
+    # 第一個字三次都不一樣：沒有共識，沿用標題欄（這裡是空的）
+    assert best_title(["又配筋圖二", "梁配筋圖二", "芭配筋圖二"], "") == ""
+
+
+def test_a_longer_page_title_is_not_replaced_by_a_partial_index_reading():
+    assert best_title(["一層安全梯平面圖", "一層安全梯平面圖"], "一層安全梯平面詳圖") == "一層安全梯平面詳圖"
+    # 標題欄的讀法不像圖名（黏了雜字），就用索引表的
+    assert best_title(["電氣單線圖.負載表(3)", "電氣單線圖.負載表(3)"], "電氣單線圖ARS)") == "電氣單線圖.負載表(3)"
+
+
+def test_an_index_title_that_does_not_look_like_a_title_keeps_the_page_title():
+    assert best_title(["EE放放癸夫押有生|當km", "1二IT品WU外次到面圖(一)"], "外牆剖面圖(一)") == "外牆剖面圖(一)"
+    assert best_title([], "外牆剖面圖(一)") == "外牆剖面圖(一)"
+
+
+def test_what_looks_like_a_title():
+    assert looks_like_title("標準圖三") and looks_like_title("電氣單線圖.負載表(2)")
+    assert looks_like_title("一層平面圖(避雷針配置)")
+    assert not looks_like_title("二IT品WU外次到面圖(一)") and not looks_like_title("圖")
 
 
 def test_index_pages_are_the_front_pages_or_titled_as_an_index():
@@ -119,3 +170,19 @@ def test_table_lines_are_erased_before_ocr():
     border_row = pad + int(10 * 200 / 72)
     assert (image[border_row - 2 : border_row + 3, pad + 100] > 200).all()
     assert (image < 100).sum() > 50  # 字還在
+
+
+def test_a_lone_prefix_between_two_of_the_same_is_dropped_and_filled():
+    """前後是 A4-21、A5-02，中間讀成白名單裡別冊的「S-01」：丟掉，照編號補回 A5-01。"""
+    index = ["A4-20", "A4-21", "A5-01", "A5-02", "S-01", "S-04", "S-05"]
+    readings = [["A4-21", "A4-21"], ["S-01", "S-01"], ["A5-02", "A5-02"]]
+    assert assign(readings, index) == ["A4-21", "A5-01", "A5-02"]
+
+
+def test_gaps_are_filled_by_consecutive_serials_when_the_index_misses_some():
+    """索引表漏讀了 A4-07：A4-06 與 A4-10 之間夾三頁、流水號差 4，照流水號補 A4-07～A4-09。"""
+    index = ["A4-05", "A4-06", "A4-08", "A4-09", "A4-10"]
+    readings = [["A4-06", "A4-06"], [], [], [], ["A4-10", "A4-10"]]
+    assert assign(readings, index) == ["A4-06", "A4-07", "A4-08", "A4-09", "A4-10"]
+    # 頁數和流水號差對不上：不補
+    assert assign([["A4-06"], [], [], ["A4-10"]], index[:2] + ["A4-10"]) == ["A4-06", None, None, "A4-10"]

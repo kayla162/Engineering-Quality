@@ -232,7 +232,7 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
     """整份都沒有文字層（用印後掃描）：OCR 讀每一頁的標題欄，圖號再由同一冊的圖號索引表整冊一起決定
     （scanned_sheet_index）。OCR 不能用時回空清單，檢核表會說明這一冊讀不到。"""
     from app.parsers import ocr
-    from app.specs.scanned_sheet_index import assign, might_be_index, read_index
+    from app.specs.scanned_sheet_index import assign, best_title, might_be_index, read_index
     from app.specs.scanned_title_block import read_title_block
 
     engine, reason = ocr.load_engine()
@@ -242,7 +242,8 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
     best = ocr.load_best_engine()
     titles: list[str] = []
     readings: list[list[str]] = []
-    index: list[str] = []
+    #: 索引表上的圖號 -> 它的圖名的幾種讀法
+    index: dict[str, list[str]] = {}
     with pymupdf.open(str(path)) as document:
         for page_no, page in enumerate(document, start=1):
             numbers, title = read_title_block(page, engine)
@@ -253,11 +254,15 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
                     title = better_title
                 numbers = numbers + better_numbers
             if might_be_index(page_no, title):
-                index += read_index(page, engine)
+                for number, readings_of_title in read_index(page, engine).items():
+                    index.setdefault(number, []).extend(readings_of_title)
             titles.append(title)
             readings.append(numbers)
     sheets: dict[str, DrawingSheetRow] = {}
-    for page_no, (title, number) in enumerate(zip(titles, assign(readings, index)), start=1):
+    for page_no, (title, number) in enumerate(zip(titles, assign(readings, list(index))), start=1):
+        if number in index:
+            # 索引表的圖名和標題欄的一起投票；標題欄讀不出圖名的頁也因此列得出來
+            title = best_title(index[number], title)
         if not title:
             continue
         sheet_no = number or f"第{page_no}頁"

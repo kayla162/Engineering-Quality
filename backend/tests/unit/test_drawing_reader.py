@@ -396,7 +396,7 @@ def test_the_best_model_rereads_only_pages_without_a_title_like_reading(tmp_path
     monkeypatch.setattr(ocr, "load_best_engine", lambda: best)
     monkeypatch.setattr("app.specs.scanned_title_block.read_title_block", read)
     # 前三頁會試讀索引表；這裡沒有索引表
-    monkeypatch.setattr("app.specs.scanned_sheet_index.read_index", lambda page, engine: [])
+    monkeypatch.setattr("app.specs.scanned_sheet_index.read_index", lambda page, engine: {})
     doc = pymupdf.open()
     for _ in range(3):
         doc.new_page()
