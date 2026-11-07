@@ -1,6 +1,8 @@
 services:
   db:
-    image: postgres:15-alpine
+    # PostgreSQL 15 + pgvector 擴充：語意搜尋的向量就存在這裡，不另外架向量資料庫
+    # （migrations/versions/0013_knowledge_chunks.py 會 CREATE EXTENSION vector）
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -63,17 +65,7 @@ services:
     ports:
       - "3000:80"
 
-  # Phase 2 才會啟用向量資料庫（docs/development-plan.md 第 5 節）。
-  # 需要時把下面這段取消註解，並在 .env 設定 QDRANT_URL。
-  # qdrant:
-  #   image: qdrant/qdrant:latest
-  #   ports:
-  #     - "6333:6333"
-  #   volumes:
-  #     - qdrant:/qdrant/storage
-
 volumes:
   pgdata:
   uploads:
   lawindex:
-  # qdrant:

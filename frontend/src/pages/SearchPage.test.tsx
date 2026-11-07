@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SearchResult } from "../api/types";
+import type { KnowledgeSearchResult, SearchResult } from "../api/types";
 import { stubApi } from "../test/stubApi";
 import { SearchPage } from "./SearchPage";
 
@@ -23,6 +23,37 @@ const RESULT: SearchResult = {
   ],
 };
 
+const KNOWLEDGE: KnowledgeSearchResult = {
+  query: "開挖多深要做擋土",
+  mode: "hybrid",
+  vector_enabled: true,
+  method_note: "混合搜尋：指名的條號或章碼優先，其餘依字詞相似度與語意向量的名次合併（RRF）。",
+  hits: [
+    {
+      ref: "營造安全衛生設施標準 第 71 條",
+      kind: "law_article",
+      source: "營造安全衛生設施標準",
+      locator: "第 71 條",
+      heading: "第五章露天開挖",
+      snippet: "其深度在一點五公尺以上，使勞工進入開挖面作業者，應設擋土支撐。",
+      score: 0.032,
+      ranks: { lexical: 3, vector: 1 },
+    },
+    {
+      ref: "PCCES 02256",
+      kind: "spec_chapter",
+      source: "施工綱要規範",
+      locator: "02256",
+      heading: "臨時擋土支撐工法",
+      snippet: "",
+      score: 0.016,
+      ranks: { exact: 1 },
+    },
+  ],
+};
+
+const ROUTES = { "/api/search": RESULT, "/api/search/knowledge": KNOWLEDGE };
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -34,7 +65,7 @@ async function search(term: string) {
 
 describe("SearchPage", () => {
   it("送出查詢並列出段落與法規", async () => {
-    const calls = stubApi({ "/api/search": RESULT });
+    const calls = stubApi(ROUTES);
 
     render(<SearchPage onOpenDocument={vi.fn()} />);
     await search("混凝土澆置");
@@ -45,7 +76,7 @@ describe("SearchPage", () => {
   });
 
   it("標出命中的字", async () => {
-    stubApi({ "/api/search": RESULT });
+    stubApi(ROUTES);
 
     render(<SearchPage onOpenDocument={vi.fn()} />);
     await search("混凝土澆置");
@@ -54,16 +85,40 @@ describe("SearchPage", () => {
     expect(marks.length).toBeGreaterThan(0);
   });
 
-  it("說明這不是語意搜尋", async () => {
-    stubApi({ "/api/search": RESULT });
+  it("說明文件段落不是語意搜尋", async () => {
+    stubApi(ROUTES);
 
     render(<SearchPage onOpenDocument={vi.fn()} />);
+    await search("混凝土澆置");
 
-    expect(screen.getByText(/不是語意模型/)).toBeInTheDocument();
+    expect(await screen.findByText(/不是語意模型/)).toBeInTheDocument();
+  });
+
+  it("列出法規條文與規範章節，並說明命中方式", async () => {
+    stubApi(ROUTES);
+
+    render(<SearchPage onOpenDocument={vi.fn()} />);
+    await search("開挖多深要做擋土");
+
+    expect(await screen.findByText("營造安全衛生設施標準 第 71 條")).toBeInTheDocument();
+    expect(screen.getByText("字詞第 3 名、語意第 1 名")).toBeInTheDocument();
+    expect(screen.getByText("施工綱要規範 02256")).toBeInTheDocument();
+    expect(screen.getByText("指名條號")).toBeInTheDocument();
+  });
+
+  it("依選擇的方式搜尋法規", async () => {
+    const calls = stubApi(ROUTES);
+
+    render(<SearchPage onOpenDocument={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/法規搜尋方式/), { target: { value: "lexical" } });
+    await search("轉包");
+
+    await screen.findByText("營造安全衛生設施標準 第 71 條");
+    expect(calls.some((call) => call.includes("/api/search/knowledge?q=") && call.includes("mode=lexical"))).toBe(true);
   });
 
   it("點段落會打開那份文件", async () => {
-    stubApi({ "/api/search": RESULT });
+    stubApi(ROUTES);
     const onOpen = vi.fn();
 
     render(<SearchPage onOpenDocument={onOpen} />);

@@ -1,0 +1,453 @@
+{
+ "_說明": "語意搜尋評估集（scripts/eval_search.py）。relevant 列出所有可接受的正確答案。題目先依工程實務寫好，再到條文全文裡逐條確認答案，沒有參考任何一種搜尋方法的結果。exact＝直接寫出條號或章碼；keyword＝用條文裡的術語；semantic＝口語描述，刻意避開條文字眼。",
+ "queries": [
+  {
+   "id": "e01",
+   "type": "exact",
+   "query": "建築法第34條",
+   "relevant": [
+    "建築法 第 34 條"
+   ]
+  },
+  {
+   "id": "e02",
+   "type": "exact",
+   "query": "營造安全衛生設施標準第19條",
+   "relevant": [
+    "營造安全衛生設施標準 第 19 條"
+   ]
+  },
+  {
+   "id": "e03",
+   "type": "exact",
+   "query": "採購法第二十二條 限制性招標",
+   "relevant": [
+    "政府採購法 第 22 條"
+   ]
+  },
+  {
+   "id": "e04",
+   "type": "exact",
+   "query": "政府採購法第101條",
+   "relevant": [
+    "政府採購法 第 101 條"
+   ]
+  },
+  {
+   "id": "e05",
+   "type": "exact",
+   "query": "職安法第6條",
+   "relevant": [
+    "職業安全衛生法 第 6 條"
+   ]
+  },
+  {
+   "id": "e06",
+   "type": "exact",
+   "query": "營造業法第三十條 工地主任",
+   "relevant": [
+    "營造業法 第 30 條"
+   ]
+  },
+  {
+   "id": "e07",
+   "type": "exact",
+   "query": "施工綱要規範 03310",
+   "relevant": [
+    "PCCES 03310"
+   ]
+  },
+  {
+   "id": "e08",
+   "type": "exact",
+   "query": "規範第02742章",
+   "relevant": [
+    "PCCES 02742"
+   ]
+  },
+  {
+   "id": "e09",
+   "type": "exact",
+   "query": "營造安全衛生設施標準 第1-1條 用詞定義",
+   "relevant": [
+    "營造安全衛生設施標準 第 1-1 條"
+   ]
+  },
+  {
+   "id": "e10",
+   "type": "exact",
+   "query": "政府採購法第85條之1",
+   "relevant": [
+    "政府採購法 第 85-1 條"
+   ]
+  },
+  {
+   "id": "e11",
+   "type": "exact",
+   "query": "職業安全衛生法第37條",
+   "relevant": [
+    "職業安全衛生法 第 37 條"
+   ]
+  },
+  {
+   "id": "e12",
+   "type": "exact",
+   "query": "建築法第77條之2 室內裝修",
+   "relevant": [
+    "建築法 第 77-2 條"
+   ]
+  },
+  {
+   "id": "e13",
+   "type": "exact",
+   "query": "03210 鋼筋",
+   "relevant": [
+    "PCCES 03210"
+   ]
+  },
+  {
+   "id": "e14",
+   "type": "exact",
+   "query": "營造業法施行細則第18條",
+   "relevant": [
+    "營造業法施行細則 第 18 條"
+   ]
+  },
+  {
+   "id": "k01",
+   "type": "keyword",
+   "query": "工地主任 資格",
+   "relevant": [
+    "營造業法 第 31 條"
+   ]
+  },
+  {
+   "id": "k02",
+   "type": "keyword",
+   "query": "押標金 發還",
+   "relevant": [
+    "政府採購法 第 31 條"
+   ]
+  },
+  {
+   "id": "k03",
+   "type": "keyword",
+   "query": "擋土支撐 定期檢查",
+   "relevant": [
+    "營造安全衛生設施標準 第 75 條"
+   ]
+  },
+  {
+   "id": "k04",
+   "type": "keyword",
+   "query": "安全帶 安全母索",
+   "relevant": [
+    "營造安全衛生設施標準 第 23 條"
+   ]
+  },
+  {
+   "id": "k05",
+   "type": "keyword",
+   "query": "施工架組配作業主管",
+   "relevant": [
+    "營造安全衛生設施標準 第 41 條"
+   ]
+  },
+  {
+   "id": "k06",
+   "type": "keyword",
+   "query": "轉包",
+   "relevant": [
+    "政府採購法 第 65 條",
+    "政府採購法 第 66 條"
+   ]
+  },
+  {
+   "id": "k07",
+   "type": "keyword",
+   "query": "訂定底價",
+   "relevant": [
+    "政府採購法 第 46 條",
+    "政府採購法施行細則 第 53 條"
+   ]
+  },
+  {
+   "id": "k08",
+   "type": "keyword",
+   "query": "共同投標 押標金",
+   "relevant": [
+    "共同投標辦法 第 9 條"
+   ]
+  },
+  {
+   "id": "k09",
+   "type": "keyword",
+   "query": "營建工地 裸露區域 防制",
+   "relevant": [
+    "營建工程空氣污染防制設施管理辦法 第 9 條"
+   ]
+  },
+  {
+   "id": "k10",
+   "type": "keyword",
+   "query": "技師 工作簽證報告",
+   "relevant": [
+    "公共工程專業技師簽證規則 第 10 條"
+   ]
+  },
+  {
+   "id": "k11",
+   "type": "keyword",
+   "query": "查核 列為丙等",
+   "relevant": [
+    "工程施工查核小組作業辦法 第 8 條"
+   ]
+  },
+  {
+   "id": "k12",
+   "type": "keyword",
+   "query": "以鋼管施工架為模板支撐",
+   "relevant": [
+    "營造安全衛生設施標準 第 136 條"
+   ]
+  },
+  {
+   "id": "k13",
+   "type": "keyword",
+   "query": "結構用混凝土",
+   "relevant": [
+    "PCCES 03310"
+   ]
+  },
+  {
+   "id": "k14",
+   "type": "keyword",
+   "query": "瀝青混凝土舖面",
+   "relevant": [
+    "PCCES 02742",
+    "PCCES 02741"
+   ]
+  },
+  {
+   "id": "s01",
+   "type": "semantic",
+   "query": "工地樓板洞口要怎麼防止工人掉下去",
+   "relevant": [
+    "營造安全衛生設施標準 第 19 條",
+    "營造安全衛生設施標準 第 21 條",
+    "營造安全衛生設施標準 第 25 條"
+   ]
+  },
+  {
+   "id": "s02",
+   "type": "semantic",
+   "query": "溝挖到一米五以上要不要做支撐",
+   "relevant": [
+    "營造安全衛生設施標準 第 71 條"
+   ]
+  },
+  {
+   "id": "s03",
+   "type": "semantic",
+   "query": "包商可以把整個工程丟給別家公司做嗎",
+   "relevant": [
+    "政府採購法 第 65 條",
+    "政府採購法 第 66 條"
+   ]
+  },
+  {
+   "id": "s04",
+   "type": "semantic",
+   "query": "蓋房子之前要先拿到政府什麼許可",
+   "relevant": [
+    "建築法 第 25 條",
+    "建築法 第 28 條"
+   ]
+  },
+  {
+   "id": "s05",
+   "type": "semantic",
+   "query": "工地施工太吵會被罰多少錢",
+   "relevant": [
+    "噪音管制法 第 24 條"
+   ]
+  },
+  {
+   "id": "s06",
+   "type": "semantic",
+   "query": "砂石車離開工地前輪胎沾泥要怎麼處理",
+   "relevant": [
+    "營建工程空氣污染防制設施管理辦法 第 10 條"
+   ]
+  },
+  {
+   "id": "s07",
+   "type": "semantic",
+   "query": "工地有工人死亡多久內要通報",
+   "relevant": [
+    "職業安全衛生法 第 37 條"
+   ]
+  },
+  {
+   "id": "s08",
+   "type": "semantic",
+   "query": "新進工人上工前要先上安全課嗎",
+   "relevant": [
+    "職業安全衛生教育訓練規則 第 17 條"
+   ]
+  },
+  {
+   "id": "s09",
+   "type": "semantic",
+   "query": "工地主任每天要做哪些事",
+   "relevant": [
+    "營造業法 第 32 條"
+   ]
+  },
+  {
+   "id": "s10",
+   "type": "semantic",
+   "query": "營造廠的技術負責人在工地要負責什麼",
+   "relevant": [
+    "營造業法 第 35 條"
+   ]
+  },
+  {
+   "id": "s11",
+   "type": "semantic",
+   "query": "挖地下室把隔壁房子弄歪了，事前應該做什麼",
+   "relevant": [
+    "建築法 第 69 條"
+   ]
+  },
+  {
+   "id": "s12",
+   "type": "semantic",
+   "query": "廠商跟機關對合約有糾紛談不攏怎麼辦",
+   "relevant": [
+    "政府採購法 第 85-1 條"
+   ]
+  },
+  {
+   "id": "s13",
+   "type": "semantic",
+   "query": "用吊車吊桶灌混凝土要注意什麼",
+   "relevant": [
+    "營造安全衛生設施標準 第 142 條"
+   ]
+  },
+  {
+   "id": "s14",
+   "type": "semantic",
+   "query": "樓梯扶手要做多高",
+   "relevant": [
+    "建築技術規則建築設計施工編 第 36 條"
+   ]
+  },
+  {
+   "id": "s15",
+   "type": "semantic",
+   "query": "在山坡上開發蓋房子要先送什麼計畫",
+   "relevant": [
+    "水土保持法 第 12 條"
+   ]
+  },
+  {
+   "id": "s16",
+   "type": "semantic",
+   "query": "百貨公司重新裝潢要先送圖給誰審",
+   "relevant": [
+    "建築法 第 77-2 條",
+    "建築物室內裝修管理辦法 第 22 條"
+   ]
+  },
+  {
+   "id": "s17",
+   "type": "semantic",
+   "query": "工程被抽查時鑽心取樣不合格會怎樣",
+   "relevant": [
+    "工程施工查核小組作業辦法 第 8 條"
+   ]
+  },
+  {
+   "id": "s18",
+   "type": "semantic",
+   "query": "鷹架可以跟模板的支撐綁在一起嗎",
+   "relevant": [
+    "營造安全衛生設施標準 第 45 條"
+   ]
+  },
+  {
+   "id": "s19",
+   "type": "semantic",
+   "query": "下包的工人出事，總包也要負責嗎",
+   "relevant": [
+    "職業安全衛生法 第 25 條"
+   ]
+  },
+  {
+   "id": "s20",
+   "type": "semantic",
+   "query": "鋼筋加工和綁紮要依規範哪一章",
+   "relevant": [
+    "PCCES 03210"
+   ]
+  },
+  {
+   "id": "s21",
+   "type": "semantic",
+   "query": "混凝土澆完之後要怎麼保濕",
+   "relevant": [
+    "PCCES 03390"
+   ]
+  },
+  {
+   "id": "s22",
+   "type": "semantic",
+   "query": "屋頂漏水要做的防水層",
+   "relevant": [
+    "PCCES 07505"
+   ]
+  },
+  {
+   "id": "s23",
+   "type": "semantic",
+   "query": "施工過程要拍照存證",
+   "relevant": [
+    "PCCES 01321"
+   ]
+  },
+  {
+   "id": "s24",
+   "type": "semantic",
+   "query": "基礎做完之後把土填回去",
+   "relevant": [
+    "PCCES 02317"
+   ]
+  },
+  {
+   "id": "s25",
+   "type": "semantic",
+   "query": "得標廠商用假文件或偷工減料會被列為不良廠商嗎",
+   "relevant": [
+    "政府採購法 第 101 條"
+   ]
+  },
+  {
+   "id": "s26",
+   "type": "semantic",
+   "query": "誰要負責訂出工程品質的檢查程序和檢驗標準",
+   "relevant": [
+    "政府採購法 第 70 條"
+   ]
+  },
+  {
+   "id": "s27",
+   "type": "semantic",
+   "query": "公共工程委託設計監造時技師簽證要先提什麼計畫",
+   "relevant": [
+    "公共工程專業技師簽證規則 第 6 條"
+   ]
+  }
+ ]
+}

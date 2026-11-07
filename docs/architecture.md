@@ -131,7 +131,7 @@ Migration `0006` 建立租戶表，將既有文件、專案和法規歸入預設
                       │（第二階段才啟用）
                       ▼
           ┌───────────────────────┐
-          │  Vector DB (Qdrant)    │  ←── 語意搜尋，第一階段不啟用
+          │  pgvector（同一個 PG） │  ←── 語意搜尋（Phase 2，2026-11）
           └───────────────────────┘
 
           ┌───────────────────────┐
@@ -191,7 +191,7 @@ Migration `0006` 建立租戶表，將既有文件、專案和法規歸入預設
 | 字串相似度 | rapidfuzz | 規則式比對優先於向量/LLM，符合第十二節「不要急著上向量庫」的原則；輕量、無需額外服務 |
 | 背景任務 | FastAPI `BackgroundTasks`（`JobRunner` 介面包裝，未來可換 Celery+Redis） | 對應第十八節與確認的使用規模 |
 | AI Provider | 抽象 `LLMProvider` 介面；預設實作 Anthropic Claude API | 你確認的預設值；其餘 Provider 之後補 |
-| 向量資料庫 | 不啟用（Phase 1）；Phase 2 起用 Qdrant | 需求書第十二節明確要求 |
+| 向量資料庫 | Phase 1 不啟用；Phase 2（2026-11）改用 PostgreSQL + pgvector，不另架 Qdrant | 語料幾千筆、要和法規主檔 join，同一個資料庫最簡單；見 semantic-search.md |
 | 前端 | React 18 + Vite + TypeScript + 簡單元件庫（如 shadcn/ui 或 Ant Design，MVP 可先用陽春 CSS） | 見上方 1.7 的說明 |
 | 報表匯出 | openpyxl（Excel）、csv（內建）、reportlab 或 WeasyPrint（PDF） | 常見成熟套件，授權皆友善 |
 | 容器化 | Docker + docker-compose（backend / frontend / postgres，未來加 qdrant） | 對應確認的部署環境 |

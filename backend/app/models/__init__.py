@@ -12,6 +12,7 @@ from app.models.checklist import (
 from app.models.document import Document, DocumentSection
 from app.models.enterprise import EnterpriseDocument
 from app.models.job import Job
+from app.models.knowledge import KnowledgeChunk
 from app.models.login_throttle import LoginAttempt, LoginThrottleKey
 from app.models.project import Project, ProjectDocument, WorkItem
 from app.models.reference import RegulationReference
@@ -35,6 +36,7 @@ __all__ = [
     "DrawingSheet",
     "EnterpriseDocument",
     "Job",
+    "KnowledgeChunk",
     "LoginAttempt",
     "LoginThrottleKey",
     "Project",

@@ -11,6 +11,8 @@ import type {
   DocumentSummary,
   EnterpriseDocumentList,
   Job,
+  KnowledgeSearchMode,
+  KnowledgeSearchResult,
   ManagedUser,
   Project,
   ProjectDocumentLink,
@@ -121,6 +123,8 @@ export const api = {
   getDashboard: () => request<Dashboard>("/dashboard"),
 
   search: (q: string, limit = 10) => request<SearchResult>(`/search${query({ q, limit })}`),
+  searchKnowledge: (q: string, mode: KnowledgeSearchMode = "hybrid", limit = 10) =>
+    request<KnowledgeSearchResult>(`/search/knowledge${query({ q, mode, limit })}`),
 
   listEnterpriseDocuments: () => request<EnterpriseDocumentList>("/enterprise-documents"),
 

@@ -1,0 +1,5 @@
+# 語意搜尋（EMBEDDING_PROVIDER=local）才需要。torch 很大，所以不放進 requirements.txt：
+# 預設設定、測試與 CI 都不需要它，搜尋會退回關鍵字＋字詞相似度。
+#   pip install -r requirements-semantic.txt
+-r requirements.txt
+sentence-transformers>=3.0

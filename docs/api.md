@@ -752,7 +752,7 @@ multipart 上傳 `.xlsx`（格式見範本），**整份取代**這個租戶的�
 
 `items[].issues` 列出所有成立的問題，依「工項來源不一致 > 工法未定 > 依據不全」排序，`result` 是第一個。
 
-## 6.8 跨文件搜尋（示範）
+## 6.8 搜尋
 
 ### `GET /api/search?q=混凝土澆置&limit=10`
 
@@ -772,6 +772,35 @@ multipart 上傳 `.xlsx`（格式見範本），**整份取代**這個租戶的�
   ]
 }
 ```
+
+### `GET /api/search/knowledge?q=溝挖多深要做支撐&mode=hybrid&limit=10`
+
+法規條文（全國法規資料庫，收錄範圍見 `data/search_corpus.json`）與施工綱要規範章節的搜尋，不分租戶。
+索引由 `scripts/build_search_index.py` 建立。設計與評估見 [semantic-search.md](semantic-search.md)。
+
+| 參數 | 說明 |
+|---|---|
+| `mode` | `hybrid`（預設）：條號、章碼、標準編號精確比對排最前，其餘依語意；`lexical`：只比字詞；`vector`：只比語意 |
+| `limit` | 1～50，預設 10 |
+
+```json
+{
+  "query": "溝挖多深要做支撐",
+  "mode": "hybrid",
+  "vector_enabled": true,
+  "method_note": "混合搜尋：指名的條號、章碼或標準編號優先，其餘依語意相近程度排序。",
+  "hits": [
+    { "ref": "營造安全衛生設施標準 第 71 條", "kind": "law_article", "source": "營造安全衛生設施標準",
+      "locator": "第 71 條", "heading": "第五章露天開挖",
+      "snippet": "雇主僱用勞工從事露天開挖作業，其開挖垂直最大深度應妥為設計；…", "score": 0.01639,
+      "ranks": { "vector": 1 } }
+  ]
+}
+```
+
+- `ranks`：這筆在各路的名次，`exact`＝查詢裡指名了它，`vector`／`lexical`＝語意或字詞的第幾名。
+- `vector_enabled` 為 false：後端沒有啟用語意模型（`EMBEDDING_PROVIDER=none`）或還沒建向量，
+  `hybrid` 會改用字詞相似度，`vector` 回傳空陣列，`method_note` 會說明。
 
 ### `POST /api/regulation-changes/{change_id}/reanalyze`
 
