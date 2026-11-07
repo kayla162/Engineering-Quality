@@ -64,8 +64,16 @@ _PARTS = re.compile(r"^([A-Z]*)(\d*)-(\d+)([A-Z]?)$")
 _TWO_DIGIT_SERIAL = re.compile(r"-\d{2}[A-Z]?$")
 
 
-def might_be_index(page_no: int, title: str) -> bool:
-    return page_no <= FRONT_PAGES or bool(INDEX_TITLE.search(title))
+def might_be_index(page_no: int, title: str, readings: list[str] = (), seen_letters: set[str] = frozenset()) -> bool:
+    """可能是索引表的頁：前三頁、圖名有「索引／目錄」，或是一個新字首的第一張（某字首第一次出現、流水號 01）。
+    秀山水電圖每一段的索引頁都是該段第一張（E1-01、TC-01、EPA-01、W-01、SP-01、ES-01、CC-01、F0-01），
+    消防那一段的圖名是淡灰細字、讀不出「索引」，只能靠這一條找到。"""
+    if page_no <= FRONT_PAGES or INDEX_TITLE.search(title):
+        return True
+    return any(
+        (match := _PARTS.match(number)) and match.group(3) == "01" and match.group(1) not in seen_letters
+        for number in readings
+    )
 
 
 def read_index(page: pymupdf.Page, engine: OcrEngine) -> dict[str, list[str]]:
