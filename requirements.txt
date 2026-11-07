@@ -22,6 +22,7 @@ greenlet>=3.0
 python-docx>=1.1
 PyMuPDF>=1.24
 xlrd>=2.0              # 標單是 OLE2 格式的 .xls，openpyxl 讀不了（.xlsx 才走 openpyxl）
+numpy>=1.26            # 掃描圖 OCR 前擦掉表格框線（scanned_title_block）
 
 # --- Matching ---
 rapidfuzz>=3.10
