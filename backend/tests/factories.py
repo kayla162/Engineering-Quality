@@ -1,6 +1,8 @@
 """測試資料產生器。"""
 
+import re
 import uuid
+import zipfile
 from io import BytesIO
 
 import pymupdf
@@ -24,6 +26,30 @@ SAMPLE_PARAGRAPHS = [
 SAMPLE_TABLE = [("項次", "依據規範"), ("1", "採購法")]
 
 
+#: 固定的時間：zip 項目與 docProps/core.xml 的建立／修改時間都改成這個
+_FIXED_ZIP_TIME = (2020, 1, 1, 0, 0, 0)
+_CORE_TIMES = re.compile(rb"(<dcterms:(?:created|modified)[^>]*>)[^<]*(</dcterms:(?:created|modified)>)")
+
+
+def _deterministic_zip(data: bytes) -> bytes:
+    """docx / xlsx 是 zip：每個項目帶存檔當下的時間（2 秒精度），openpyxl 還把修改時間寫進
+    docProps/core.xml（1 秒精度）。同一個產生器呼叫兩次，跨過時間邊界就會產出不同的位元組、
+    不同的檔案指紋——「重複上傳回 409」這類測試就會時好時壞（實測本機 4 次失敗 3 次）。
+    這裡把時間全部固定，內容相同就保證位元組相同。"""
+    source = zipfile.ZipFile(BytesIO(data))
+    buffer = BytesIO()
+    with source, zipfile.ZipFile(buffer, "w") as target:
+        for info in source.infolist():
+            content = source.read(info.filename)
+            if info.filename == "docProps/core.xml":
+                content = _CORE_TIMES.sub(rb"\g<1>2020-01-01T00:00:00Z\g<2>", content)
+            fixed = zipfile.ZipInfo(info.filename, date_time=_FIXED_ZIP_TIME)
+            fixed.compress_type = info.compress_type
+            fixed.external_attr = info.external_attr
+            target.writestr(fixed, content)
+    return buffer.getvalue()
+
+
 def make_docx_bytes() -> bytes:
     """產生一份測試用 DOCX（含標題、段落與表格）。"""
     document = DocxDocument()
@@ -40,7 +66,7 @@ def make_docx_bytes() -> bytes:
 
     buffer = BytesIO()
     document.save(buffer)
-    return buffer.getvalue()
+    return _deterministic_zip(buffer.getvalue())
 
 
 def make_txt_bytes() -> bytes:
@@ -104,7 +130,7 @@ def make_xlsx_bytes(rows=None, sheet_name=SAMPLE_SHEET, extra_sheet=None) -> byt
 
     buffer = BytesIO()
     book.save(buffer)
-    return buffer.getvalue()
+    return _deterministic_zip(buffer.getvalue())
 
 
 def make_xls_bytes(rows=None, sheet_name=SAMPLE_SHEET) -> bytes:
