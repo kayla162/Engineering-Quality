@@ -8,8 +8,8 @@
 **用真實圖驗證過（2026-11）**：某宿舍統包工程的建築竣工圖（CAD 匯出，331 頁）讀到 330 頁。
 CAD 匯出的標題欄裡，標籤「圖號：」「DRG. NO.」和值「A2-08B」是**分開的文字物件**，文字順序
 也不照版面，所以標題欄靠位置讀：離「圖號」標籤最近、長得像圖號的那一行，和離「圖名」標籤
-最近的中文那一行。同案的結構圖是掃描檔，OCR 讀得到部分圖名、讀不到圖號（每頁約 5 秒），
-不支援——讀到零張時檢核表會說明原因，不判斷階段 2。同案的結構**竣工**圖是 CAD 匯出，但圖號（與部分圖名）
+最近的中文那一行。同案的結構圖是掃描檔，整份沒有文字層時改走 _read_scanned
+（OCR 標題欄，圖號由同冊的掃描索引表整冊決定，見 scanned_sheet_index）。同案的結構**竣工**圖是 CAD 匯出，但圖號（與部分圖名）
 被轉成淡灰髮絲線、不在文字層，標題欄那兩格加粗線寬後 OCR（_OutlinedTitleBlock）。
 
 圖名比對刻意保守：對錯圖號比沒有圖號更糟（spec 第 8 節）。只比圖名去掉「詳圖」
@@ -229,9 +229,10 @@ def _without_near(title: str, signatures: list[str]) -> str:
 
 
 def _read_scanned(path: Path) -> list[DrawingSheetRow]:
-    """整份都沒有文字層（用印後掃描）：OCR 讀每一頁的標題欄。OCR 不能用時回空清單，
-    檢核表會說明這一冊讀不到。"""
+    """整份都沒有文字層（用印後掃描）：OCR 讀每一頁的標題欄，圖號再由同一冊的圖號索引表整冊一起決定
+    （scanned_sheet_index）。OCR 不能用時回空清單，檢核表會說明這一冊讀不到。"""
     from app.parsers import ocr
+    from app.specs.scanned_sheet_index import assign, might_be_index, read_index
     from app.specs.scanned_title_block import read_title_block
 
     engine, reason = ocr.load_engine()
@@ -239,20 +240,28 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
         logger.warning("掃描的契約圖需要 OCR，但 OCR 不能用：%s", reason)
         return []
     best = ocr.load_best_engine()
-    sheets: dict[str, DrawingSheetRow] = {}
+    titles: list[str] = []
+    readings: list[list[str]] = []
+    index: list[str] = []
     with pymupdf.open(str(path)) as document:
         for page_no, page in enumerate(document, start=1):
-            number, title = read_title_block(page, engine)
+            numbers, title = read_title_block(page, engine)
             if best is not None and not _good_scanned_title(title):
                 # fast 模型讀不出像圖名的：best 模型補讀，取比較像圖名的那個（秀山水電圖實測各有勝負）
-                better_number, better_title = read_title_block(page, best)
+                better_numbers, better_title = read_title_block(page, best)
                 if _scanned_title_score(better_title) > _scanned_title_score(title):
                     title = better_title
-                number = number or better_number
-            if not title:
-                continue
-            sheet_no = number or f"第{page_no}頁"
-            sheets.setdefault(sheet_no, DrawingSheetRow(sheet_no, title[:255], page_no, is_ocr=True))
+                numbers = numbers + better_numbers
+            if might_be_index(page_no, title):
+                index += read_index(page, engine)
+            titles.append(title)
+            readings.append(numbers)
+    sheets: dict[str, DrawingSheetRow] = {}
+    for page_no, (title, number) in enumerate(zip(titles, assign(readings, index)), start=1):
+        if not title:
+            continue
+        sheet_no = number or f"第{page_no}頁"
+        sheets.setdefault(sheet_no, DrawingSheetRow(sheet_no, title[:255], page_no, is_ocr=True))
     return list(sheets.values())
 
 
@@ -391,9 +400,6 @@ OUTLINE_NUMBER_TRIES = ((3, 200), (3, 300), (2, 300))
 OUTLINE_TITLE_TRIES = ((0, 3, 200), (0, 2, 300), (8, 3, 200), (8, 2, 300), (0, 3, 300))
 #: OCR 讀出的圖名要長這樣才收：「…圖」「…圖(一)」「…表」「…說明」
 _OCR_TITLE = re.compile(r"(?:圖|表)(?:[（(][一二三四五六七八九十\d—–=-]+[)）])?$|說明$")
-_OCR_NUMBER = re.compile(r"([A-Z]{1,3}?)([0-9O]{0,2})\s?[-—–~]\s?([0-9O]{1,3}[A-Z]?)")
-#: 開頭沒有字母、卻是「5」的圖號（「50-08」）：S 被讀成 5
-_S_AS_FIVE = re.compile(r"(?<![A-Z0-9])5(?=[0-9O]{0,2}\s?[-—–~])")
 
 
 def _looks_like_ocr_title(title: str) -> bool:
@@ -404,16 +410,11 @@ def _looks_like_ocr_title(title: str) -> bool:
 
 
 def _outlined_number(text: str) -> str | None:
-    """OCR 讀到的一行裡的圖號。字母後面的「O」是 0（「SO-08」->「S0-08」），開頭的 5 是 S；
-    「$S1-05」這種把 S 讀成兩個字的，換掉 $ 之後會變「SS」，只留一個。"""
-    text = _S_AS_FIVE.sub("S", text.upper().replace("$", "S").replace("§", "S"))
-    text = re.sub(r"(?<![A-Z])SS(?=\d)", "S", text)
-    match = _OCR_NUMBER.search(text)
-    if not match:
-        return None
-    prefix, digits, serial = match.groups()
-    number = f"{prefix}{digits.replace('O', '0')}-{serial[:3].replace('O', '0')}{serial[3:]}"
-    return number if _NO_VALUE.match(number) else None
+    """OCR 讀到的一行裡的圖號（換回原本寫法的規則見 scanned_title_block.sheet_numbers_in）。
+    CAD 圖的圖號一定有字母開頭，所以「00-01」這種不收。"""
+    from app.specs.scanned_title_block import sheet_numbers_in
+
+    return next((number for number in sheet_numbers_in(text) if _NO_VALUE.match(number)), None)
 
 
 def _lines(page: pymupdf.Page) -> list[tuple[pymupdf.Rect, str]]:

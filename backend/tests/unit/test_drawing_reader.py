@@ -378,22 +378,25 @@ def test_the_best_model_rereads_only_pages_without_a_title_like_reading(tmp_path
     from app.parsers import ocr
 
     fast, best = object(), object()
+    # 沒有索引表時，圖號要兩種讀法一致才收；第 2 頁的兩票一票來自 fast、一票來自 best
     readings = {
-        (1, fast): ("E-01", "電氣單線圖負載表(2)"),
-        (2, fast): (None, "動力ee"),
-        (2, best): ("E-02", "一層平面圖動力插座配置平面圖"),
-        (3, fast): ("E-03", "四層平面圖"),
-        (3, best): (None, "四"),
+        (1, fast): (["E-01", "E-01"], "電氣單線圖負載表(2)"),
+        (2, fast): (["E-02"], "動力ee"),
+        (2, best): (["E-02"], "一層平面圖動力插座配置平面圖"),
+        (3, fast): (["E-03", "E-03"], "四層平面圖"),
+        (3, best): ([], "四"),
     }
     calls = []
 
     def read(page, engine):
         calls.append((page.number + 1, engine))
-        return readings.get((page.number + 1, engine), (None, ""))
+        return readings.get((page.number + 1, engine), ([], ""))
 
     monkeypatch.setattr(ocr, "load_engine", lambda: (fast, None))
     monkeypatch.setattr(ocr, "load_best_engine", lambda: best)
     monkeypatch.setattr("app.specs.scanned_title_block.read_title_block", read)
+    # 前三頁會試讀索引表；這裡沒有索引表
+    monkeypatch.setattr("app.specs.scanned_sheet_index.read_index", lambda page, engine: [])
     doc = pymupdf.open()
     for _ in range(3):
         doc.new_page()

@@ -4,8 +4,11 @@
 標題欄是頁面右側的直條：「圖名 DRAWING」下面一兩行是圖名，再往下是簽名與設計事務所，
 最底下「圖號 DWG NO.」右邊是圖號。實測（2026-11，三冊 286 頁，每頁約 2 秒）：
 
-- 圖名約八成讀得到，但會混進雜字；圖號只有約三分之一讀得到（「A12-07」常讀成「TAI2-07」）。
-- 所以結果一律標示 OCR（DrawingSheetRow.is_ocr），圖號讀不到時用「第N頁」，不猜。
+- 圖名約八成讀得到，但會混進雜字。
+- 圖號原本只有約三分之一讀得到，還有讀錯的（「S2-02」讀成「S9-02」）。原因是整格連「圖號 DWG NO.」
+  標籤和框線一起辨識；改成只框值那一格、先擦掉框線、用兩種解析度各讀一次，每頁得到幾個候選，
+  再由整冊的圖號索引表投票決定（scanned_sheet_index）。
+- 結果一律標示 OCR（DrawingSheetRow.is_ocr），圖號讀不到時用「第N頁」，不猜。
 
 圖名只取「DRAWING」標籤正下方**連續**的幾行：中間空了一段（>15pt）或遇到事務所、電話這類
 字就停——簽名就夾在那一段空白後面，這樣不必知道簽的是誰也能把它排除。
@@ -13,6 +16,7 @@
 
 import re
 
+import numpy as np
 import pymupdf
 
 from app.parsers.ocr import OcrEngine
@@ -28,18 +32,31 @@ TITLE_DPI = 400
 SIGNATURE_ABOVE = 30
 
 _DRAWING_LABEL = re.compile(r"DRAWING|圖\s*名")
-_NUMBER_LABEL = re.compile(r"DWG|圖\s*號")
+#: 「DWG NO.」實際讀成「OWG NO.」「DWC. NO.」「DW NO.」「)WG_NO.」「WG NC.」「DWE NO,」
+_NUMBER_LABEL = re.compile(r"[DO0Q)]?W[GCES6]?[.,]?\s*_?\s*N[O0CG]|圖\s*號")
 _STOP = re.compile(r"聯合|建築師|事務所|技師|公司|電話|傳真|TEL|FAX|APRVD|CHECK|DESIGN|DRAWN", re.I)
 _CJK = re.compile(r"[一-鿿]")
-_NUMBER = re.compile(r"([A-Z]{1,3}\d{0,2})\s?[-—–~]\s?(\d{1,3}[A-Z]?(?:-\d{1,2})?)")
+#: 圖號值那一格：依序用這幾種解析度讀（框線擦掉後），再讀一次含標籤的整格（舊讀法，偶爾只有它讀得到）
+NUMBER_VALUE_DPIS = (400, 600)
+#: 長於這個長度（吋）的直線、橫線是框線，OCR 前擦掉
+LINE_MIN_INCH = 0.25
+
+#: OCR 讀到的圖號：「S1-22」「A10-01」「00-01」（建築圖封面類沒有字母）。字母與數字常互相讀錯，
+#: 所以字母段和數字段都先放寬，再在 sheet_numbers_in 裡換回來
+_OCR_NUMBER = re.compile(
+    r"(?<![A-Z0-9])([A-Z]{1,3})?([0-9OIL]{0,2})\s?[-—–~=]\s?([0-9OIL]{1,3})([A-Z]?)(?![0-9A-Z])"
+)
+#: 開頭沒有字母、卻是「5」的圖號（「50-08」）：S 被讀成 5
+_S_AS_FIVE = re.compile(r"(?<![A-Z0-9])5(?=[0-9O]{0,2}\s?[-—–~])")
+_DIGIT = str.maketrans("OIL", "011")
 
 
-def read_title_block(page: pymupdf.Page, engine: OcrEngine) -> tuple[str | None, str]:
-    """（圖號或 None, 圖名或空字串）。"""
+def read_title_block(page: pymupdf.Page, engine: OcrEngine) -> tuple[list[str], str]:
+    """（圖號的幾種讀法，可能是空的、可能互相矛盾；圖名或空字串）。圖號由整冊一起決定。"""
     width, height = page.rect.width, page.rect.height
     strip = pymupdf.Rect(width * STRIP_FROM, 0, width, height)
     lines = _ocr_lines(page, strip, engine.dpi, engine)
-    return _number(page, lines, engine), _title(page, strip, lines, engine)
+    return _numbers(page, lines, engine), _title(page, strip, lines, engine)
 
 
 def _title(
@@ -92,35 +109,121 @@ def _middle(rect: pymupdf.Rect) -> float:
     return (rect.y0 + rect.y1) / 2
 
 
-def _number(page: pymupdf.Page, lines: list[tuple[pymupdf.Rect, str]], engine: OcrEngine) -> str | None:
-    label = next((rect for rect, text in lines if _NUMBER_LABEL.search(text)), None)
-    if label is None:
-        return None
-    # 圖號字小、又擠在框線旁，整條辨識常漏掉；只框標籤右邊那一格，放大再讀一次
-    cell = pymupdf.Rect(label.x0, label.y0 - 14, page.rect.width - 2, label.y1 + 4)
-    for _, text in _ocr_lines(page, cell, NUMBER_DPI, engine, language="eng"):
-        # 「S」常被讀成「$」「§」
-        match = _NUMBER.search(text.upper().replace("$", "S").replace("§", "S"))
-        if match:
-            return f"{match.group(1)}-{match.group(2)}"
-    return None
+def _numbers(page: pymupdf.Page, lines: list[tuple[pymupdf.Rect, str]], engine: OcrEngine) -> list[str]:
+    """圖號格的幾種讀法。標籤取最下面那個（標題欄在直條底部）。
+
+    秀山結構圖實測：連標籤一起框的舊讀法 32 頁讀對 16、讀錯 6（「S2-01」讀成「S7-01」）；只框值、
+    擦掉框線後讀對的多很多、沒有讀錯。舊讀法仍留著當其中一票，偶爾只有它讀得到。
+    """
+    labels = [rect for rect, text in lines if _NUMBER_LABEL.search(text)]
+    if not labels:
+        return []
+    label = max(labels, key=lambda rect: rect.y0)
+    right = page.rect.width - 2
+    value = pymupdf.Rect(label.x1 + 2, label.y0 - 16, right, label.y1 + 4) & page.rect
+    whole = pymupdf.Rect(label.x0, label.y0 - 14, right, label.y1 + 4) & page.rect
+    found = []
+    if not value.is_empty:
+        for dpi in NUMBER_VALUE_DPIS:
+            found += _sheet_numbers(_ocr_lines(page, value, dpi, engine, language="eng", erase_lines=True))
+    if not whole.is_empty:
+        found += _sheet_numbers(_ocr_lines(page, whole, NUMBER_DPI, engine, language="eng"))
+    return found
+
+
+def _sheet_numbers(lines: list[tuple[pymupdf.Rect, str]]) -> list[str]:
+    return [number for _, text in lines for number in sheet_numbers_in(text)]
+
+
+def sheet_numbers_in(text: str) -> list[str]:
+    """一行 OCR 文字裡所有像圖號的字，換回原本的寫法：「$2-1O」->「S2-10」、「SI-23」->「S1-23」、
+    「AL0-01」「AIO-O3」->「A10-01」「A10-03」、「50-08」->「S0-08」。"""
+    text = _S_AS_FIVE.sub("S", text.upper().replace("$", "S").replace("§", "S"))
+    text = re.sub(r"(?<![A-Z])SS(?=\d)", "S", text)
+    numbers = []
+    for match in _OCR_NUMBER.finditer(text):
+        letters, digits, serial, suffix = match.groups()
+        letters = letters or ""
+        # 字母段第一個字之後的 I、L、O 其實是數字（「AL0」是「A10」）
+        while len(letters) > 1 and letters[-1] in "ILO":
+            letters, digits = letters[:-1], letters[-1] + digits
+        digits, serial = digits.translate(_DIGIT), serial.translate(_DIGIT)
+        if len(digits) > 2 or (not letters and len(digits) != 2):
+            continue
+        numbers.append(f"{letters}{digits}-{serial}{suffix}")
+    return numbers
 
 
 def _ocr_lines(
-    page: pymupdf.Page, clip: pymupdf.Rect, dpi: int, engine: OcrEngine, language: str | None = None
+    page: pymupdf.Page,
+    clip: pymupdf.Rect,
+    dpi: int,
+    engine: OcrEngine,
+    language: str | None = None,
+    erase_lines: bool = False,
 ) -> list[tuple[pymupdf.Rect, str]]:
-    """辨識頁面的一塊，回傳（頁面座標的框, 文字），由上而下。"""
-    pixmap = page.get_pixmap(dpi=dpi, clip=clip)
+    """辨識頁面的一塊，回傳（頁面座標的框, 文字），由上而下。
+
+    erase_lines：先把框線擦掉、四周留白。圖號格和索引表的字緊貼框線，Tesseract 會把線當成字的一部分，
+    整格讀不出來（秀山結構圖 32 頁裡有 5 頁）。
+    """
+    pad = 0
+    if erase_lines:
+        pixmap, pad = _without_lines(page, clip, dpi)
+    else:
+        pixmap = page.get_pixmap(dpi=dpi, clip=clip)
     ocr_page = pymupdf.open(
         "pdf",
         pixmap.pdfocr_tobytes(language=language or engine.languages, tessdata=str(engine.tessdata)),
     )[0]
-    sx, sy = clip.width / ocr_page.rect.width, clip.height / ocr_page.rect.height
+    # OCR 頁的座標是 pt；扣掉留白後換回頁面座標
+    pad_pt = pad * 72 / dpi
+    sx = clip.width / (ocr_page.rect.width - 2 * pad_pt)
+    sy = clip.height / (ocr_page.rect.height - 2 * pad_pt)
     lines = []
     for block in ocr_page.get_text("dict")["blocks"]:
         for line in block.get("lines", []):
             text = "".join(span["text"] for span in line["spans"]).strip()
             if text:
-                x0, y0, x1, y1 = line["bbox"]
+                x0, y0, x1, y1 = (v - pad_pt for v in line["bbox"])
                 lines.append((pymupdf.Rect(clip.x0 + x0 * sx, clip.y0 + y0 * sy, clip.x0 + x1 * sx, clip.y0 + y1 * sy), text))
     return sorted(lines, key=lambda item: (item[0].y0, item[0].x0))
+
+
+def _without_lines(page: pymupdf.Page, clip: pymupdf.Rect, dpi: int, pad: int = 20) -> tuple[pymupdf.Pixmap, int]:
+    """灰階算圖、擦掉長直線與長橫線、四周補白邊。回傳 RGB（Tesseract 不收灰階 pixmap，會什麼都不回）。"""
+    gray = page.get_pixmap(dpi=dpi, clip=clip, colorspace=pymupdf.csGRAY)
+    image = np.frombuffer(gray.samples, dtype=np.uint8).reshape(gray.height, gray.stride)[:, : gray.width].copy()
+    dark = image < 160
+    length = max(int(dpi * LINE_MIN_INCH), 8)
+    line = _long_runs(dark, length) | _long_runs(dark.T, length).T
+    # 線旁邊的鋸齒一起擦
+    grown = line.copy()
+    grown[1:] |= line[:-1]
+    grown[:-1] |= line[1:]
+    grown[:, 1:] |= line[:, :-1]
+    grown[:, :-1] |= line[:, 1:]
+    image[grown] = 255
+    image = np.pad(image, pad, constant_values=255)
+    cleaned = pymupdf.Pixmap(pymupdf.csGRAY, image.shape[1], image.shape[0], image.tobytes(), False)
+    cleaned.set_dpi(dpi, dpi)
+    return pymupdf.Pixmap(pymupdf.csRGB, cleaned), pad
+
+
+def _long_runs(dark: np.ndarray, length: int) -> np.ndarray:
+    """每一列裡，屬於連續 length 個以上深色像素的位置。"""
+    rows, width = dark.shape
+    if width < length:
+        return np.zeros_like(dark)
+    total = np.zeros((rows, width + 1), dtype=np.int32)
+    np.cumsum(dark, axis=1, out=total[:, 1:])
+    # starts[:, i]：從 i 開始連續 length 個都是深色
+    starts = (total[:, length:] - total[:, : width - length + 1]) == length
+    count = starts.shape[1]
+    started = np.zeros((rows, count + 1), dtype=np.int32)
+    np.cumsum(starts, axis=1, out=started[:, 1:])
+    # 像素 j 被覆蓋：某個起點 i 落在 [j-length+1, j]
+    index = np.arange(width)
+    low = np.clip(index - length + 1, 0, count)
+    high = np.clip(index + 1, 0, count)
+    return (started[:, high] - started[:, low]) > 0
