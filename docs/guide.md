@@ -291,7 +291,7 @@ Linux／macOS 用 cron 跑同一串指令即可。
 | **AI 輔助**（沒有 API key 時） | `.env` 設 `ENABLE_LLM_FALLBACK=true`、`LLM_PROVIDER=demo` | 固定規則，不是模型；紀錄的模型名稱是「demo-rules（示範，非真實 AI）」 |
 | **標準版次與廢止** | `REGULATION_SOURCES` 加上 `standards_demo`（排在 `mock` 前面） | 目錄只有 11 部（2026-11 依官方網站查證）；引用 `CNS 3090:2015` 會因「最新為 2025 年版」判為已修正，目錄外的標準仍是疑似對應 |
 | **檢核表：契約圖與工法欄**（階段 2、4） | 把 `data/samples/project_demo/` 的四份文件掛到同一個專案（標單／施工規範／契約圖／其他），建立工項與檢核表 | 契約圖是文字示意的 PDF。另有秀山分隊的示範契約圖 `data/samples/xiushan_contract_drawings_demo.pdf`（33 張，`scripts/generate_xiushan_drawings_demo.py` 產生）：圖目錄是假的，但版面照真實 CAD 圖，讀取走真實圖的同一條路 |
-| **跨文件搜尋**（Phase 2 RAG 的替身） | 上方「搜尋」分頁 | 字詞相似度，不是語意模型；換個說法可能找不到 |
+| **文件段落搜尋** | 上方「搜尋」分頁的「相關段落」 | 字詞相似度，不是語意模型；換個說法可能找不到（法規條文搜尋是語意的，見下方） |
 
 ### 完整示範專案（一個專案看完所有功能）
 
@@ -583,7 +583,10 @@ npm test --prefix frontend
 - **DOCX 沒有頁碼**：頁碼由 Word 排版決定，解析階段取不到，因此一律顯示「—」而不是猜一個數字。PDF 有頁碼。
 - **未實作 NER 抽取層**：MVP 只有規則 + 字典 + LLM fallback；要加 NER 只需在 `extractors/` 多插一層，候選格式不變。
 - **帳號登入**：使用本機帳密與租戶隔離；部署前先執行 `scripts/bootstrap_admin.py` 建立第一位管理員。未提供公開註冊或密碼重設郵件。
-- **向量資料庫未啟用**：Phase 2 才會加入（`docker-compose.yml` 裡已預留註解）。目前的「搜尋」是字詞相似度的示範版，不是語意搜尋。
+- **語意搜尋只涵蓋法規條文與規範章節**：向量存在 PostgreSQL（pgvector），要安裝 `requirements-semantic.txt`、
+  設 `EMBEDDING_PROVIDER=local` 並執行 `scripts/build_search_index.py`（條文全文來自 `sync_taiwan_law.py --keep-raw`）。
+  Docker 映像檔預設不含 torch，容器內只會有條號比對＋字詞相似度。使用者上傳文件的段落搜尋仍是字詞相似度。
+  設計與評估見 [semantic-search.md](semantic-search.md)。
 - **檢核表階段 2、4：契約圖只讀標題欄的圖號與圖名**（讀不懂圖面）。CAD 匯出的圖（某宿舍統包工程竣工圖，331 頁）
   靠文字位置讀到 328 張。同案的結構竣工圖（54 頁）圖號與 S0、S1 頁的圖名是**寬度 0 的淡灰髮絲線**、不在文字層：
   算圖時把最細線寬加粗再 OCR 標題欄那兩格，讀到 44 張（22 張靠 OCR）；再加上 best 模型補讀與圖號索引表校正，

@@ -27,10 +27,19 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+#: 只在 PostgreSQL 建、模型裡沒有宣告的索引（0013 的 pgvector HNSW）。autogenerate 不要把它當成多出來的
+_DATABASE_ONLY_INDEXES = {"ix_knowledge_chunks_embedding_hnsw"}
+
+
+def _include_object(obj, name, type_, reflected, compare_to) -> bool:
+    return not (type_ == "index" and name in _DATABASE_ONLY_INDEXES)
+
+
 def _do_run_migrations(connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
+        include_object=_include_object,
         render_as_batch=True,  # SQLite 需要 batch 模式才能改欄位
     )
     with context.begin_transaction():

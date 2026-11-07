@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     # 標題欄用 fast 模型讀不出像圖名的頁，再用它補讀一次（慢約 2.3 倍，只補讀那幾頁）。留空就不補讀
     TESSDATA_BEST_PATH: str = ""
 
+    # --- 語意搜尋（app/search/embeddings.py） ---
+    # none：不載入模型，法規條文搜尋只用關鍵字＋字詞相似度（預設；測試與 CI 不必裝 torch）
+    # local：本機 sentence-transformers 模型，要先 pip install -r requirements-semantic.txt
+    EMBEDDING_PROVIDER: str = "none"
+    EMBEDDING_MODEL: str = "BAAI/bge-m3"
+
     # --- 比對引擎門檻 ---
     # >= AUTO：直接採用比對到的法規狀態，視為高信心
     # >= POSSIBLE 且 < AUTO：仍採用該法規狀態，但標記為「疑似」，且是 LLM fallback 的觸發區間

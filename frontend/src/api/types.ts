@@ -422,6 +422,29 @@ export interface SearchResult {
   }[];
 }
 
+export type KnowledgeSearchMode = "hybrid" | "lexical" | "vector";
+
+/** 法規條文與施工綱要規範章節的搜尋（GET /api/search/knowledge） */
+export interface KnowledgeSearchResult {
+  query: string;
+  mode: KnowledgeSearchMode;
+  /** false：語意模型沒有啟用，只依條號與字詞相似度 */
+  vector_enabled: boolean;
+  method_note: string;
+  hits: {
+    /** 「建築法 第 34 條」「PCCES 03310」 */
+    ref: string;
+    kind: "law_article" | "spec_chapter";
+    source: string;
+    locator: string;
+    heading: string;
+    snippet: string;
+    score: number;
+    /** 各路名次：exact（指名條號）、lexical（字詞）、vector（語意） */
+    ranks: Partial<Record<"exact" | "lexical" | "vector", number>>;
+  }[];
+}
+
 /** 法規雙重規範提醒（示範目錄）。不是檢核結果；provenance 說明這條有沒有出處。 */
 export interface CrossRuleReminder {
   rule_id: string;

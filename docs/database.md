@@ -406,6 +406,27 @@ Migration `0007` 建立 `auth_login_throttle_keys` 與 `auth_login_attempts`，�
 
 工項與圖的對應不存，讀取時用圖名比對算出來（`app/specs/drawing_reader.py`）。
 
+### 2.19 `knowledge_chunks`（Phase 2 語意搜尋，migration `0013`）
+
+法規條文與施工綱要規範章節的搜尋語料，一列一條條文或一個章節。公開資料，**不分租戶**。
+由 `scripts/build_search_index.py` 整份重建（先刪後插），API 不會寫入。設計見 [semantic-search.md](semantic-search.md)。
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| id | UUID PK | |
+| ref | VARCHAR(128), unique | 「建築法 第 34 條」「PCCES 03310」，評估集的正確答案也用它 |
+| kind | VARCHAR(24) | `law_article` / `spec_chapter` |
+| source | VARCHAR(128) | 法規名稱，或「施工綱要規範」 |
+| locator | VARCHAR(32) | 「第 34 條」或章碼 |
+| heading | VARCHAR(255) | 條文所在章節標題，或規範章名 |
+| content | TEXT | 條文全文；章節是空字串（目錄只有章名） |
+| embedding | PostgreSQL `vector(1024)`；SQLite JSON，nullable | bge-m3 向量。沒有啟用語意模型時建索引，這欄是空的 |
+| embedding_model | VARCHAR(128), nullable | 產生向量的模型 |
+| indexed_at | TIMESTAMPTZ | |
+
+PostgreSQL 上 migration 會 `CREATE EXTENSION vector`，並建 `ix_knowledge_chunks_embedding_hnsw`
+（HNSW，`vector_cosine_ops`）。這個索引模型裡沒有宣告（SQLite 沒有），`migrations/env.py` 讓 autogenerate 略過它。
+
 ---
 
 ## 3. 列舉值定義
