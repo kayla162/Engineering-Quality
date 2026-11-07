@@ -28,5 +28,9 @@ def created_at_column():
     return mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+def updated_at_column():
+    return mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
 def nullable_timestamp():
     return mapped_column(DateTime(timezone=True), nullable=True)

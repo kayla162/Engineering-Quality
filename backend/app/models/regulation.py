@@ -8,7 +8,7 @@ from sqlalchemy import Date, DateTime, ForeignKey, Index, String, UniqueConstrai
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import RegulationStatus
-from app.models.base import Base, JsonColumn, created_at_column, utcnow, uuid_pk
+from app.models.base import Base, JsonColumn, created_at_column, updated_at_column, uuid_pk
 
 
 class Regulation(Base):
@@ -34,9 +34,7 @@ class Regulation(Base):
         Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = created_at_column()
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
-    )
+    updated_at: Mapped[datetime] = updated_at_column()
 
     aliases: Mapped[list["RegulationAlias"]] = relationship(
         back_populates="regulation", cascade="all, delete-orphan", lazy="selectin"
