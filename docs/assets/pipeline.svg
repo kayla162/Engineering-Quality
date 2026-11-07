@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" role="img" aria-labelledby="title desc">
+  <title id="title">工程法規符合性檢查流程</title>
+  <desc id="desc">一份工程文件依序經過上傳、解析與 OCR、抽取引用、比對查證、人工覆核，最後產出報告與檢核表，並標示每筆引用的狀態。</desc>
+  <style>
+    .bg { fill: #f7f9fc; stroke: #dde3ec; }
+    .stage rect { fill: #ffffff; stroke: #c9d3e0; stroke-width: 1.5; }
+    .stage text { font: 600 15px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; fill: #1f3864; text-anchor: middle; }
+    .stage .sub { font: 12px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; fill: #5b6b80; }
+    .arrow { stroke: #9fb0c6; stroke-width: 2; fill: none; marker-end: url(#head); }
+    .title { font: 700 18px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; fill: #1f3864; }
+    .chip text { font: 600 13px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; text-anchor: middle; }
+
+    /* 一個循環 9 秒：文件走 6 站（每站 1 秒），之後結果標籤依序出現，再淡出重來 */
+    .doc { animation: travel 9s ease-in-out infinite; }
+    @keyframes travel {
+      0%   { transform: translateX(0); opacity: 0; }
+      3%   { opacity: 1; }
+      11%  { transform: translateX(0); }
+      17%  { transform: translateX(140px); }
+      28%  { transform: translateX(140px); }
+      34%  { transform: translateX(280px); }
+      45%  { transform: translateX(280px); }
+      51%  { transform: translateX(420px); }
+      62%  { transform: translateX(420px); }
+      68%  { transform: translateX(560px); }
+      79%  { transform: translateX(560px); }
+      85%  { transform: translateX(700px); opacity: 1; }
+      97%  { transform: translateX(700px); opacity: 1; }
+      100% { transform: translateX(700px); opacity: 0; }
+    }
+
+    .stage rect { animation: glow 9s infinite; }
+    @keyframes glow {
+      0%, 13%  { fill: #ffffff; stroke: #c9d3e0; }
+      2%, 11%  { fill: #e8f0fb; stroke: #2f6fdb; }
+    }
+    .s1 rect { animation-delay: 0s; }
+    .s2 rect { animation-delay: 1.5s; }
+    .s3 rect { animation-delay: 3s; }
+    .s4 rect { animation-delay: 4.5s; }
+    .s5 rect { animation-delay: 6s; }
+    .s6 rect { animation-delay: 7.5s; }
+
+    .chip { opacity: 0; animation: pop 9s infinite; }
+    @keyframes pop {
+      0%, 78%  { opacity: 0; transform: translateY(8px); }
+      84%, 96% { opacity: 1; transform: translateY(0); }
+      100%     { opacity: 0; }
+    }
+    .c2 { animation-delay: 0.25s; }
+    .c3 { animation-delay: 0.5s; }
+    .c4 { animation-delay: 0.75s; }
+    .c5 { animation-delay: 1s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .doc, .stage rect, .chip { animation: none; }
+      .doc { transform: translateX(700px); }
+      .chip { opacity: 1; }
+    }
+  </style>
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9fb0c6"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="1" y="1" width="878" height="298" rx="14"/>
+  <text class="title" x="30" y="40">從工程文件到可稽核的檢核結果</text>
+
+  <!-- 六個階段，中心 x = 90 + 140n -->
+  <g class="stage s1"><rect x="30" y="110" width="120" height="64" rx="10"/><text x="90" y="138">上傳文件</text><text class="sub" x="90" y="158">Word・PDF・Excel</text></g>
+  <g class="stage s2"><rect x="170" y="110" width="120" height="64" rx="10"/><text x="230" y="138">解析・OCR</text><text class="sub" x="230" y="158">掃描檔也讀得到</text></g>
+  <g class="stage s3"><rect x="310" y="110" width="120" height="64" rx="10"/><text x="370" y="138">抽取引用</text><text class="sub" x="370" y="158">規則・字典・AI</text></g>
+  <g class="stage s4"><rect x="450" y="110" width="120" height="64" rx="10"/><text x="510" y="138">比對查證</text><text class="sub" x="510" y="158">官方資料庫</text></g>
+  <g class="stage s5"><rect x="590" y="110" width="120" height="64" rx="10"/><text x="650" y="138">人工覆核</text><text class="sub" x="650" y="158">確認或否決</text></g>
+  <g class="stage s6"><rect x="730" y="110" width="120" height="64" rx="10"/><text x="790" y="138">報告・檢核表</text><text class="sub" x="790" y="158">Excel・PDF・Word</text></g>
+
+  <path class="arrow" d="M152,142 H166"/>
+  <path class="arrow" d="M292,142 H306"/>
+  <path class="arrow" d="M432,142 H446"/>
+  <path class="arrow" d="M572,142 H586"/>
+  <path class="arrow" d="M712,142 H726"/>
+
+  <!-- 移動的文件 -->
+  <g class="doc">
+    <path d="M78,62 h18 l8,8 v28 h-26 z" fill="#ffffff" stroke="#2f6fdb" stroke-width="2"/>
+    <path d="M96,62 v8 h8" fill="none" stroke="#2f6fdb" stroke-width="2"/>
+    <path d="M83,78 h16 M83,84 h16 M83,90 h11" stroke="#2f6fdb" stroke-width="1.6"/>
+  </g>
+
+  <!-- 判定結果 -->
+  <g class="chip c1"><rect x="120" y="214" width="112" height="32" rx="16" fill="#e3f4e8"/><text x="176" y="235" fill="#1e7a3c">現行有效</text></g>
+  <g class="chip c2"><rect x="244" y="214" width="112" height="32" rx="16" fill="#fff3dc"/><text x="300" y="235" fill="#9a6200">已修正</text></g>
+  <g class="chip c3"><rect x="368" y="214" width="112" height="32" rx="16" fill="#fde5e5"/><text x="424" y="235" fill="#b42318">已廢止</text></g>
+  <g class="chip c4"><rect x="492" y="214" width="112" height="32" rx="16" fill="#e7eefc"/><text x="548" y="235" fill="#2f5fb3">疑似對應</text></g>
+  <g class="chip c5"><rect x="616" y="214" width="144" height="32" rx="16" fill="#eef0f3"/><text x="688" y="235" fill="#4a5568">附比對理由</text></g>
+</svg>
