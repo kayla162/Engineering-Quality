@@ -262,6 +262,8 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
     readings: list[list[str]] = []
     #: 索引表上的圖號 -> 它的圖名的幾種讀法
     index: dict[str, list[str]] = {}
+    #: 前面的頁讀到過的字首（找「新字首的第一張」用）
+    seen_letters: set[str] = set()
     with pymupdf.open(str(path)) as document:
         for page_no, page in enumerate(document, start=1):
             numbers, title = read_title_block(page, engine)
@@ -271,9 +273,10 @@ def _read_scanned(path: Path) -> list[DrawingSheetRow]:
                 if _scanned_title_score(better_title) > _scanned_title_score(title):
                     title = better_title
                 numbers = numbers + better_numbers
-            if might_be_index(page_no, title):
+            if might_be_index(page_no, title, numbers, seen_letters):
                 for number, readings_of_title in read_index(page, engine).items():
                     index.setdefault(number, []).extend(readings_of_title)
+            seen_letters.update(re.match(r"[A-Z]*", number).group(0) for number in numbers)
             titles.append(title)
             readings.append(numbers)
     sheets: dict[str, DrawingSheetRow] = {}
@@ -468,8 +471,13 @@ def drawing_subject(title: str) -> str:
 
 #: 圖名裡不會出現、但固定畫在某幾種圖上的東西。秀山水電圖沒有一張叫「開關箱」：每個開關箱、配電盤
 #: 畫在電氣單線圖與負載表上（圖說索引的說明也這樣寫），所以名稱對不到也算相關。
+#: 牆面、平頂、踢腳的粉刷與貼磚畫在「地坪及牆面飾材配置圖」「天花飾材配置圖」上（秀山建築圖），工項名稱
+#: 沒有「飾材」兩個字。不收單獨的「油漆」：鋼構的「防鏽油漆」不畫在飾材圖上。
 SHOWN_ON = {
     ("開關箱", "配電盤", "分電盤", "電錶箱", "電表箱"): ("單線圖", "負載表"),
+    ("水泥漆", "壁磚", "地磚", "踢腳", "粉光", "抿石子"): ("飾材",),
+    #: 消防圖叫「消防設備平面圖」「消防設備設置說明」，標單分項叫「滅火器及火警自動警報設備」：沒有共同的字
+    ("滅火器", "火警", "探測器", "避難"): ("消防",),
 }
 
 

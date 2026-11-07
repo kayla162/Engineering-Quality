@@ -149,6 +149,13 @@ def test_index_pages_are_the_front_pages_or_titled_as_an_index():
     assert might_be_index(40, "給水圖號索引") and not might_be_index(40, "一層平面圖")
 
 
+def test_the_first_sheet_of_a_new_prefix_may_be_an_index():
+    """秀山水電圖每段的索引頁是該段第一張；消防那段的圖名讀不出「索引」，靠「新字首、流水號 01」找到。"""
+    assert might_be_index(44, "", ["F0-01", "F0-01"], {"E", "TC"})
+    assert not might_be_index(45, "", ["F0-02"], {"E", "TC", "F"})
+    assert not might_be_index(60, "", ["E3-01"], {"E", "TC"})
+
+
 def test_long_runs_marks_only_lines():
     dark = np.zeros((3, 10), dtype=bool)
     dark[0, 1:9] = True  # 8 個連續：是線

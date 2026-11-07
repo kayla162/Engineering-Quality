@@ -115,14 +115,18 @@ def _numbers(page: pymupdf.Page, lines: list[tuple[pymupdf.Rect, str]], engine: 
     秀山結構圖實測：連標籤一起框的舊讀法 32 頁讀對 16、讀錯 6（「S2-01」讀成「S7-01」）；只框值、
     擦掉框線後讀對的多很多、沒有讀錯。舊讀法仍留著當其中一票，偶爾只有它讀得到。
     """
-    labels = [rect for rect, text in lines if _NUMBER_LABEL.search(text)]
+    labels = [(rect, text) for rect, text in lines if _NUMBER_LABEL.search(text)]
     if not labels:
         return []
-    label = max(labels, key=lambda rect: rect.y0)
+    label, label_text = max(labels, key=lambda item: item[0].y0)
     right = page.rect.width - 2
-    value = pymupdf.Rect(label.x1 + 2, label.y0 - 16, right, label.y1 + 4) & page.rect
+    # 標籤和圖號可能被讀成同一行（秀山水電圖消防那一段：「DWG NO. FO-01」）：那一行讀到的圖號算一票，
+    # 值那一格從圖號在這行裡的位置起框，不是從整行的右端（那裡已經沒有字了）
+    in_label = sheet_numbers_with_spans(label_text)
+    found = [number for number, _ in in_label]
+    left = label.x0 + label.width * in_label[0][1][0] - 4 if in_label else label.x1 + 2
+    value = pymupdf.Rect(left, label.y0 - 16, right, label.y1 + 4) & page.rect
     whole = pymupdf.Rect(label.x0, label.y0 - 14, right, label.y1 + 4) & page.rect
-    found = []
     if not value.is_empty:
         for dpi in NUMBER_VALUE_DPIS:
             found += _sheet_numbers(_ocr_lines(page, value, dpi, engine, language="eng", erase_lines=True))

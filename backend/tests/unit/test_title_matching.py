@@ -67,3 +67,17 @@ def test_an_ambiguous_correction_is_not_made():
 def test_three_character_windows_are_not_corrected():
     """三個字只差一個字的證據太弱：「辦公桌」不能因為詞彙有「辦公室」就被改掉（秀山建築圖實測）。"""
     assert correct_title("辦公桌詳圖", vocabulary(["辦公室"])) == "辦公桌詳圖"
+
+
+def test_finishes_are_shown_on_the_finishes_plans():
+    """粉刷、貼磚畫在飾材配置圖上，工項名稱沒有「飾材」；鋼構的防鏽油漆不算。"""
+    assert is_related("水泥漆，內牆1:3水泥粉光刷綠建材水性水泥漆", "三層平面圖(地坪及牆面飾材配置圖)")
+    assert is_related("鋪貼壁磚，內牆打底貼30*30cm霧面石英磚", "一樓夾層平面圖(地坪及牆面飾材配置圖)")
+    assert is_related("油漆，踢腳批土+油漆踢腳(H=10cm)", "二層平面(天花飾材配置圖)")
+    assert not is_related("鋼構防鏽油漆", "三層平面圖(地坪及牆面飾材配置圖)")
+
+
+def test_fire_equipment_is_shown_on_the_fire_drawings():
+    assert is_related("滅火器及火警自動警報設備設備", "數量表,消防設備設置說明")
+    assert is_related("避難方向指示燈,C級 標示面板 1:1", "一層平面圖消防設備平面圖")
+    assert not is_related("滅火器及火警自動警報設備設備", "一層平面圖(排水配置)")
