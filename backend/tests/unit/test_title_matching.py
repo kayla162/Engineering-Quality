@@ -88,3 +88,11 @@ def test_grounding_and_lightning_items_are_shown_on_the_lightning_drawings():
     assert is_related("產品，接地導線，硬裸銅絞電線，標稱截面積100mm2", "電避雷針詳圖")
     assert is_related("雷擊計數器需含脈衝輸出-LED顯示功能(IP68)", "屋頂層平面圖(避雷針配置)")
     assert not is_related("接地避雷設備工程", "一層平面圖(排水配置)")
+
+
+def test_antenna_fire_stopping_and_partitions_are_shown_on_their_drawings():
+    assert is_related("數位天線系統配管線及設備工程", "一層平面圖配置圖電信資訊網路及電視設備")
+    assert is_related("膨脹型防火泥(5加崙)", "屋突一層平面圖防火阻絕")
+    assert is_related("UL防火等級岩棉(須符合UL1479)", "防火阻絕設施詳圖")
+    assert not is_related("半明架岩棉天花板", "防火阻絕設施詳圖")
+    assert is_related("一般輕質灌漿輕隔間牆(具2小時防火時效)", "濕式灌漿輕隔間牆詳圖")
