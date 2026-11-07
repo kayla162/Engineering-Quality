@@ -1,6 +1,7 @@
 # 工程法規符合性檢查平台
 
 [![CI](https://github.com/kayla162/Engineering-Quality/actions/workflows/ci.yml/badge.svg)](https://github.com/kayla162/Engineering-Quality/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 上傳工程文件，系統自動找出文件裡引用的法規、標準與規範，向官方資料庫查證它們現在是否有效，
 再把工程的每一個工項對上它該依據的規範、契約與圖說，產出可稽核的報告與檢核表。
@@ -273,9 +274,9 @@ npm test --prefix frontend            # 前端
 
 ## 授權
 
-本專案原始碼版權所有，保留一切權利。如需使用、修改或散布，請先與作者聯繫。
+本專案原始碼採用 [MIT 授權](LICENSE)：可以自由使用、修改、散布與商業利用，只需保留原始的版權與授權聲明。
 
-本專案使用的公開資料依各自的授權條款使用：
+本專案使用的公開資料不在 MIT 授權範圍內，依各自的授權條款使用：
 
 - **全國法規資料庫**：法務部，依[政府資料開放授權條款第 1 版](https://data.gov.tw/license)提供，引用時須註明「資料來源：法務部全國法規資料庫」。
 - **公共工程施工綱要規範**：行政院公共工程委員會，公共工程雲端服務網（技術雲）。
