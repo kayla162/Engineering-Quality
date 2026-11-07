@@ -44,6 +44,7 @@ from app.specs import basis_block, read_spec_chapters
 from app.specs.contract_reader import contract_passages, item_keywords, mentions
 from app.specs.cross_rules import CrossRuleReminder, remind
 from app.specs.drawing_reader import read_drawing_sheets, related_sheets
+from app.specs.title_vocabulary import correct_title, vocabulary
 from app.specs.function_test import FunctionTestDraft, draft_function_test, is_equipment_chapter
 from app.specs.method_statement import MethodStatement, draft_method_statement
 from app.specs.plan_review import PlanReview, review_plan
@@ -557,10 +558,13 @@ class ChecklistService:
             drawing_warning = DRAWING_PARTLY_UNREADABLE.format(files="、".join(unreadable))
         rows = []
         matched_sheets: set[str] = set()
+        match_titles = self._matching_titles(sheets, work_items, layout) if sheets else {}
         for item in work_items:
             code = self._chapter_code(item)
             found = bases.get(item.id, [])
-            drawings = self._related_drawings(item, layout, sheets) if sheets and item.is_leaf else []
+            drawings = (
+                self._related_drawings(item, layout, sheets, match_titles) if sheets and item.is_leaf else []
+            )
             matched_sheets.update(sheet.sheet_no for sheet in drawings)
             method = methods.get(item.id)
 
@@ -629,15 +633,30 @@ class ChecklistService:
             return BoqLayout()
 
     @staticmethod
-    def _related_drawings(item: WorkItem, layout: BoqLayout, sheets: list[DrawingSheet]) -> list[DrawingSheet]:
+    def _matching_titles(
+        sheets: list[DrawingSheet], work_items: list[WorkItem], layout: BoqLayout
+    ) -> dict[int, str]:
+        """比對用的圖名：OCR 讀的圖名先用本案標單的用詞校正錯字（「影視對讚」->「影視對講」）。
+        只用在比對，不改存下來的圖名。"""
+        ocr_sheets = [sheet for sheet in sheets if sheet.is_ocr]
+        if not ocr_sheets:
+            return {}
+        vocab = vocabulary([item.name for item in work_items] + list(layout.sections.values()))
+        return {id(sheet): correct_title(sheet.title, vocab) for sheet in ocr_sheets}
+
+    @staticmethod
+    def _related_drawings(
+        item: WorkItem, layout: BoqLayout, sheets: list[DrawingSheet], match_titles: dict[int, str] | None = None
+    ) -> list[DrawingSheet]:
         """工項名稱或它所屬分項名稱對得上的圖。
 
         真實標單的計價工項多半對不到圖名（「KW-MP PANEL」），契約圖畫的是分項（「開關箱單線圖」）。
         秀山標單逐項比對時約 7 成對不到。
         """
+        match_titles = match_titles or {}
         found: dict[str, DrawingSheet] = {}
         for name in (item.name, *layout.sections_of(item.item_no)):
-            for sheet in related_sheets(name, sheets):
+            for sheet in related_sheets(name, sheets, lambda s: match_titles.get(id(s), s.title)):
                 found.setdefault(f"{sheet.document_id}:{sheet.sheet_no}", sheet)
         return sorted(found.values(), key=lambda s: s.sheet_no)
 

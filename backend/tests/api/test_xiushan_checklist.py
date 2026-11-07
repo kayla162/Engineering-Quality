@@ -150,8 +150,8 @@ async def test_the_real_scanned_drawings(api_client, monkeypatch):
 
 #: 2026-11 實測（三冊真實掃描圖、分項比對）。示範圖逐項比對時是 750；開關箱對單線圖、負載表之前是 595；
 #: 之後 fast 模型 312，設了 TESSDATA_BEST_PATH 補讀 297
-#: fast 模型：312 → 圖號整冊決定後 290 → 圖名也從掃描索引表來之後 279
-REAL_BOQ_NOT_IN_DRAWINGS = 297 if settings.TESSDATA_BEST_PATH else 279
+#: fast 模型：312 → 圖號整冊決定後 290 → 圖名也從掃描索引表來之後 279 → 圖名拆主體、用標單用詞校正錯字後 117
+REAL_BOQ_NOT_IN_DRAWINGS = 297 if settings.TESSDATA_BEST_PATH else 117
 
 
 PLAN = DOCS / "整體品質計畫.docx"

@@ -68,6 +68,24 @@ _DRAWING_KIND = re.compile(r"(?:詳圖|大樣圖|平面圖|立面圖|剖面圖|�
 #: 圖名主體的字至少要有這個比例出現在工項名稱裡
 MIN_OVERLAP = 0.5
 
+#: 圖名常把好幾樣東西寫在一起、前面加樓層：「一層平面圖(排水配置)」「二層配置圖電信,資訊網路及電視設備」
+#: 「安全監視暨緊急求救/影視對講/…」。主體開頭若是「一層」，上面的規則永遠對不到「資訊網路系統」這種工項
+#: （秀山水電圖實測）。所以另外把圖名拆開：去樓層方位前綴、去圖種字尾，拆出來的每一段**整段**出現在
+#: 工項名稱裡才算——比主體規則嚴，因為拆出來的段短。
+_SUBJECT_SPLIT = re.compile(r"[.,，、/／()（）〈〉及與暨;；|]+")
+_PLACE_PREFIX = re.compile(
+    r"^(?:全區|基地內?|屋突(?:[一二三四五六七八九十\d]+層)?|屋頂層?|地下[一二三四五六七八九十\d]+層|"
+    r"[一二三四五六七八九十\d]+(?:層|樓)?至[一二三四五六七八九十\d]+(?:層|樓)|"
+    r"[一二三四五六七八九十\d]+(?:層|樓)(?:夾層)?|[東西南北]向|縱向|橫向)+"
+)
+_GENERIC_TAIL = re.compile(
+    r"(?:平面圖|立面圖|剖面圖|配置圖|詳圖|大樣圖|系統圖|昇位圖|示意圖|說明|規範|平面|配置|設備|圖)+$"
+)
+#: 段的開頭也常是圖種（「配置圖電信」）
+_GENERIC_HEAD = re.compile(r"^(?:平面圖|立面圖|剖面圖|配置圖|詳圖|大樣圖|系統圖|昇位圖|示意圖|平面|配置)+")
+#: 拆出來太泛、不能單獨拿來比的段
+_TOO_GENERIC = {"工程", "設備", "系統", "圖例", "位置", "內容", "索引表", "索引", "概要", "工程概要", "說明", "規範", "詳細"}
+
 
 @dataclass(frozen=True)
 class DrawingSheetRow:
@@ -460,12 +478,29 @@ def is_related(item_name: str, sheet_title: str) -> bool:
         if any(thing in item_name for thing in things) and any(kind in sheet_title for kind in kinds):
             return True
     subject = drawing_subject(sheet_title)
-    if len(subject) < 2 or subject[:2] not in item_name:
-        return False
-    hits = sum(1 for char in set(subject) if char in item_name)
-    return hits / len(set(subject)) >= MIN_OVERLAP and hits >= 2
+    if len(subject) >= 2 and subject[:2] in item_name:
+        hits = sum(1 for char in set(subject) if char in item_name)
+        if hits / len(set(subject)) >= MIN_OVERLAP and hits >= 2:
+            return True
+    # 工項名稱括號裡的附註（「櫥櫃工程(…出線口插座面板…)」）不拿來比
+    name = re.split(r"[（(]", item_name)[0]
+    return any(part in name for part in title_subjects(sheet_title))
 
 
-def related_sheets(item_name: str, sheets) -> list:
-    """和工項名稱相關的圖，依圖號排序。sheets 可以是 DrawingSheetRow 或 DrawingSheet。"""
-    return sorted((s for s in sheets if is_related(item_name, s.title)), key=lambda s: s.sheet_no)
+def title_subjects(title: str) -> list[str]:
+    """圖名拆成畫了哪幾樣東西：「一層平面圖(排水配置)」->「排水」、
+    「二層配置圖電信,資訊網路及電視設備」->「電信」「資訊網路」「電視」。至少兩個中文字、不是泛稱。"""
+    parts = []
+    for part in _SUBJECT_SPLIT.split(title):
+        part = _GENERIC_HEAD.sub("", _PLACE_PREFIX.sub("", part))
+        part = _GENERIC_HEAD.sub("", _PLACE_PREFIX.sub("", _GENERIC_TAIL.sub("", part)))
+        if len(_CJK.findall(part)) >= 2 and part not in _TOO_GENERIC:
+            parts.append(part)
+    return list(dict.fromkeys(parts))
+
+
+def related_sheets(item_name: str, sheets, title_of=None) -> list:
+    """和工項名稱相關的圖，依圖號排序。sheets 可以是 DrawingSheetRow 或 DrawingSheet。
+    title_of：比對用的圖名（例如校正過 OCR 錯字的），預設是 sheet.title。"""
+    title_of = title_of or (lambda sheet: sheet.title)
+    return sorted((s for s in sheets if is_related(item_name, title_of(s))), key=lambda s: s.sheet_no)
