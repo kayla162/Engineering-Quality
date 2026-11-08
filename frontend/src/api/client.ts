@@ -13,6 +13,7 @@ import type {
   Job,
   KnowledgeSearchMode,
   KnowledgeSearchResult,
+  RegulationAnswer,
   ManagedUser,
   Project,
   ProjectDocumentLink,
@@ -125,6 +126,12 @@ export const api = {
   search: (q: string, limit = 10) => request<SearchResult>(`/search${query({ q, limit })}`),
   searchKnowledge: (q: string, mode: KnowledgeSearchMode = "hybrid", limit = 10) =>
     request<KnowledgeSearchResult>(`/search/knowledge${query({ q, mode, limit })}`),
+  answerQuestion: (question: string) =>
+    request<RegulationAnswer>("/search/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }),
 
   listEnterpriseDocuments: () => request<EnterpriseDocumentList>("/enterprise-documents"),
 

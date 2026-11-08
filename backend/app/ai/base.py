@@ -37,6 +37,25 @@ class SimilarityJudgement(BaseModel):
     reason: str = Field(description="一句話說明判斷理由")
 
 
+class Citation(BaseModel):
+    ref: str = Field(description="引用的條文識別字，必須和提供的條文標題一字不差，例如「建築法 第 69 條」")
+    quote: str = Field(description="從該條文原文逐字複製、直接支持回答的句子；不可改寫、不可摘要")
+
+
+class RegulationAnswer(BaseModel):
+    answerable: bool = Field(description="提供的條文是否足以回答問題；不足就填 false")
+    answer: str = Field(description="繁體中文回答；answerable=false 時說明缺少什麼")
+    citations: list[Citation] = Field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class Passage:
+    """送給模型的一段條文（檢索結果）。"""
+
+    ref: str
+    text: str
+
+
 # --- 呼叫紀錄 ---
 
 @dataclass(slots=True)
@@ -52,6 +71,8 @@ class LLMCallRecord:
     latency_ms: int | None = None
     error: str | None = None
     notes: list[str] = field(default_factory=list)
+    #: 實際用量：input_tokens / output_tokens / cache_read_input_tokens，用來算每次呼叫的成本
+    usage: dict[str, int] | None = None
 
 
 T = TypeVar("T")
@@ -96,3 +117,12 @@ class LLMProvider(ABC):
     @abstractmethod
     async def summarize_for_report(self, findings: list[str]) -> LLMResult[str]:
         """把結構化的查核結果轉成人類可讀的說明文字（只負責語言表達，不做判斷）。"""
+
+    async def answer_regulation_question(
+        self, question: str, passages: list[Passage]
+    ) -> LLMResult[RegulationAnswer]:
+        """只根據 `passages` 回答法規問題並逐字引用。引用由呼叫端再驗證一次（app/search/grounding.py）。
+
+        不是抽象方法：沒實作問答的 provider 直接回傳 value=None，呼叫端當成「AI 無法回答」。
+        """
+        return LLMResult(value=None)

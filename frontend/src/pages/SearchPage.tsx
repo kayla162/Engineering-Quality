@@ -1,7 +1,13 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 
 import { ApiError, api } from "../api/client";
-import type { KnowledgeSearchMode, KnowledgeSearchResult, RegulationStatus, SearchResult } from "../api/types";
+import type {
+  KnowledgeSearchMode,
+  KnowledgeSearchResult,
+  RegulationAnswer,
+  RegulationStatus,
+  SearchResult,
+} from "../api/types";
 import { StatusBadge } from "../components/StatusBadge";
 import { SOURCE_LABELS } from "../labels";
 
@@ -31,12 +37,52 @@ function channels(ranks: KnowledgeSearchResult["hits"][number]["ranks"]): string
     .join("、");
 }
 
+/** AI 回答。只顯示通過引用驗證的回答；其他狀態照實說明，不讓人以為有答案。 */
+function AnswerPanel({ result }: { result: RegulationAnswer }) {
+  if (result.status === "unavailable") {
+    return <p className="hint">AI 沒有啟用，無法回答。可以直接看下方檢索到的條文。</p>;
+  }
+  if (result.status === "unverified") {
+    return (
+      <p className="error">
+        AI 的回答沒有任何一條引用能在條文原文裡找到，為避免誤導不顯示回答。請直接閱讀檢索到的條文：
+        {result.retrieved.join("、")}
+      </p>
+    );
+  }
+  return (
+    <div className="answer">
+      {result.status === "insufficient" && <p className="hint">提供的條文不足以回答這個問題：</p>}
+      <p>{result.answer}</p>
+      {result.citations.length > 0 && (
+        <ul>
+          {result.citations.map((citation, index) => (
+            <li key={`${citation.ref}-${index}`}>
+              <strong>{citation.ref}</strong>：「{citation.quote}」{" "}
+              {citation.verified ? (
+                <span className="hint">✓ 已比對原文</span>
+              ) : (
+                <span className="error">未通過驗證：{citation.problem}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="hint">
+        AI 回答（{result.model}），只根據檢索到的條文；引文已逐字比對原文，但結論仍請自行確認。
+      </p>
+    </div>
+  );
+}
+
 /** 跨文件檢索：法規條文與規範章節（混合搜尋），以及已分析文件的段落（字詞相似度）。 */
 export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: string) => void }) {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<KnowledgeSearchMode>("hybrid");
   const [result, setResult] = useState<SearchResult | null>(null);
   const [knowledge, setKnowledge] = useState<KnowledgeSearchResult | null>(null);
+  const [answer, setAnswer] = useState<RegulationAnswer | null>(null);
+  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +102,19 @@ export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: st
       setError(err instanceof ApiError ? err.message : "無法搜尋");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function ask() {
+    if (query.trim().length < 2) return;
+    setAsking(true);
+    setError(null);
+    try {
+      setAnswer(await api.answerQuestion(query.trim()));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "無法回答");
+    } finally {
+      setAsking(false);
     }
   }
 
@@ -80,8 +139,18 @@ export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: st
           </select>
         </label>
         <button type="submit" disabled={busy || !query.trim()}>{busy ? "搜尋中…" : "搜尋"}</button>
+        <button type="button" onClick={() => void ask()} disabled={asking || query.trim().length < 2}>
+          {asking ? "AI 回答中…" : "問 AI"}
+        </button>
       </form>
       {error && <p className="error">{error}</p>}
+
+      {answer && (
+        <>
+          <h3>AI 回答</h3>
+          <AnswerPanel result={answer} />
+        </>
+      )}
 
       {knowledge && (
         <>

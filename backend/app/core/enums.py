@@ -139,6 +139,7 @@ class AIPurpose(StrEnum):
     EXTRACTION = "extraction"
     SIMILARITY_JUDGEMENT = "similarity_judgement"
     REPORT_SUMMARY = "report_summary"
+    REGULATION_QA = "regulation_qa"
 
 
 class DocumentRole(StrEnum):

@@ -2,19 +2,22 @@
 
 - `GET /api/search`：這個租戶上傳文件的段落（字詞相似度）
 - `GET /api/search/knowledge`：法規條文與施工綱要規範章節（混合搜尋，見 app/search/hybrid.py）
+- `POST /api/search/answer`：依檢索到的條文回答問題並驗證引用（services/regulation_qa_service.py）
 """
 
 import asyncio
 import uuid
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.ai.factory import get_llm_provider
 from app.api.deps import CurrentUserDep, DbSession
 from app.search.corpus import default_aliases
 from app.search.embeddings import get_embedder
 from app.search.hybrid import MODES
 from app.services.knowledge_search_service import KnowledgeSearchService
+from app.services.regulation_qa_service import RegulationQAService
 from app.services.search_service import METHOD_NOTE, SearchService
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -101,4 +104,44 @@ async def search_knowledge(
         vector_enabled=result.vector_enabled,
         method_note=result.method_note,
         hits=[KnowledgeHitOut(**vars(hit)) for hit in result.hits],
+    )
+
+
+class AnswerIn(BaseModel):
+    question: str = Field(..., min_length=2, max_length=300)
+
+
+class CitationOut(BaseModel):
+    ref: str
+    quote: str
+    #: false：引文不在該條原文裡、或那條不是這次提供的條文，problem 說明原因
+    verified: bool
+    problem: str | None
+
+
+class AnswerOut(BaseModel):
+    question: str
+    #: answered／insufficient（條文不足以回答）／unverified（引用都沒通過驗證，不顯示回答）／unavailable
+    status: str
+    answer: str
+    citations: list[CitationOut]
+    #: 送給模型的條文（混合搜尋的名次順序）
+    retrieved: list[str]
+    model: str | None
+    prompt_version: str | None
+
+
+@router.post("/answer", response_model=AnswerOut)
+async def answer_question(body: AnswerIn, session: DbSession, user: CurrentUserDep):
+    embedder = await asyncio.to_thread(get_embedder)
+    search = KnowledgeSearchService(session, embedder, default_aliases())
+    result = await RegulationQAService(session, get_llm_provider(), search).answer(body.question.strip())
+    return AnswerOut(
+        question=result.question,
+        status=result.status,
+        answer=result.answer,
+        citations=[CitationOut(**vars(c)) for c in result.citations],
+        retrieved=result.retrieved,
+        model=result.model,
+        prompt_version=result.prompt_version,
     )

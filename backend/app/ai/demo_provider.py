@@ -15,11 +15,14 @@ import re
 import time
 
 from app.ai.base import (
+    Citation,
     ExtractedItem,
     ExtractionResult,
     LLMCallRecord,
     LLMProvider,
     LLMResult,
+    Passage,
+    RegulationAnswer,
     SimilarityJudgement,
 )
 from app.core.enums import AIPurpose, RegulationType
@@ -93,6 +96,26 @@ class DemoProvider(LLMProvider):
         return LLMResult(
             value=summary,
             record=self._record(AIPurpose.REPORT_SUMMARY, "\n".join(findings), {"summary": summary}, None, started),
+        )
+
+    async def answer_regulation_question(
+        self, question: str, passages: list[Passage]
+    ) -> LLMResult[RegulationAnswer]:
+        """示範：不理解問題，直接摘錄檢索第 1 名條文的第一句。看得到問答流程與引用驗證，但不是回答。"""
+        started = time.perf_counter()
+        if not passages:
+            answer = RegulationAnswer(answerable=False, answer="示範規則：沒有檢索到條文。", citations=[])
+        else:
+            top = passages[0]
+            first = re.split(r"(?<=[。；])", top.text, maxsplit=1)[0].strip() or top.text[:80]
+            answer = RegulationAnswer(
+                answerable=True,
+                answer=f"示範摘錄（非 AI 回答）：{top.ref} 規定「{first}」",
+                citations=[Citation(ref=top.ref, quote=first)],
+            )
+        return LLMResult(
+            value=answer,
+            record=self._record(AIPurpose.REGULATION_QA, question, answer.model_dump(), None, started),
         )
 
     def _record(self, purpose, input_text, output, confidence, started) -> LLMCallRecord:
