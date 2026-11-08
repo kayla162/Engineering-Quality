@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm ci --prefix frontend && npm run build:demo --prefix frontend",
+  "outputDirectory": "frontend/dist-demo",
+  "installCommand": "echo skip",
+  "framework": null
+}

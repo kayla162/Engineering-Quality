@@ -79,8 +79,29 @@ function AnswerPanel({ result }: { result: RegulationAnswer }) {
   );
 }
 
+/** 搜尋頁用到的三支 API。展示版（src/demo/）換成讀預錄資料的版本，畫面程式不必分兩套。 */
+export interface SearchBackend {
+  search: (q: string) => Promise<SearchResult>;
+  searchKnowledge: (q: string, mode: KnowledgeSearchMode) => Promise<KnowledgeSearchResult>;
+  answerQuestion: (question: string) => Promise<RegulationAnswer>;
+}
+
+/** 展示版的預設問題：點一下就搜尋並問 AI，輸入框改為唯讀。 */
+export interface PresetQuestion {
+  group: string;
+  question: string;
+}
+
 /** 跨文件檢索：法規條文與規範章節（混合搜尋），以及已分析文件的段落（字詞相似度）。 */
-export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: string) => void }) {
+export function SearchPage({
+  onOpenDocument,
+  backend = api,
+  presets,
+}: {
+  onOpenDocument: (documentId: string) => void;
+  backend?: SearchBackend;
+  presets?: PresetQuestion[];
+}) {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<KnowledgeSearchMode>("hybrid");
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -92,13 +113,17 @@ export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: st
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!query.trim()) return;
+    await runSearch(query);
+  }
+
+  async function runSearch(text: string) {
+    if (!text.trim()) return;
     setBusy(true);
     setError(null);
     try {
       const [sections, articles] = await Promise.all([
-        api.search(query.trim()),
-        api.searchKnowledge(query.trim(), mode),
+        backend.search(text.trim()),
+        backend.searchKnowledge(text.trim(), mode),
       ]);
       setResult(sections);
       setKnowledge(articles);
@@ -109,12 +134,12 @@ export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: st
     }
   }
 
-  async function ask() {
-    if (query.trim().length < 2) return;
+  async function ask(text: string = query) {
+    if (text.trim().length < 2) return;
     setAsking(true);
     setError(null);
     try {
-      setAnswer(await api.answerQuestion(query.trim()));
+      setAnswer(await backend.answerQuestion(text.trim()));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "無法回答");
     } finally {
@@ -122,26 +147,58 @@ export function SearchPage({ onOpenDocument }: { onOpenDocument: (documentId: st
     }
   }
 
+  function choose(preset: PresetQuestion) {
+    setQuery(preset.question);
+    setAnswer(null);
+    void runSearch(preset.question);
+    void ask(preset.question);
+  }
+
+  const groups = presets ? [...new Set(presets.map((p) => p.group))] : [];
+
   return (
     <section className="card">
       <h2>跨文件搜尋</h2>
+      {presets && (
+        <div className="presets">
+          {groups.map((group) => (
+            <div key={group}>
+              <p className="hint">{group}</p>
+              {presets.filter((p) => p.group === group).map((preset) => (
+                <button
+                  key={preset.question}
+                  type="button"
+                  className="preset"
+                  disabled={busy || asking}
+                  onClick={() => choose(preset)}
+                >
+                  {preset.question}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       <form className="filters" onSubmit={(event) => void submit(event)}>
         <label>
           關鍵字
           <input
             value={query}
+            readOnly={Boolean(presets)}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="例如：開挖多深要做擋土支撐、建築法第 34 條、03310"
+            placeholder={presets ? "從上方選一個問題" : "例如：開挖多深要做擋土支撐、建築法第 34 條、03310"}
           />
         </label>
-        <label>
-          法規搜尋方式
-          <select value={mode} onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}>
-            {(Object.keys(MODE_LABELS) as KnowledgeSearchMode[]).map((key) => (
-              <option key={key} value={key}>{MODE_LABELS[key]}</option>
-            ))}
-          </select>
-        </label>
+        {!presets && (
+          <label>
+            法規搜尋方式
+            <select value={mode} onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}>
+              {(Object.keys(MODE_LABELS) as KnowledgeSearchMode[]).map((key) => (
+                <option key={key} value={key}>{MODE_LABELS[key]}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <button type="submit" disabled={busy || !query.trim()}>{busy ? "搜尋中…" : "搜尋"}</button>
         <button type="button" onClick={() => void ask()} disabled={asking || query.trim().length < 2}>
           {asking ? "AI 回答中…" : "問 AI"}
