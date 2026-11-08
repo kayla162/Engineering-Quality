@@ -22,6 +22,8 @@ from app.ai.base import (
     LLMCallRecord,
     LLMProvider,
     LLMResult,
+    Passage,
+    RegulationAnswer,
     SimilarityJudgement,
 )
 from app.core.config import settings
@@ -32,10 +34,25 @@ logger = logging.getLogger(__name__)
 
 
 def _json_schema(model: type[BaseModel]) -> dict[str, Any]:
-    """Pydantic model -> Anthropic structured output 需要的 JSON Schema。"""
+    """Pydantic model -> Anthropic structured output 需要的 JSON Schema。
+
+    API 要求**每一層** object（包含 $defs 裡的巢狀模型）都明確寫 additionalProperties: false，
+    只設最外層會被 400 擋下。
+    """
     schema = model.model_json_schema()
-    schema["additionalProperties"] = False
+    _close_objects(schema)
     return schema
+
+
+def _close_objects(node: Any) -> None:
+    if isinstance(node, dict):
+        if node.get("type") == "object":
+            node["additionalProperties"] = False
+        for value in node.values():
+            _close_objects(value)
+    elif isinstance(node, list):
+        for item in node:
+            _close_objects(item)
 
 
 class AnthropicProvider(LLMProvider):
@@ -92,6 +109,23 @@ class AnthropicProvider(LLMProvider):
             value=result.value.summary if result.value else None, record=result.record
         )
 
+    async def answer_regulation_question(
+        self, question: str, passages: list[Passage]
+    ) -> LLMResult[RegulationAnswer]:
+        return await self._call(
+            purpose=AIPurpose.REGULATION_QA,
+            prompt_version=prompts.QA_PROMPT_VERSION,
+            system=prompts.QA_SYSTEM,
+            user=prompts.qa_user_prompt(question, passages),
+            output_model=RegulationAnswer,
+            model=settings.QA_MODEL,
+            effort=settings.QA_EFFORT,
+            # 要讀多條條文、可能思考較久：給足輸出空間與時間
+            max_tokens=16000,
+            timeout=180.0,
+            fallbacks=True,
+        )
+
     # --- 共用的呼叫流程 ---
 
     async def _call(
@@ -101,24 +135,42 @@ class AnthropicProvider(LLMProvider):
         system: str,
         user: str,
         output_model: type[BaseModel],
+        model: str | None = None,
+        effort: str | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
+        fallbacks: bool = False,
     ) -> LLMResult[Any]:
+        model = model or self._model
         record = LLMCallRecord(
             purpose=purpose,
-            model=self._model,
+            model=model,
             prompt_version=prompt_version,
             input_text=user,
         )
+        output_config: dict[str, Any] = {
+            "format": {"type": "json_schema", "schema": _json_schema(output_model)}
+        }
+        if effort:
+            output_config["effort"] = effort
+        request = {
+            "model": model,
+            "max_tokens": max_tokens or settings.LLM_MAX_TOKENS,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+            "output_config": output_config,
+        }
+        client = self._client.with_options(timeout=timeout) if timeout else self._client
         started = time.perf_counter()
         try:
-            response = await self._client.messages.create(
-                model=self._model,
-                max_tokens=settings.LLM_MAX_TOKENS,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-                output_config={
-                    "format": {"type": "json_schema", "schema": _json_schema(output_model)}
-                },
-            )
+            if fallbacks:
+                # 安全分類器誤擋（stop_reason=refusal）時，伺服器端依類別改由其他模型接手，
+                # 不用自己維護備援模型清單；實際由哪個模型回答記在 record.model
+                response = await client.beta.messages.create(
+                    betas=["server-side-fallback-2026-07-01"], fallbacks="default", **request
+                )
+            else:
+                response = await client.messages.create(**request)
         except Exception as exc:  # API 錯誤 / 逾時 / 網路問題
             record.latency_ms = int((time.perf_counter() - started) * 1000)
             record.error = f"{type(exc).__name__}: {exc}"
@@ -126,6 +178,13 @@ class AnthropicProvider(LLMProvider):
             return LLMResult(value=None, record=record)
 
         record.latency_ms = int((time.perf_counter() - started) * 1000)
+        record.model = getattr(response, "model", None) or model
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            record.usage = {
+                key: int(getattr(usage, key, 0) or 0)
+                for key in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+            }
 
         # 模型拒絕回答時 stop_reason 會是 refusal，content 不可信任
         if getattr(response, "stop_reason", None) == "refusal":

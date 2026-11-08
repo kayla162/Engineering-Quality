@@ -5,7 +5,14 @@
 只是抽取召回率與比對信心會下降（docs/architecture.md 1.5）。
 """
 
-from app.ai.base import ExtractionResult, LLMProvider, LLMResult, SimilarityJudgement
+from app.ai.base import (
+    ExtractionResult,
+    LLMProvider,
+    LLMResult,
+    Passage,
+    RegulationAnswer,
+    SimilarityJudgement,
+)
 
 
 class NullProvider(LLMProvider):
@@ -28,4 +35,9 @@ class NullProvider(LLMProvider):
         return LLMResult(value=None)
 
     async def summarize_for_report(self, findings: list[str]) -> LLMResult[str]:
+        return LLMResult(value=None)
+
+    async def answer_regulation_question(
+        self, question: str, passages: list[Passage]
+    ) -> LLMResult[RegulationAnswer]:
         return LLMResult(value=None)

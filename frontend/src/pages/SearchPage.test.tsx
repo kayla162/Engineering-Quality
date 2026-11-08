@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { KnowledgeSearchResult, SearchResult } from "../api/types";
+import type { KnowledgeSearchResult, RegulationAnswer, SearchResult } from "../api/types";
 import { stubApi } from "../test/stubApi";
 import { SearchPage } from "./SearchPage";
 
@@ -52,7 +52,25 @@ const KNOWLEDGE: KnowledgeSearchResult = {
   ],
 };
 
+const ANSWER: RegulationAnswer = {
+  question: "溝挖多深要做支撐",
+  status: "answered",
+  answer: "開挖深度在一點五公尺以上、且勞工要進入開挖面作業時，應設擋土支撐。",
+  citations: [
+    { ref: "營造安全衛生設施標準 第 71 條", quote: "其深度在一點五公尺以上", verified: true, problem: null },
+    { ref: "建築法 第 69 條", quote: "挖土一律要做支撐", verified: false, problem: "引文不在該條原文裡（可能改寫、拼湊或引錯條）" },
+  ],
+  retrieved: ["營造安全衛生設施標準 第 71 條", "建築法 第 69 條"],
+  model: "claude-opus-5-5",
+  prompt_version: "qa_v1",
+};
+
 const ROUTES = { "/api/search": RESULT, "/api/search/knowledge": KNOWLEDGE };
+
+async function askAi(term: string) {
+  fireEvent.change(screen.getByLabelText(/關鍵字/), { target: { value: term } });
+  fireEvent.click(screen.getByRole("button", { name: "問 AI" }));
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -126,5 +144,40 @@ describe("SearchPage", () => {
     fireEvent.click(await screen.findByText("品質計畫.txt"));
 
     expect(onOpen).toHaveBeenCalledWith("d1");
+  });
+
+  it("問 AI：顯示回答，並標出每條引用有沒有通過驗證", async () => {
+    const calls = stubApi({ ...ROUTES, "/api/search/answer": ANSWER });
+
+    render(<SearchPage onOpenDocument={vi.fn()} />);
+    await askAi("溝挖多深要做支撐");
+
+    expect(await screen.findByText(/應設擋土支撐。$/)).toBeInTheDocument();
+    expect(screen.getByText("✓ 已比對原文")).toBeInTheDocument();
+    expect(screen.getByText(/未通過驗證：引文不在該條原文裡/)).toBeInTheDocument();
+    expect(calls).toContain("POST /api/search/answer");
+  });
+
+  it("問 AI：引用都沒通過驗證時不顯示回答", async () => {
+    stubApi({ ...ROUTES, "/api/search/answer": { ...ANSWER, status: "unverified", answer: "", citations: [] } });
+
+    render(<SearchPage onOpenDocument={vi.fn()} />);
+    await askAi("溝挖多深要做支撐");
+
+    expect(await screen.findByText(/為避免誤導不顯示回答/)).toBeInTheDocument();
+    expect(screen.queryByText(/應設擋土支撐。$/)).not.toBeInTheDocument();
+  });
+
+  it("問 AI：條文不足時照實說", async () => {
+    stubApi({
+      ...ROUTES,
+      "/api/search/answer": { ...ANSWER, status: "insufficient", answer: "提供的條文沒有規定加班時數。", citations: [] },
+    });
+
+    render(<SearchPage onOpenDocument={vi.fn()} />);
+    await askAi("工人每天加班幾小時算違法");
+
+    expect(await screen.findByText("提供的條文不足以回答這個問題：")).toBeInTheDocument();
+    expect(screen.getByText("提供的條文沒有規定加班時數。")).toBeInTheDocument();
   });
 });

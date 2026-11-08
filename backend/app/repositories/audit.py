@@ -48,6 +48,9 @@ class AuditRepository:
         output = record.output_json
         if record.error:
             output = {"error": record.error, **(output or {})}
+        if record.usage:
+            # token 用量沒有獨立欄位，跟著輸出存，之後算成本用
+            output = {**(output or {}), "_usage": record.usage}
         row = AIInvocationLog(
             job_id=job_id,
             reference_id=reference_id,

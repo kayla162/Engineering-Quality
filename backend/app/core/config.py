@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "anthropic"          # anthropic | demo（示範規則，非真實 AI）| null
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-opus-5"
+    # 法規問答（services/regulation_qa_service.py）。和抽取分開設定：問答要讀多條條文再組織回答，
+    # 用目前的 Opus；effort 預設 medium（Opus 5.5 的預設），評估見 docs/regulation-qa.md
+    QA_MODEL: str = "claude-opus-5-5"
+    QA_EFFORT: str = "medium"
+    #: 送給模型的條文數（混合搜尋的前幾名）
+    QA_TOP_K: int = 8
     LLM_TIMEOUT_SECONDS: float = 60.0
     LLM_MAX_TOKENS: int = 4096
 

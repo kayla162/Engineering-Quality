@@ -802,6 +802,35 @@ multipart 上傳 `.xlsx`（格式見範本），**整份取代**這個租戶的�
 - `vector_enabled` 為 false：後端沒有啟用語意模型（`EMBEDDING_PROVIDER=none`）或還沒建向量，
   `hybrid` 會改用字詞相似度，`vector` 回傳空陣列，`method_note` 會說明。
 
+### `POST /api/search/answer`
+
+根據法規條文回答問題（`{"question": "溝挖多深要做支撐"}`，2～300 字）。混合搜尋取前 `QA_TOP_K` 條條文交給
+`QA_MODEL` 回答，每條引用再逐字比對原文。設計與評估見 [regulation-qa.md](regulation-qa.md)。
+
+```json
+{
+  "question": "溝挖多深要做支撐",
+  "status": "answered",
+  "answer": "開挖深度在一點五公尺以上、使勞工進入開挖面作業時，應設擋土支撐。…",
+  "citations": [
+    { "ref": "營造安全衛生設施標準 第 71 條", "quote": "其深度在一點五公尺以上，使勞工進入開挖面作業者，應設擋土支撐",
+      "verified": true, "problem": null }
+  ],
+  "retrieved": ["營造安全衛生設施標準 第 71 條", "…"],
+  "model": "claude-opus-5-5",
+  "prompt_version": "qa_v1"
+}
+```
+
+| `status` | 意義 |
+|---|---|
+| `answered` | 至少一條引用通過驗證；沒通過的引用 `verified: false`，`problem` 說明原因 |
+| `insufficient` | 模型判斷提供的條文不足以回答，`answer` 說明找到什麼、缺什麼 |
+| `unverified` | 模型有回答，但沒有任何引用通過驗證，`answer` 為空字串，不顯示 |
+| `unavailable` | AI 沒有啟用或呼叫失敗 |
+
+每次呼叫寫進 `ai_invocation_log`（purpose `regulation_qa`，含 token 用量）。
+
 ### `POST /api/regulation-changes/{change_id}/reanalyze`
 
 重新分析引用了這部法規的所有文件，回傳 `{ "jobs": [{ "document_id", "filename", "job_id" }] }`。

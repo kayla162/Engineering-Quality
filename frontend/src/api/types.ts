@@ -445,6 +445,19 @@ export interface KnowledgeSearchResult {
   }[];
 }
 
+/** 法規問答（POST /api/search/answer） */
+export interface RegulationAnswer {
+  question: string;
+  /** answered／insufficient（條文不足以回答）／unverified（引用都沒通過驗證，不顯示回答）／unavailable（AI 未啟用） */
+  status: "answered" | "insufficient" | "unverified" | "unavailable";
+  answer: string;
+  citations: { ref: string; quote: string; verified: boolean; problem: string | null }[];
+  /** 送給模型的條文（混合搜尋的名次順序） */
+  retrieved: string[];
+  model: string | null;
+  prompt_version: string | null;
+}
+
 /** 法規雙重規範提醒（示範目錄）。不是檢核結果；provenance 說明這條有沒有出處。 */
 export interface CrossRuleReminder {
   rule_id: string;

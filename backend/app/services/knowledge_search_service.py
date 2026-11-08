@@ -112,6 +112,11 @@ class KnowledgeSearchService:
 
     # --- 查詢 ---
 
+    async def chunks(self, refs: list[str]) -> list[Chunk]:
+        """依 ref 取完整條文（搜尋結果只有摘錄）。順序和 `refs` 相同，找不到的略過。"""
+        cached = await self._load()
+        return [cached.by_ref[ref] for ref in refs if ref in cached.by_ref]
+
     async def search(self, query: str, mode: str = "hybrid", limit: int = 10) -> KnowledgeSearchResult:
         if mode not in MODES:
             raise ValueError(f"不支援的搜尋方式：{mode}")
