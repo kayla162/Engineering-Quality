@@ -448,8 +448,8 @@ export interface KnowledgeSearchResult {
 /** 法規問答（POST /api/search/answer） */
 export interface RegulationAnswer {
   question: string;
-  /** answered／insufficient（條文不足以回答）／unverified（引用都沒通過驗證，不顯示回答）／unavailable（AI 未啟用） */
-  status: "answered" | "insufficient" | "unverified" | "unavailable";
+  /** answered／insufficient（條文不足以回答）／unverified（引用都沒通過驗證，不顯示回答）／unavailable（AI 未啟用）／failed（這次呼叫失敗） */
+  status: "answered" | "insufficient" | "unverified" | "unavailable" | "failed";
   answer: string;
   citations: { ref: string; quote: string; verified: boolean; problem: string | null }[];
   /** 送給模型的條文（混合搜尋的名次順序） */

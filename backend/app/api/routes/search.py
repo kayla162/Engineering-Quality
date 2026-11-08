@@ -121,7 +121,8 @@ class CitationOut(BaseModel):
 
 class AnswerOut(BaseModel):
     question: str
-    #: answered／insufficient（條文不足以回答）／unverified（引用都沒通過驗證，不顯示回答）／unavailable
+    #: answered／insufficient（條文不足以回答）／unverified（引用都沒通過驗證，不顯示回答）
+    #: ／unavailable（AI 未啟用）／failed（這次呼叫失敗）
     status: str
     answer: str
     citations: list[CitationOut]

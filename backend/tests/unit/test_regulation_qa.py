@@ -151,3 +151,17 @@ def test_schema_closes_nested_objects():
 
     assert schema["additionalProperties"] is False
     assert schema["$defs"]["Citation"]["additionalProperties"] is False
+
+
+async def test_models_without_server_fallbacks_do_not_send_them(monkeypatch):
+    """Haiku 5.5 不支援伺服器端 fallbacks，送了會 400：改走一般 endpoint、不帶這個參數。"""
+    monkeypatch.setattr(settings, "QA_MODEL", "claude-haiku-5-5")
+    provider = AnthropicProvider(api_key="test-key")
+    provider._client = _FakeClient({"answerable": False, "answer": "不足", "citations": []})
+
+    await provider.answer_regulation_question("任何問題", PASSAGES)
+
+    assert provider._client.beta.messages.kwargs is None
+    sent = provider._client.messages.kwargs
+    assert sent["model"] == "claude-haiku-5-5"
+    assert "fallbacks" not in sent

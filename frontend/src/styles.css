@@ -669,3 +669,6 @@ ul.list li.selected {
   gap: 0 10px;
   font-size: 12px;
 }
+
+/* 法規問答：保留模型回答的換行（結論、條件、例外分段） */
+.answer-text { white-space: pre-line; }

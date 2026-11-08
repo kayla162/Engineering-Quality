@@ -36,3 +36,4 @@ data/search_eval/results.json
 # scripts/eval_qa.py 的模型回應快取與逐題結果（可重新產生；摘要在 docs/qa-eval-results.md）
 data/qa_eval/results.json
 data/generated/qa_cache/
+data/qa_eval/compare.json

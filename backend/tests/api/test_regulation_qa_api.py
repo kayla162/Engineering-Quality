@@ -126,6 +126,20 @@ class TestAnswerApi:
         assert body["status"] == "unavailable"
         assert body["retrieved"]
 
+    async def test_a_failed_call_is_not_reported_as_disabled(self, api_client, indexed, monkeypatch):
+        class Failing(ScriptedProvider):
+            async def answer_regulation_question(self, question, passages):
+                record = LLMCallRecord(purpose=AIPurpose.REGULATION_QA, model=self.model, prompt_version="qa_test",
+                                       input_text=question, error="BadRequestError: credit balance is too low")
+                return LLMResult(value=None, record=record)
+
+        use(monkeypatch, Failing(RegulationAnswer(answerable=False, answer="", citations=[])))
+
+        body = await ask(api_client)
+
+        assert body["status"] == "failed"
+        assert body["answer"] == ""
+
     async def test_demo_provider_flow(self, api_client, indexed, monkeypatch):
         use(monkeypatch, DemoProvider())
 

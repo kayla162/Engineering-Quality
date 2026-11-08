@@ -33,6 +33,10 @@ from app.core.logging import log_context
 logger = logging.getLogger(__name__)
 
 
+#: 支援伺服器端 `fallbacks: "default"` 的模型。其他模型（例如 Haiku）送這個參數會 400，就不送
+FALLBACK_MODELS = {"claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"}
+
+
 def _json_schema(model: type[BaseModel]) -> dict[str, Any]:
     """Pydantic model -> Anthropic structured output 需要的 JSON Schema。
 
@@ -123,7 +127,7 @@ class AnthropicProvider(LLMProvider):
             # 要讀多條條文、可能思考較久：給足輸出空間與時間
             max_tokens=16000,
             timeout=180.0,
-            fallbacks=True,
+            fallbacks=settings.QA_MODEL in FALLBACK_MODELS,
         )
 
     # --- 共用的呼叫流程 ---
