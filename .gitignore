@@ -37,3 +37,6 @@ data/search_eval/results.json
 data/qa_eval/results.json
 data/generated/qa_cache/
 data/qa_eval/compare.json
+
+# npm run build:demo 的輸出
+frontend/dist-demo/

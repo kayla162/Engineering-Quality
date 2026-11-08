@@ -672,3 +672,9 @@ ul.list li.selected {
 
 /* 法規問答：保留模型回答的換行（結論、條件、例外分段） */
 .answer-text { white-space: pre-line; }
+
+/* 靜態展示版（src/demo/） */
+.demo-banner { background: var(--possible); color: var(--possible-text); padding: 8px 12px; border-radius: 6px; }
+.presets { display: grid; gap: 8px; margin-bottom: 12px; }
+.presets .hint { margin: 4px 0; }
+button.preset { margin: 0 8px 8px 0; background: transparent; color: inherit; border: 1px solid currentColor; }
