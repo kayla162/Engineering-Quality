@@ -204,6 +204,9 @@ export function SearchPage({
           {asking ? "AI 回答中…" : "問 AI"}
         </button>
       </form>
+      {presets && (
+        <p className="hint">展示版只能選上方的預設問題；完整版可以自由輸入，並即時呼叫模型回答。</p>
+      )}
       {error && <p className="error">{error}</p>}
 
       {answer && (
@@ -241,7 +244,8 @@ export function SearchPage({
         </>
       )}
 
-      {result && (
+      {/* 展示版沒有上傳文件，文件段落與法規名稱永遠是空的，不顯示 */}
+      {result && !presets && (
         <>
           <p className="hint">文件段落：{result.method_note}只搜尋已分析過的文件。</p>
           <h3>相關法規（{result.regulations.length}）</h3>

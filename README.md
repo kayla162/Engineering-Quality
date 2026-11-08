@@ -7,7 +7,7 @@
 再把工程的每一個工項對上它該依據的規範、契約與圖說，產出可稽核的報告與檢核表。
 遇到不確定的規定，直接用口語問，系統會從法規條文裡找出答案並逐字附上出處。
 
-[English summary](docs/portfolio-en.md)
+**[線上 demo](https://engineering-quality.vercel.app/)** · [English summary](docs/portfolio-en.md)
 
 ---
 
@@ -52,7 +52,7 @@
 5. **人工覆核**：確認或否決系統的判斷，覆核結果與系統判斷分開保存。
 6. **報告與檢核表**：匯出 Excel、CSV、PDF 報告，以及工項檢核表與各式表單初稿。
 
-**問 AI**：用口語發問，回答的每個規定都附上逐字引用，並標示已比對原文（左）。
+**問 AI**（[線上 demo](https://engineering-quality.vercel.app/) 可直接點選試用，免登入）：用口語發問，回答的每個規定都附上逐字引用，並標示已比對原文（左）。
 問題超出法規範圍時，系統會照實說明提供的條文不足以回答，不拿相近的條文硬套（右）。
 
 <p align="center">
@@ -349,6 +349,7 @@ python scripts/eval_qa.py --compare --sets dev test     # 模型與 effort 比�
 
 | 文件 | 內容 |
 |---|---|
+| [線上 demo](https://engineering-quality.vercel.app/) | 搜尋與問 AI 的靜態展示版：13 題預設問題（含陷阱題），回答是評估時的真實模型輸出 |
 | [English summary](docs/portfolio-en.md) | 專案與三個成果的英文摘要 |
 | [案例：引用可驗證的法規問答](docs/regulation-qa.md) | 逐字引用與程式驗證、陷阱題、LLM 裁判與抽查、檢索品質對答案的影響、模型選型 |
 | [案例：有評估的法規語意搜尋](docs/semantic-search.md) | pgvector 架構取捨、評估方法、Recall@5 0.54 → 0.91、以數據選定架構的過程 |

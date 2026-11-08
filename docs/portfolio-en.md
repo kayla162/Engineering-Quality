@@ -1,5 +1,7 @@
 # Engineering Regulation Compliance Platform — English Summary
 
+**[Live demo](https://engineering-quality.vercel.app/)**: try the search and Q&A on 13 preset questions, including trap questions, with no login. The answers are real Claude Opus 5.5 outputs recorded during evaluation, and the page makes no API calls.
+
 A platform for Taiwanese public-works quality engineers. It reads construction documents (contracts, specs, bills of quantities, scanned drawings), finds every regulation and standard they cite, checks each one against official government databases, and maps every work item to the spec chapters, contract clauses and drawings it depends on. All judgements carry an explanation and a human-review trail.
 
 Stack: Python 3.12 / FastAPI / SQLAlchemy 2 (async) / PostgreSQL + pgvector, React + TypeScript, Claude API, sentence-transformers (bge-m3), PyMuPDF + Tesseract OCR. ~920 backend and ~140 frontend tests; CI boots the full Docker stack on PostgreSQL.
