@@ -8,7 +8,8 @@
    - answered：至少一條引用通過驗證；沒通過的引用照樣列出、標示原因
    - insufficient：模型說條文不足以回答（這是正確行為，不是失敗）
    - unverified：模型有回答，但沒有任何一條引用通過驗證 → **不顯示回答**，只列出檢索到的條文
-   - unavailable：AI 沒有啟用或呼叫失敗
+   - unavailable：AI 沒有啟用
+   - failed：AI 有啟用，但這次呼叫失敗（逾時、額度不足、輸出格式錯誤…），原因在 ai_invocation_log
 
 每一次呼叫都寫進 ai_invocation_log（含 token 用量），可以回溯是哪個模型、哪版 prompt 回答的。
 評估見 scripts/eval_qa.py 與 docs/regulation-qa.md。
@@ -28,6 +29,7 @@ ANSWERED = "answered"
 INSUFFICIENT = "insufficient"
 UNVERIFIED = "unverified"
 UNAVAILABLE = "unavailable"
+FAILED = "failed"
 #: 檢索時多取幾倍的候選，去掉規範章節後仍湊得滿 top_k 條條文
 CANDIDATE_FACTOR = 3
 
@@ -76,7 +78,7 @@ class RegulationQAService:
             await AuditRepository(self.session).log_ai_call(result.record)
             await self.session.commit()
         if result.value is None:
-            return QAResult(question, UNAVAILABLE, "", retrieved=refs, model=self.provider.model)
+            return QAResult(question, FAILED, "", retrieved=refs, model=self.provider.model)
 
         checked = check_citations(result.value.citations, passages)
         status, answer = decide(result.value.answerable, result.value.answer, checked)

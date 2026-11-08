@@ -3,6 +3,7 @@
     python scripts/eval_qa.py --dry-run                 # 不呼叫 API，只估算 token 與費用
     python scripts/eval_qa.py --sets dev --limit 5      # 先小量試跑
     python scripts/eval_qa.py --write docs/qa-eval-results.md
+    python scripts/eval_qa.py --compare --sets dev test --write docs/qa-model-comparison.md   # 模型／effort 取捨
 
 需要 ANTHROPIC_API_KEY（或 ant auth login）與 requirements-semantic.txt。題目：
 - 可回答：data/search_eval/ 的 keyword、semantic 題（每題已標註正確條文）
@@ -47,6 +48,7 @@ from app.search.hybrid import InMemoryIndex  # noqa: E402
 from app.services.regulation_qa_service import (  # noqa: E402
     ANSWERED,
     CANDIDATE_FACTOR,
+    FAILED,
     INSUFFICIENT,
     UNAVAILABLE,
     UNVERIFIED,
@@ -65,8 +67,23 @@ EMBEDDING_MODEL = "BAAI/bge-m3"
 JUDGE_MODEL = "claude-opus-5-5"
 JUDGE_EFFORT = "high"
 JUDGE_PROMPT_VERSION = "qa_judge_v1"
-#: 美元／百萬 token（claude-opus-5-5）。估費用用，以官方價目為準
-PRICES = {"input_tokens": 4.0, "output_tokens": 20.0, "cache_read_input_tokens": 0.20, "cache_creation_input_tokens": 5.0}
+#: 美元／百萬 token：輸入、輸出、快取讀取、快取寫入（2026-10 官方價目；快取寫入以輸入的 1.25 倍估）。
+#: Haiku 5.5 是 10 萬 token 以內的價格；這裡每題只有幾千 token
+MODEL_PRICES = {
+    "claude-opus-5-5": (4.0, 20.0, 0.20, 5.0),
+    "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.5),
+    "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125),
+}
+USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+PRICES = dict(zip(USAGE_KEYS, MODEL_PRICES[JUDGE_MODEL]))
+#: --compare 比較的設定：(模型, effort)。只用混合搜尋，其他條件全部相同
+COMPARE_CONFIGS = [
+    ("claude-opus-5-5", "low"),
+    ("claude-opus-5-5", "medium"),
+    ("claude-opus-5-5", "high"),
+    ("claude-sonnet-5-5", "medium"),
+    ("claude-haiku-5-5", "medium"),
+]
 CONCURRENCY = 4
 
 
@@ -205,11 +222,12 @@ async def judge(client, question: str, gold: list[Passage], response: str, cited
 # --- 主流程 ---
 
 
-def cost(usage: dict | None) -> float:
-    return sum(PRICES[k] * (usage or {}).get(k, 0) for k in PRICES) / 1_000_000
+def cost(usage: dict | None, model: str = JUDGE_MODEL) -> float:
+    prices = dict(zip(USAGE_KEYS, MODEL_PRICES[model]))
+    return sum(prices[k] * (usage or {}).get(k, 0) for k in prices) / 1_000_000
 
 
-async def run(questions, retrieved, by_ref, use_judge: bool) -> list[dict]:
+async def run(questions, retrieved, by_ref, use_judge: bool, retrievers=tuple(RETRIEVERS)) -> list[dict]:
     from anthropic import AsyncAnthropic
 
     from app.ai.anthropic_provider import AnthropicProvider
@@ -225,11 +243,12 @@ async def run(questions, retrieved, by_ref, use_judge: bool) -> list[dict]:
             response = await answer(provider, q["query"], passages)
         row = {
             "id": q["id"], "set": q["set"], "kind": q["kind"], "retriever": retriever, "query": q["query"],
+            "config": f"{settings.QA_MODEL} / {settings.QA_EFFORT}", "requested_model": settings.QA_MODEL,
             "gold": q["gold"], "retrieved": [p.ref for p in passages],
             "gold_in_context": bool(set(q["gold"]) & {p.ref for p in passages}),
         }
         if response is None or "value" not in response:
-            row.update(status=UNAVAILABLE, error=(response or {}).get("error"))
+            row.update(status=FAILED, error=(response or {}).get("error"))
             return row
         output = RegulationAnswer.model_validate(response["value"])
         checked = check_citations(output.citations, passages)
@@ -250,7 +269,7 @@ async def run(questions, retrieved, by_ref, use_judge: bool) -> list[dict]:
         return row
 
     started = time.perf_counter()
-    rows = await asyncio.gather(*(one(q, r) for q in questions for r in RETRIEVERS))
+    rows = await asyncio.gather(*(one(q, r) for q in questions for r in retrievers))
     print(f"完成 {len(rows)} 次問答，{time.perf_counter() - started:.0f} 秒", file=sys.stderr)
     return list(rows)
 
@@ -269,7 +288,7 @@ def summarize(rows: list[dict]) -> list[str]:
     judged = [r for r in answered if "judge" in r]
     all_citations = [c for r in rows for c in r.get("citations", [])]
     latencies = [r["latency_ms"] for r in rows if r.get("latency_ms")]
-    spend = sum(cost(r.get("usage")) for r in rows)
+    spend = sum(cost(r.get("usage"), r.get("requested_model", JUDGE_MODEL)) for r in rows)
     correct = sum(r["judge"]["correctness"] == "correct" for r in judged)
     partial = sum(r["judge"]["correctness"] == "partial" for r in judged)
     return [
@@ -281,7 +300,7 @@ def summarize(rows: list[dict]) -> list[str]:
         f"| 可回答題：正確條文在送給模型的條文裡 | {pct(sum(r['gold_in_context'] for r in answerable), len(answerable))} |",
         f"| 有回答的題目：主張都有引用條文支持（faithful） | {pct(sum(r['judge']['faithful'] for r in judged), len(judged))} |",
         f"| 無法回答題：正確拒答 | {pct(sum(r['status'] in (INSUFFICIENT, UNVERIFIED) for r in unanswerable), len(unanswerable))} |",
-        f"| 呼叫失敗（不計入以上任何一項） | {pct(sum(r['status'] == UNAVAILABLE for r in rows), len(rows))} |",
+        f"| 呼叫失敗（不計入以上任何一項） | {pct(sum(r['status'] in (FAILED, UNAVAILABLE) for r in rows), len(rows))} |",
         f"| 模型給的引用通過驗證（驗證前的原始品質） | {pct(sum(c['verified'] for c in all_citations), len(all_citations))} |",
         f"| 每題費用（不含裁判） | US${spend / max(len(rows), 1):.3f} |",
         f"| 回答延遲中位數／最慢 | {statistics.median(latencies) / 1000:.1f} 秒／{max(latencies) / 1000:.1f} 秒 |" if latencies else "| 回答延遲 | — |",
@@ -323,6 +342,49 @@ def failures(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def comparison(rows: list[dict], sets: list[str]) -> str:
+    """每種設定一列：品質、拒答、費用、延遲。題目、檢索（混合搜尋）、裁判完全相同。"""
+    lines = [
+        f"題目：{'、'.join(SET_LABELS[s] for s in sets)}合併，可回答 {len({r['id'] for r in rows if r['kind'] == 'answerable'})} 題、"
+        f"無法回答 {len({r['id'] for r in rows if r['kind'] == 'unanswerable'})} 題；檢索一律用混合搜尋（前 {settings.QA_TOP_K} 條）；"
+        f"裁判 {JUDGE_MODEL}（effort {JUDGE_EFFORT}）。",
+        "",
+        "| 模型 / effort | 正確 | 部分正確 | 錯誤 | 誤拒答 | 陷阱題拒答 | faithful | 引用通過驗證 | 每題費用 | 延遲中位數 | 最慢 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for model, effort in COMPARE_CONFIGS:
+        subset = [r for r in rows if r["config"] == f"{model} / {effort}"]
+        answerable = [r for r in subset if r["kind"] == "answerable"]
+        trap = [r for r in subset if r["kind"] == "unanswerable"]
+        judged = [r for r in answerable if "judge" in r]
+        citations = [c for r in subset for c in r.get("citations", [])]
+        latencies = sorted(r["latency_ms"] for r in subset if r.get("latency_ms"))
+        n = len(answerable) or 1
+        count = lambda verdict: sum(r["judge"]["correctness"] == verdict for r in judged)  # noqa: E731
+        lines.append(
+            f"| {model} / {effort} "
+            f"| {count('correct') / n:.0%} | {count('partial') / n:.0%} | {count('incorrect') / n:.0%} "
+            f"| {sum(r['status'] == INSUFFICIENT for r in answerable) / n:.0%} "
+            f"| {sum(r['status'] in (INSUFFICIENT, UNVERIFIED) for r in trap)}/{len(trap)} "
+            f"| {sum(r['judge']['faithful'] for r in judged)}/{len(judged)} "
+            f"| {sum(c['verified'] for c in citations)}/{len(citations)} "
+            f"| US${sum(cost(r.get('usage'), model) for r in subset) / max(len(subset), 1):.4f} "
+            f"| {statistics.median(latencies) / 1000:.1f} 秒 | {latencies[-1] / 1000:.1f} 秒 |"
+            if latencies else f"| {model} / {effort} | — |"
+        )
+    failed = sum(r["status"] in (FAILED, UNAVAILABLE) for r in rows)
+    return "\n".join(lines + ["", f"呼叫失敗 {failed} 次（不計入上表）。"])
+
+
+async def run_compare(questions, retrieved, by_ref, use_judge: bool) -> list[dict]:
+    rows = []
+    for model, effort in COMPARE_CONFIGS:
+        settings.QA_MODEL, settings.QA_EFFORT = model, effort
+        print(f"{model} / {effort}", file=sys.stderr)
+        rows += await run(questions, retrieved, by_ref, use_judge, retrievers=("hybrid",))
+    return rows
+
+
 def dry_run(questions, retrieved) -> None:
     """不呼叫 API：用字數粗估 token（中文約 1 字 ≈ 1 token，偏保守）。"""
     calls = [(q, r) for q in questions for r in RETRIEVERS]
@@ -344,6 +406,7 @@ def main() -> None:
     parser.add_argument("--write", type=Path, help="把結果表格寫進這個 Markdown 檔")
     parser.add_argument("--json", type=Path, default=DATA / "qa_eval" / "results.json")
     parser.add_argument("--audit", type=int, default=0, help="隨機列出 N 題裁判結果，供人工抽查")
+    parser.add_argument("--compare", action="store_true", help="比較 COMPARE_CONFIGS 的模型與 effort（只用混合搜尋）")
     args = parser.parse_args()
 
     questions = load_questions(args.sets)
@@ -354,6 +417,19 @@ def main() -> None:
     retrieved, by_ref = build_retrieval(questions, settings.QA_TOP_K)
     if args.dry_run:
         dry_run(questions, retrieved)
+        if args.compare:
+            print("（--compare 會跑", len(COMPARE_CONFIGS), "種設定、只用混合搜尋；Sonnet 約 Opus 的一半價格、Haiku 約 1/40，"
+                  "已快取的 Opus medium 不再計費）")
+        return
+
+    if args.compare:
+        rows = asyncio.run(run_compare(questions, retrieved, by_ref, not args.no_judge))
+        text = comparison(rows, args.sets)
+        print(text)
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        if args.write:
+            args.write.write_text(f"<!-- 由 scripts/eval_qa.py --compare 產生，不要手改 -->\n\n{text}\n", encoding="utf-8")
         return
 
     rows = asyncio.run(run(questions, retrieved, by_ref, not args.no_judge))

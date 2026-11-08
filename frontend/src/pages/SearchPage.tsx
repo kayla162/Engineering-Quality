@@ -42,6 +42,9 @@ function AnswerPanel({ result }: { result: RegulationAnswer }) {
   if (result.status === "unavailable") {
     return <p className="hint">AI 沒有啟用，無法回答。可以直接看下方檢索到的條文。</p>;
   }
+  if (result.status === "failed") {
+    return <p className="error">AI 這次沒有回應成功，請稍後再試。可以先看下方檢索到的條文。</p>;
+  }
   if (result.status === "unverified") {
     return (
       <p className="error">
@@ -53,7 +56,8 @@ function AnswerPanel({ result }: { result: RegulationAnswer }) {
   return (
     <div className="answer">
       {result.status === "insufficient" && <p className="hint">提供的條文不足以回答這個問題：</p>}
-      <p>{result.answer}</p>
+      {/* 模型的回答會分段、分點，保留換行 */}
+      <p className="answer-text">{result.answer}</p>
       {result.citations.length > 0 && (
         <ul>
           {result.citations.map((citation, index) => (

@@ -827,7 +827,8 @@ multipart 上傳 `.xlsx`（格式見範本），**整份取代**這個租戶的�
 | `answered` | 至少一條引用通過驗證；沒通過的引用 `verified: false`，`problem` 說明原因 |
 | `insufficient` | 模型判斷提供的條文不足以回答，`answer` 說明找到什麼、缺什麼 |
 | `unverified` | 模型有回答，但沒有任何引用通過驗證，`answer` 為空字串，不顯示 |
-| `unavailable` | AI 沒有啟用或呼叫失敗 |
+| `unavailable` | AI 沒有啟用 |
+| `failed` | AI 有啟用，但這次呼叫失敗（逾時、額度不足、輸出格式錯誤等），原因記在 `ai_invocation_log` |
 
 每次呼叫寫進 `ai_invocation_log`（purpose `regulation_qa`，含 token 用量）。
 
