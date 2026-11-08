@@ -48,6 +48,10 @@ describe("靜態展示版", () => {
     expect(screen.getByText("✓ 已比對原文")).toBeInTheDocument();
     expect(await screen.findByText("語意第 1 名")).toBeInTheDocument();
     expect(screen.getByLabelText(/關鍵字/)).toHaveAttribute("readonly");
+    expect(screen.getByText(/展示版只能選上方的預設問題/)).toBeInTheDocument();
+    // 展示版沒有上傳文件：文件段落與法規名稱區塊不顯示，免得看起來像「查不到」
+    expect(screen.queryByText(/相關段落/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/相關法規/)).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
